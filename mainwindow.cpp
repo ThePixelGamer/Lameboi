@@ -83,15 +83,15 @@ void MainWindow::fullscreen() {
     }
 }
 
+void MainWindow::openOptionsWindow() {
+    
+}
+
 void MainWindow::openDebuggerWindow() {
 
 }
 
 void MainWindow::openVRAMWindow() {
-
-}
-
-void MainWindow::openOptionsWindow() {
 
 }
 
