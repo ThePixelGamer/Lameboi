@@ -5,12 +5,15 @@
 #include <QMenu>
 #include <QMenuBar>
 #include <QDesktopServices>
+#include <QLabel>
+#include <QtGui>
+#include <QVBoxLayout>
 
 #include <iostream>
 #include <fstream>
 #include <cstdlib>
 
-#include "GB.h"
+#include "Gameboy/GB.h"
 
 using namespace std;
 
@@ -18,15 +21,22 @@ class MainWindow : public QMainWindow {
 public:
     GB* core;
 
-    MainWindow(QWidget *parent = 0);
-    void setupMenuBar();
+    QMenu context;
+    QMenu* emulation;
+    QMenu* debug;
+
+    bool fullscreenV = false;
+
+    MainWindow(QWidget* parent = nullptr);
+    virtual void contextMenuEvent(QContextMenuEvent*);
+
+    void setupMenus();
     void load();
-    void pause();
-    void resume();
+    void togglePause();
     void fullscreen();
-    void openVideoWindow();
-    void openInputWindow();
-    void openAudioWindow();
+    void openDebuggerWindow();
+    void openVRAMWindow();
+    void openOptionsWindow();
     void openGithubPage();
     void openAboutWindow();
 };
