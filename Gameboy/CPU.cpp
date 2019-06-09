@@ -39,7 +39,7 @@ constexpr int pcTable[256] = {
     0, 1, 0, 1, 0, 1, 2, 0, 0, 1, 0, 1, 0, 0, 2, 0  //f0
 };
 
-constexpr uint8_t bios[256] = {
+constexpr u8 bios[256] = {
     0x31, 0xFE, 0xFF, 0xAF, 0x21, 0xFF, 0x9F, 0x32, 0xCB, 0x7C, 0x20, 0xFB, 0x21, 0x26, 0xFF, 0x0E,
     0x11, 0x3E, 0x80, 0x32, 0xE2, 0x0C, 0x3E, 0xF3, 0xE2, 0x32, 0x3E, 0x77, 0x77, 0x3E, 0xFC, 0xE0,
     0x47, 0x11, 0x04, 0x01, 0x21, 0x10, 0x80, 0x1A, 0xCD, 0x95, 0x00, 0xCD, 0x96, 0x00, 0x13, 0x7B,
@@ -59,14 +59,16 @@ constexpr uint8_t bios[256] = {
 };
 
 CPU::CPU() { //reset everything
-    A = ((uint8_t*) &AF) + 1;
-    F = ((uint8_t*) &AF);
-    B = ((uint8_t*) &BC) + 1;
-    C = ((uint8_t*) &BC);
-    D = ((uint8_t*) &DE) + 1;
-    E = ((uint8_t*) &DE);
-    H = ((uint8_t*) &HL) + 1;
-    L = ((uint8_t*) &HL);
+    SP = AF = BC = DE = HL = 0;
+
+    A = ((pu8) &AF) + 1;
+    F = ((pu8) &AF);
+    B = ((pu8) &BC) + 1;
+    C = ((pu8) &BC);
+    D = ((pu8) &DE) + 1;
+    E = ((pu8) &DE);
+    H = ((pu8) &HL) + 1;
+    L = ((pu8) &HL);
 
     PC = 0;
 }
@@ -88,25 +90,25 @@ void CPU::emulateOpcode() {
         case 0x1E: ld8(E, getNextOffsetByte(1)); break;
         case 0x26: ld8(H, getNextOffsetByte(1)); break;
         case 0x2E: ld8(L, getNextOffsetByte(1)); break;
-        case 0x36: ld8(&memory[*HL], getNextOffsetByte(1)); break;
+        case 0x36: ld8(&memory[HL], getNextOffsetByte(1)); break;
         case 0x3E: ld8(A, getNextOffsetByte(1)); break;
 
-        case 0x02: ld8(&memory[*BC], *A); break;
-        case 0x12: ld8(&memory[*DE], *A); break;
-        case 0x22: ld8(&memory[++*HL], *A); break;
-        case 0x32: ld8(&memory[--*HL], *A); break;
-        case 0x0A: ld8(A, memory[*BC]); break;
-        case 0x1A: ld8(A, memory[*DE]); break;
-        case 0x2A: ld8(A, memory[++*HL]); break;
-        case 0x3A: ld8(A, memory[--*HL]); break;
+        case 0x02: ld8(&memory[BC], *A); break;
+        case 0x12: ld8(&memory[DE], *A); break;
+        case 0x22: ld8(&memory[++HL], *A); break;
+        case 0x32: ld8(&memory[--HL], *A); break;
+        case 0x0A: ld8(A, memory[BC]); break;
+        case 0x1A: ld8(A, memory[DE]); break;
+        case 0x2A: ld8(A, memory[++HL]); break;
+        case 0x3A: ld8(A, memory[--HL]); break;
 
-        case 0xAE: math8(A, memory[*HL], bit_xor<uint16_t>(), 0b10000111); break;
-        case 0xAF: math8(A, *A, bit_xor<uint16_t>(), 0b10000111); break;
+        case 0xAE: math8(A, memory[HL], bit_xor<u16>(), 0b10000111); break;
+        case 0xAF: math8(A, *A, bit_xor<u16>(), 0b10000111); break;
 
         case 0xCB: {
             switch(getNextOffsetByte(1)) {
                 case 0x7C: bit(7, *H); break;
-                case 0x7F: bit(7, memory[*HL]); break;
+                case 0x7F: bit(7, memory[HL]); break;
             }
         } break;
 
@@ -119,16 +121,16 @@ void CPU::emulateOpcode() {
 
 void CPU::nop() {}
 
-void CPU::ld8(uint8_t* reg, uint8_t data) {
+void CPU::ld8(pu8 reg, u8 data) {
     *reg = data;
 }
 
-void CPU::math8(uint8_t* reg, uint8_t addend, function<uint16_t(uint8_t, uint8_t)> func, uint8_t flags) {
+void CPU::math8(pu8 reg, u8 addend, function<u16(u8, u8)> func, u8 flags) {
     *reg = setFlags(func(*reg, addend), *reg, addend, flags);
 }
 
-void CPU::ld16(uint16_t* reg, uint16_t data) {
-    *reg = data;
+void CPU::ld16(u16& reg, u16 data) {
+    reg = data;
 }
 
 void CPU::add16() {
@@ -167,7 +169,7 @@ void CPU::call() {
 void CPU::jp() {
 }
 
-void CPU::jr(uint8_t cond, int8_t data, bool n) {
+void CPU::jr(u8 cond, char data, bool n) {
     if(checkFlags(cond) == n)
         PC += data;
 }
@@ -182,30 +184,29 @@ void CPU::rst() {
     call();
 }
 
-void CPU::push(uint16_t value) {
-    memory[--*SP] = value >> 8;
-    memory[--*SP] = value & 0xff;
+void CPU::push(u16 value) {
+    memory[--SP] = value >> 8;
+    memory[--SP] = value & 0xff;
 }
 
-uint16_t CPU::pop() {
-    return memory[(*SP)++] + (memory[(*SP)++] >> 8);
-
+u16 CPU::pop() {
+    return memory[SP++] + (memory[SP++] >> 8);
 }
 
-void CPU::bit(int bitT, uint8_t byte) {
+void CPU::bit(int bitT, u8 byte) {
     setFlags((byte >> bitT) & 0x1, 0, 0, 0b10100110);
 }
 
-void CPU::changeM(uint8_t value) {
+void CPU::changeM(u8 value) {
     //if(loc >= vramStart && loc < (vramStart + 0x1C00)) {} was swapped out for a PPU SoC
-    memory[*HL] = value;
+    memory[HL] = value;
 } 
 
-bool CPU::checkFlags(uint8_t cond) {
+bool CPU::checkFlags(u8 cond) {
     return ((*F & cond) == cond);
 }
 
-uint8_t CPU::setFlags(uint16_t ans, uint8_t old, uint8_t diff, uint8_t flags) {
+u8 CPU::setFlags(u16 ans, u8 old, u8 diff, u8 flags) {
     if(flags & 0x8) //z
         *F |= flags & 0x80;
     else
@@ -226,7 +227,7 @@ uint8_t CPU::setFlags(uint16_t ans, uint8_t old, uint8_t diff, uint8_t flags) {
 	return (ans & 0xff);
 }
 
-bool CPU::parity(uint16_t ans) {
+bool CPU::parity(u16 ans) {
     int count = 0;
 
     for (int i = 0; i < 8; i++)
@@ -235,10 +236,10 @@ bool CPU::parity(uint16_t ans) {
     return (count % 2 == 0); //need to fix later x d
 }
 
-uint8_t CPU::getNextOffsetByte(int offset) {
+u8 CPU::getNextOffsetByte(int offset) {
     return memory[PC+offset];
 }
 
-uint16_t CPU::getNext2Bytes() {
-    return ((uint16_t)(getNextOffsetByte(2) << 8)) + getNextOffsetByte(1);
+u16 CPU::getNext2Bytes() {
+    return ((u16)(getNextOffsetByte(2) << 8)) + getNextOffsetByte(1);
 }

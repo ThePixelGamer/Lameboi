@@ -14,11 +14,13 @@
 #include <cstdlib>
 
 #include "Gameboy/GB.h"
+#include "emulatorscreen.h"
 
 using namespace std;
 
 class MainWindow : public QMainWindow {
 public:
+    EmulatorScreen* glWidget;
     GB* core;
 
     QMenu context;
@@ -29,6 +31,7 @@ public:
 
     MainWindow(QWidget* parent = nullptr);
     virtual void contextMenuEvent(QContextMenuEvent*);
+    virtual void resizeEvent(QResizeEvent*);
 
     void setupMenus();
     void load();

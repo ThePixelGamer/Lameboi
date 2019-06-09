@@ -39,3 +39,7 @@ void GB::load(string filename) {
         }
     }
 }
+
+void GB::frame() { //call this every frame per 60fps
+    cpu->emulateOpcode();
+}

@@ -5,8 +5,6 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     setWindowTitle("Lameboi");
     setWindowIcon(QIcon(":/LBLogo.svg"));
 
-    setupMenus();
-
     fstream config("config.ini");
     string line;
     int w = 432, h = 480;
@@ -23,10 +21,11 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
         config.close();
     }
     resize(w, h);
-}
 
-void MainWindow::contextMenuEvent(QContextMenuEvent* event) {
-    context.exec(event->globalPos());
+    glWidget = new EmulatorScreen(this);
+    setCentralWidget(glWidget);
+
+    setupMenus();
 }
 
 void MainWindow::setupMenus() {
@@ -124,4 +123,13 @@ void MainWindow::openAboutWindow() {
 
     popup->setLayout(lAbout);
     popup->show();
+}
+
+void MainWindow::contextMenuEvent(QContextMenuEvent* event) {
+    context.exec(event->globalPos());
+}
+
+void MainWindow::resizeEvent(QResizeEvent* event)
+{
+   QMainWindow::resizeEvent(event);
 }

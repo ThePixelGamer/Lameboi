@@ -8,51 +8,51 @@
 #include <vector>
 #include <functional>
 
-typedef uint8_t* puint8;
-typedef uint16_t* puint16;
+typedef uint8_t u8;
+typedef uint16_t u16;
+typedef u8* pu8;
 
 using namespace std;
 
 class CPU {
 public:
-    vector<uint8_t> memory;
-    bool            interruptB, hltB, soundB, runB;
-    uint8_t         opcode, bios[256];
-    puint8          A, F, B, C, D, E, H, L;
-    uint16_t        PC, cycles, cycBefore;
-    puint16         SP = new uint16_t(0), AF = new uint16_t(0), BC = new uint16_t(0), DE = new uint16_t(0), HL = new uint16_t(0);
+    vector<u8>  memory;
+    bool        interruptB, hltB, soundB, runB;
+    u8          opcode, bios[256];
+    pu8         A, F, B, C, D, E, H, L;
+    u16         PC, cycles, cycBefore, SP, AF, BC, DE, HL;
 
     CPU();
-    void            emulateOpcode();
-    bool            checkFlags(uint8_t);
-    uint8_t         setFlags(uint16_t, uint8_t, uint8_t, uint8_t);
-    bool            parity(uint16_t);
-    void            changeM(uint8_t);
-    uint8_t         getNextOffsetByte(int);
-    uint16_t        getNext2Bytes();
+    void        emulateOpcode();
+    bool        checkFlags(u8);
+    u8          setFlags(u16, u8, u8, u8);
+    bool        parity(u16);
+    void        changeM(u8);
+    u8          getNextOffsetByte(int);
+    u16         getNext2Bytes();
 
-    void            nop();  //0x00 - 0x3f
-    void            ld8(uint8_t*, uint8_t);
-    void            math8(uint8_t*, uint8_t, function<uint16_t(uint8_t, uint8_t)>, uint8_t);
-    void            ld16(uint16_t*, uint16_t);
-    void            add16();
-    void            inc16();
-    void            dec16();
-    void            daa();
-    void            scf();
-    void            cpl();
-    void            ccf();
-    void            halt();
-    void            ei();
-    void            di();
-    void            call();
-    void            jp();
-    void            jr(uint8_t, int8_t, bool);
-    void            ret();
-    void            rst();
-    void            push(uint16_t);
-    uint16_t        pop();
+    void        nop();  //0x00 - 0x3f
+    void        ld8(pu8, u8);
+    void        math8(pu8, u8, function<u16(u8, u8)>, u8);
+    void        ld16(u16&, u16);
+    void        add16();
+    void        inc16();
+    void        dec16();
+    void        daa();
+    void        scf();
+    void        cpl();
+    void        ccf();
+    void        halt();
+    void        ei();
+    void        di();
+    void        call();
+    void        jp();
+    void        jr(u8, char, bool);
+    void        ret();
+    void        rst();
+    void        push(u16);
+    u16         pop();
 
-    void            bit(int, uint8_t);
+    void        bit(int, u8);
 
 };

@@ -14,4 +14,5 @@ public:
 
     GB();
     void load(string);
+    void frame();
 };
