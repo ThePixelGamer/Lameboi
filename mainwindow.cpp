@@ -22,10 +22,8 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     }
     resize(w, h);
 
-    glWidget = new EmulatorScreen(this);
-    setCentralWidget(glWidget);
-
     setupMenus();
+    show();
 }
 
 void MainWindow::setupMenus() {
@@ -59,8 +57,14 @@ void MainWindow::setupMenus() {
 
 void MainWindow::load() {
     QString rom = QFileDialog::getOpenFileName(this, "Open a rom...", QDir::currentPath(), tr("Gameboy roms (*.gb);;All Files (*)"));
-    core = new GB();
-    core->load(rom.toStdString());
+
+    if(!rom.isEmpty()) {
+        glWidget = new EmulatorScreen(this);
+        setCentralWidget(glWidget);
+
+        core = new GB();
+        core->load(rom.toStdString(), glWidget);
+    }
 }
 
 void MainWindow::togglePause() {

@@ -2,7 +2,6 @@
 
 #include <stdint.h>
 
-class PPU {
-public:
-    uint8_t*        pixels; //"screen"
+struct PPU {
+    static uint32_t* pixels; //"screen"
 };

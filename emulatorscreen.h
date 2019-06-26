@@ -4,6 +4,9 @@
 #include <QOpenGLFunctions>
 #include <QOpenGLExtraFunctions>
 #include <QTimer>
+#include <gl/GL.h>
+
+#include "Gameboy/PPU.h"
 
 class EmulatorScreen : public QOpenGLWidget, protected QOpenGLExtraFunctions {
 public:
@@ -14,6 +17,9 @@ public:
 
     EmulatorScreen(QWidget* parent = 0);
 
+    QSize minimumSizeHint() const override;
+    void copyPixels(uint32_t*);
+
 protected:
     void initializeGL() Q_DECL_OVERRIDE;
     void resizeGL(int w, int h) Q_DECL_OVERRIDE;
@@ -21,5 +27,4 @@ protected:
 
 private:
     QOpenGLContext* context;
-    QOpenGLFunctions* openGLFunctions;
 };
