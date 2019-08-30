@@ -20,12 +20,16 @@ typedef uint8_t u8;
 using std::string;
 using std::vector;
 
-union rp {
-  struct {
+struct individual {
     u8 low;
     u8 high;
-  };
-  u16 value;
+};
+struct together {
+    u16 value;
+};
+union rp {
+    individual S;
+    together P;
 };
 
 struct CPU {
@@ -34,19 +38,19 @@ struct CPU {
     rp de{};
     rp hl{};
 
-    u8& A = af.high;
-    u8& F = af.low;
-    u8& B = bc.high;
-    u8& C = bc.low;
-    u8& D = de.high;
-    u8& E = de.low;
-    u8& H = hl.high;
-    u8& L = hl.low;
+    u8& A = af.S.high;
+    u8& F = af.S.low;
+    u8& B = bc.S.high;
+    u8& C = bc.S.low;
+    u8& D = de.S.high;
+    u8& E = de.S.low;
+    u8& H = hl.S.high;
+    u8& L = hl.S.low;
 
-    u16& AF = af.value;
-    u16& BC = bc.value;
-    u16& DE = de.value;
-    u16& HL = hl.value;
+    u16& AF = af.P.value;
+    u16& BC = bc.P.value;
+    u16& DE = de.P.value;
+    u16& HL = hl.P.value;
 
     vector<u8>  memory;
     bool        IME, soundB, runB;
