@@ -1,3 +1,9 @@
+.vs/
+build/
+
+# Gameboy ROMS
+*.bin
+
 # Prerequisites
 *.d
 
@@ -30,8 +36,3 @@
 *.exe
 *.out
 *.app
-
-#Qt project files
-*.pro
-*.user
-*.txt
