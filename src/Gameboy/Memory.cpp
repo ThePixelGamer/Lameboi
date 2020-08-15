@@ -4,18 +4,20 @@
 #include <algorithm> //std::fill
 #include <iterator> //std::end
 
+#include <fmt/format.h>
+
 Memory::Memory(Gameboy& t_gb) : gb(t_gb) {
 	Clean();
 }
 
 void Memory::Clean() {
-	std::fill(VRAM, std::end(VRAM), 0);
+	VRAM.fill(0);
 	std::fill(ERAM, std::end(ERAM), 0);
 	std::fill(WRAMBank0, std::end(WRAMBank0), 0);
 	std::fill(WRAMBank1, std::end(WRAMBank1), 0);
 	std::fill(mirrorWRAM, std::end(mirrorWRAM), 0);
 	std::fill(OAM, std::end(OAM), 0);
-	std::fill(unusuable, std::end(unusuable), 0);
+	std::fill(unusuable, std::end(unusuable), 0xFF);
 	ResetIORegs();
 	std::fill(HRAM, std::end(HRAM), 0);
 	IEReg = 0;
@@ -26,12 +28,12 @@ This is used to setup the "unimplemented pins" and various default values
 */
 void Memory::ResetIORegs() {
 	std::fill(IORegs, std::end(IORegs), 0);
-	IORegs[0x00] = 0xC0; //joypad
-	IORegs[0x01] = 0x00; //Serial Data
-	IORegs[0x02] = 0x7E; //Serial Control
-	IORegs[0x2F] = 0x00; //LCDC
+	Write(0xFF00, u8(0xC0)); //joypad
+	Write(0xFF01, u8(0x00)); //Serial Data
+	Write(0xFF02, u8(0x7E)); //Serial Control
+	Write(0xFF0F, u8(0x00)); //IF
 	LCDC.tileSet = true;
-	IORegs[0x44] = 0x90; //LY
+	LY = 0x90; //LY
 
 	{ //Unused/GBC only
 	IORegs[0x03] = 0xFF;
@@ -142,20 +144,22 @@ void Memory::Write(u16 loc, u8 value) {
 				BGP.color1 = (value >> 2);
 				BGP.color2 = (value >> 4);
 				BGP.color3 = (value >> 6);
-				gb.ppu.DecodePalette(BGP);
 			} break;
 			case 0x50: { //BG Palette Data
-				BOOT.off = (value);
+				BOOT = (value);
 			} break;
+			
 
 			default: IORegs[loc - 0xFF00] = value; break;
 		}
 	}
 	else if(loc >= 0xFEA0) {
-		unusuable[loc - 0xFEA0] = value;
+		std::cout << fmt::format("Writing to unused memory [{:x}]: {}\n", loc, value); //tetris does this so I may remove it in order to avoid annoyances
 	}
 	else if(loc >= 0xFE00) {
-		OAM[loc - 0xFE00] = value;
+		if(STAT.mode < 2) {
+			OAM[loc - 0xFE00] = value;
+		}
 	}
 	else if(loc >= 0xE000) {
 		mirrorWRAM[loc - 0xE000] = value;
@@ -170,13 +174,8 @@ void Memory::Write(u16 loc, u8 value) {
 		ERAM[loc - 0xA000] = value;
 	}
 	else if(loc >= 0x8000) {
-		VRAM[loc - 0x8000] = value;
-
-		if(loc >= 0x8000 && loc < 0x9800) {
-			gb.ppu.WriteTileData(loc, value);
-		}
-		else if(loc >= 0x9800 && loc < 0xA000) {
-			gb.ppu.WriteBGTile(loc, value);
+		if(STAT.mode != 3) {
+			VRAM[loc - 0x8000] = value;
 		}
 
 		//fprintf(log, "Write to VRAM $%04X: $%02X\n", loc, value); //PSI's Logger
@@ -230,7 +229,7 @@ u16 Memory::Read(u16 loc) {
 			return gb.mbc->current[loc - 0x4000];
 		}
 		else {
-			if((loc < 0x100) && !BOOT.off) {
+			if((loc < 0x100) && BOOT == 0) {
 				return gb.bios[loc];
 			}
 			return gb.mbc->romBank0[loc];

@@ -10,6 +10,7 @@
 #include "imgui_impl_opengl3.h"
 
 #include "Gameboy/Gameboy.h"
+#include "Gameboy/VRAMViewer.h"
 
 #include <stdio.h>
 #include <vector>
@@ -47,27 +48,26 @@ static void glfw_error_callback(int error, const char* description) {
 	fprintf(stderr, "Glfw Error %d: %s\n", error, description);
 }
 
-struct texture {
+struct Texture {
 	GLuint texture;
 	GLsizei width, height;
 	u32* data;
 	const char* name;
 };
 
-std::vector<texture> textures;
-
-void genTexture(GLsizei width, GLsizei height, u32* pixels, const char* name) {
-	textures.push_back({0, width, height, pixels, name});
-	glGenTextures(1, &textures.back().texture);
-	glBindTexture(GL_TEXTURE_2D, textures.back().texture);
+Texture genTexture(GLsizei width, GLsizei height, u32* pixels, const char* name) {
+	Texture tex{0, width, height, pixels, name};
+	glGenTextures(1, &tex.texture);
+	glBindTexture(GL_TEXTURE_2D, tex.texture);
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8, pixels);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+	return tex;
 }
 
-void updateTextures(texture& tex) {
+void updateTextures(Texture& tex) {
 	glBindTexture(GL_TEXTURE_2D, tex.texture);
 	glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, tex.width, tex.height, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8, tex.data);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
@@ -76,23 +76,51 @@ void updateTextures(texture& tex) {
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
 }
 
-void displayImage(void* texture, u32 width, u32 height, u32 zoom_mult = 1, std::string name = "Image") {
+inline int clamp(int val, int low, int high) {
+	if (val > high) {
+		return high;
+	}
+
+	return (val <= low) ? low : val;
+}
+
+void displayImage(void* texture, u32 width, u32 height, u32 zoom_mult = 1, std::string name = "Image", bool grid = true) {
 	width *= zoom_mult; height *= zoom_mult;
-	
+
 	ImGuiIO& io = ImGui::GetIO();
+
 	ImGui::Text((name + ": %dx%d").c_str(), width, height);
-	ImVec2 pos = ImGui::GetCursorScreenPos();
 	ImGui::Image(texture, ImVec2(float(width), float(height)), ImVec2(0,0), ImVec2(1,1), ImVec4(1.0f,1.0f,1.0f,1.0f), ImVec4(1.0f,1.0f,1.0f,0.5f));
+	
+	ImVec2 topleft = ImGui::GetItemRectMin();
+	ImVec2 bottomright = ImGui::GetItemRectMax();
+	
+	if (grid) {
+		float line_dist = 8.0f * zoom_mult;
+
+		for (float x = topleft.x + line_dist; x < bottomright.x - line_dist; x += line_dist) {
+			ImGui::GetWindowDrawList()->AddLine(ImVec2(x, topleft.y), ImVec2(x, bottomright.y), IM_COL32(169, 169, 169, 255));
+		}
+
+		for (float y = topleft.y + line_dist; y < bottomright.y - line_dist; y += line_dist) {
+			ImGui::GetWindowDrawList()->AddLine(ImVec2(topleft.x, y), ImVec2(bottomright.x, y), IM_COL32(169, 169, 169, 255));
+		}
+	}
+
 	if (ImGui::IsItemHovered()) {
 		ImGui::BeginTooltip();
+
+		float zoom = 4.0f;
 		float region_sz = 8.0f * zoom_mult; //region = 8x8 area
-		int region_x = int((io.MousePos.x - pos.x - region_sz * (zoom_mult / 2)) / region_sz); if(region_x < 0) region_x = 0; else if(region_x > 30) region_x = 30;
-		int region_y = int((io.MousePos.y - pos.y - region_sz * (zoom_mult / 2)) / region_sz); if(region_y < 0) region_y = 0; else if(region_y > 30) region_y = 30;
-		float zoom = 4.0f * zoom_mult;
-		ImGui::Text("Coordinate: (%02X, %02X)", ++region_x, ++region_y);
+
+		int region_x = clamp((io.MousePos.x - topleft.x) / region_sz, 0, width);
+		int region_y = clamp((io.MousePos.y - topleft.y) / region_sz, 0, height);
 		ImVec2 uv0 = ImVec2((region_x * region_sz) / width, (region_y * region_sz) / height);
 		ImVec2 uv1 = ImVec2(((region_x + 1) * region_sz) / width, ((region_y + 1) * region_sz) / height);
-		ImGui::Image(texture, ImVec2(region_sz * zoom, region_sz * zoom), uv0, uv1, ImVec4(1.0f, 1.0f, 1.0f, 1.0f), ImVec4(1.0f, 1.0f, 1.0f, 0.5f));
+
+		ImGui::Text("Coordinate: (%d, %d)", region_x + 1, region_y + 1);
+		ImGui::Image(texture, ImVec2(region_sz * zoom, region_sz * zoom), uv0, uv1);
+
 		ImGui::EndTooltip();
 	}
 }
@@ -122,7 +150,7 @@ int main(int, char**) {
 	//glfwWindowHint(GLFW_DECORATED, 0); //I want to add my own custom title bar, and how it's styled
 
 	// Create window with graphics context
-	GLFWwindow* window = glfwCreateWindow(1280, 720, "Dear ImGui GLFW+OpenGL3 example", NULL, NULL);
+	GLFWwindow* window = glfwCreateWindow(1280, 720, "Lameboi", NULL, NULL);
 	if(window == NULL)
 		return 1;
 	glfwMakeContextCurrent(window);
@@ -158,8 +186,6 @@ int main(int, char**) {
 	ImGui_ImplGlfw_InitForOpenGL(window, true);
 	ImGui_ImplOpenGL3_Init(glsl_version);
 
-	std::cout << "\0\npee pee" << std::endl;
-
 	// Load Fonts
 	// - If no fonts are loaded, dear imgui will use the default font. You can also load multiple fonts and use ImGui::PushFont()/PopFont() to select them.
 	// - AddFontFromFileTTF() will return the ImFont* so you can store it if you need to select the font among multiple.
@@ -181,28 +207,29 @@ int main(int, char**) {
 	bool show_debug_window = false;
 	bool show_cpu_window = false;
 	bool show_ppu_window = false;
+	bool show_bgmap_window = false;
+	bool show_display_window = false;
+	bool show_tiledata_window = false;
 	bool show_mem_window = false;
 	ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
 
 	static MemoryEditor mem_edit;
 
-	Gameboy* gb = new Gameboy; //avoid stack overflow
+	auto gb = std::make_unique<Gameboy>(); //avoid stack overflow
+	auto vramViewer = std::make_unique<VRAMViewer>();
 
-	size_t s_grid = 32 * 32 * TILE_SIZE;
-	u32* grid = new u32[s_grid]();
-	for(u32 i = 0; i < s_grid; i++) {
-		if(!(i % 8) || !(i / 8)) {
-			grid[i] = 0x00000088;
-		}
-	}
+	Texture bgmap0Tex = genTexture(256, 256, vramViewer->bgmap0.data(), "Background Map 0");
+	Texture tiledataTex = genTexture(128, 64 * 3, vramViewer->tileData.data(), "TileData");
+
 	//std::fill(gb->ppu.tileData[1].pixels, std::end(gb->ppu.tileData[1].pixels), 0x555555FF);
 	//std::fill(gb->ppu.tileData[2].pixels, std::end(gb->ppu.tileData[2].pixels), 0xAAAAAAFF);
 	//std::fill(gb->ppu.tileData[3].pixels, std::end(gb->ppu.tileData[3].pixels), 0xFFFFFFFF);
 
-	genTexture(256, 256, gb->ppu.bgMap1, "Display");
-	genTexture(256, 256, gb->ppu.bgMap1, "Background Map 1");
-	genTexture(256, 256, gb->ppu.bgMap2, "Background Map 2");
-	genTexture(128, 192, gb->ppu.tileData, "Tile Data");
+	//Texture display = genTexture(160, 144, gb->ppu.display.data(), "Display");
+	//Texture bgmap1 = genTexture(256, 256, gb->ppu.bgMap1.data(), "Background Map 1");
+	//Texture bgmap2 = genTexture(256, 256, gb->ppu.bgMap2.data(), "Background Map 2");
+	//Texture tiledata = genTexture(128, 192, gb->ppu.tileData.data(), "Tile Data");
+	//Texture oam = genTexture(128, 192, gb->ppu.oam, "Tile Data");
 
 	// Main loop
 	while(!glfwWindowShouldClose(window)) {
@@ -237,10 +264,11 @@ int main(int, char**) {
 			static std::shared_ptr<pfd::open_file> open_file;
 
 			ImGui::PushItemFlag(ImGuiItemFlags_Disabled, (bool)open_file);
+
 			if (ImGui::Button("Open File"))
 				open_file = std::make_shared<pfd::open_file>("Choose file", "C:\\", std::vector<std::string>{"Gameboy ROMs (.gb)", "*.gb", "All Files", "*"}, true);
-			if (open_file && open_file->ready())
-			{
+			
+			if (open_file && open_file->ready()) {
 				gb->continue_trigger = false; gb->stop_trigger = false;
 				gb->emustart.lock(); gb->emustart.unlock(); //wait for the any emu threads to finish
 
@@ -253,12 +281,13 @@ int main(int, char**) {
 
 					if(!show_debug_window) gb->continue_trigger = true;
 					gb->stop_trigger = true;
-					std::thread emuthread(&Gameboy::Start, gb);
+					std::thread emuthread(&Gameboy::Start, gb.get());
 					emuthread.detach();
 				}
 
 				open_file = nullptr;
 			}
+
 			ImGui::PopItemFlag();
 			
 			if(ImGui::Button("Show Gameboy")) {
@@ -270,12 +299,8 @@ int main(int, char**) {
 
 		if(show_emu_window) {
 			ImGui::Begin("Gameboy", &show_emu_window);
-			if(ImGui::Button("Show CPU"))
-				show_cpu_window = !show_cpu_window;
 			if(ImGui::Button("Show PPU"))
 				show_ppu_window = !show_ppu_window;
-			if(ImGui::Button("Show Memory"))
-				show_mem_window = !show_mem_window;
 			if(ImGui::Button("Show Debugger")) {
 				show_debug_window = !show_debug_window;
 				gb->continue_trigger = (show_debug_window) ? false : gb->continue_trigger;
@@ -283,24 +308,23 @@ int main(int, char**) {
 			ImGui::End();
 		}
 
-		if(show_cpu_window) {
+		if(show_debug_window) {
 			static u16 u16_one = 1;
+			static u64 u64_one = 1;
 
+			//CPU
 			ImGui::Begin("CPU", &show_cpu_window);
 			ImGui::InputScalar("Program Counter", ImGuiDataType_U16, &gb->cpu.PC, &u16_one, NULL, "%04X", ImGuiInputTextFlags_CharsHexadecimal);
 			ImGui::InputScalar("Stack Pointer", ImGuiDataType_U16, &gb->cpu.SP, &u16_one, NULL, "%04X", ImGuiInputTextFlags_CharsHexadecimal);
 			ImGui::Text("0x%02X", gb->cpu.opcode); ImGui::SameLine(); ImGui::Text("Opcode");
-			ImGui::Text("Z:%d N:%d HC:%d C:%d", gb->cpu.F & 0x80, gb->cpu.F & 0x40, gb->cpu.F & 0x20, gb->cpu.F & 0x10); ImGui::SameLine(); ImGui::Text("Flags");
+			ImGui::Text("Z:%d N:%d HC:%d C:%d", gb->cpu.F.Z, gb->cpu.F.N, gb->cpu.F.HC, gb->cpu.F.C); ImGui::SameLine(); ImGui::Text("Flags");
 			ImGui::Text("0x%02X", gb->cpu.A); ImGui::SameLine(); ImGui::Text("A");
 			ImGui::Text("0x%04X", gb->cpu.BC); ImGui::SameLine(); ImGui::Text("BC");
 			ImGui::Text("0x%04X", gb->cpu.DE); ImGui::SameLine(); ImGui::Text("DE");
 			ImGui::Text("0x%04X", gb->cpu.HL); ImGui::SameLine(); ImGui::Text("HL");
 			ImGui::End();
-		}
 
-		if(show_debug_window) {
-			static u64 u64_one = 1;
-
+			//ASM Viewer/Debugger
 			ImGui::Begin("Debugger", &show_debug_window);
 
 			if(ImGui::Button("Continue")) {
@@ -316,40 +340,77 @@ int main(int, char**) {
 
 			if(ImGui::Button("Step 1")) {
 				gb->step = 1;
-				gb->step_old = 1;
 				gb->continue_trigger = false;
 				gb->step_trigger = true;
 			}
 			if(ImGui::Button("Step")) {
-				gb->step_old = gb->step;
+				gb->step = gb->uistep;
 				gb->continue_trigger = false;
 				gb->step_trigger = true;
 			}
 
-			ImGui::SameLine(); ImGui::InputScalar("", ImGuiDataType_U64, &gb->step, &u64_one);
-
+			ImGui::SameLine(); ImGui::InputScalar("", ImGuiDataType_U64, &gb->uistep, &u64_one);
 			ImGui::End();
-		}
 
-		if(show_ppu_window) {
-			ImGui::Begin("PPU", &show_ppu_window);
-
-			for(size_t i = 1; i < textures.size(); i++) {
-				updateTextures(textures[i]);
-				displayImage((void*)(intptr_t)textures[i].texture, textures[i].width, textures[i].height, 2, textures[i].name);
+			ImGui::Begin("Breakpoints");
+			
+			u16 new_breakpoint = 0;
+		
+			if(ImGui::InputScalar("PC Break", ImGuiDataType_U16, &new_breakpoint, NULL, NULL, "%X", ImGuiInputTextFlags_CharsHexadecimal | ImGuiInputTextFlags_EnterReturnsTrue)) {
+				gb->SetBreakpoint(new_breakpoint);
+				new_breakpoint = 0;
 			}
+			
+			auto i = gb->breakpoints.begin();
+			ImGui::ListBoxHeader("");
+			while(i != gb->breakpoints.end()) {
+				if(ImGui::Selectable(std::to_string(*i).c_str(), false, ImGuiSelectableFlags_AllowDoubleClick) && ImGui::IsMouseDoubleClicked(0)) {
+					i = gb->breakpoints.erase(i);
+				} 
+				else {
+					i++;
+				}
+
+			}
+			ImGui::ListBoxFooter();
+
 			ImGui::End();
 
-			ImGui::Begin("Window");
-			updateTextures(textures[0]);
-			ImGui::Image((void*)(intptr_t)textures[0].texture, ImVec2(160.0f * 2, 144.0f * 2), ImVec2(gb->mem.SCX / 256.0f, gb->mem.SCY / 256.0f), ImVec2((gb->mem.SCX + 160.0f) / 256.0f, (gb->mem.SCY + 144.0f) / 256.0f));
-			ImGui::End();
-		}
-
-		if(show_mem_window) {
+			//Memory
 			//mem_edit.DrawWindow("Rom Bank 0", &mem.mbc->romBank0, 0x4000);
 			//mem_edit.DrawWindow("Rom Bank N", mem.mbc->current, 0x4000, 0x4000);
-			mem_edit.DrawWindow("Memory", &gb->mem, sizeof(gb->mem) - sizeof(&gb->mem.gb), 0x8000);
+			//mem_edit.DrawWindow("Memory", &gb->mem, sizeof(gb->mem) - sizeof(&gb->mem.gb), 0x8000);
+		
+		}
+
+		
+		if(show_ppu_window) {
+			//todo allow users to close the windows individually 
+			ImGui::Begin("Background Maps", &show_bgmap_window);
+			
+			gb->ppu.dumpBGMap0RGBA(vramViewer->bgmap0);
+			updateTextures(bgmap0Tex);
+			displayImage((void*)(intptr_t)bgmap0Tex.texture, bgmap0Tex.width, bgmap0Tex.height, 1, bgmap0Tex.name);
+			
+			ImGui::End();
+			
+
+			ImGui::Begin("Tile Data", &show_tiledata_window);
+
+			gb->ppu.dumpTileMap(vramViewer->tileData);
+			updateTextures(tiledataTex);
+			displayImage((void*)(intptr_t)tiledataTex.texture, tiledataTex.width, tiledataTex.height, 3, tiledataTex.name);
+
+
+			ImGui::End();
+
+
+			//ImGui::Begin("OAM");
+			//
+			//updateTextures(oam);
+			//displayImage((void*)(intptr_t)oam.texture, oam.width, oam.height, 2, oam.name);
+			//
+			//ImGui::End();
 		}
 		
 		// Rendering
@@ -366,9 +427,6 @@ int main(int, char**) {
 	gb->continue_trigger = false;
 	gb->stop_trigger = false;
 	//emuthread.join();
-
-	delete gb;
-	delete[] grid;
 
 	// Cleanup
 	ImGui_ImplOpenGL3_Shutdown();

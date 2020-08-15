@@ -1,38 +1,36 @@
 #pragma once
 
-#include "Util/types.h"
 #include <iostream> // std::cerr std::endl
-#include <algorithm>  // std::copy
+#include <algorithm> // std::copy
+#include <array> // std::array
 #include <vector> // std::vector
 
+#include "Util/types.h"
+
 struct Gameboy;
-struct Palette;
 
-#define TILE_SIZE 64
-
-struct Color {
-	u32 color0 = 0xFFFFFFFF;
-	u32 color1 = 0xFFFFFFFF;
-	u32 color2 = 0xFFFFFFFF;
-	u32 color3 = 0xFFFFFFFF;
+inline std::array<u32, 4> BasePallete {
+	0xFFFFFFFF,
+	0x7E7E7EFF,
+	0x3F3F3FFF,
+	0x000000FF
 };
 
-struct PPU {
+class PPU {
 	Gameboy& gb;
-	//u32 display[32 * 32 * TILE_SIZE];
-	//u8 tileDisplay[32 * 32 * 16];
-	u32 bgMap1[32 * 32 * TILE_SIZE]; //0x9800
-	u32 bgMap2[32 * 32 * TILE_SIZE]; //0x9C00
-	u32 tileData[128 * 3 * TILE_SIZE]; //3 128 tile blocks 
-	Color BGP, OBP0, OBP1;
-	std::vector<u8> lines;
+	friend class Memory;
 
+	std::array<u8, 5760> display;
+	std::array<u8, 0x4000> bgmap0;
+	std::array<u8, 0x1800> tileData;
+
+public:
 	PPU(Gameboy&);
-	void Clean();
-	void LineRender();
-	void DecodePalette(Palette& paletteData);
-	void WriteTileData(u16 byteLoc, u8 value);
-	void WriteBGTile(u16 byteLoc, u8 value);
+	void update(int ticks);
+	
+	void dumpBGMap0RGBA(std::array<u32, 256 * 256>& bgmap);
+	void dumpTileMap(std::array<u32, 128 * 64 * 3>& tilemap);
 
-	//work on copying bg tiles to the the screen
+private:
+	std::array<u8, 16> _fetchTile(u16 addr, u8 offset = 0);
 };

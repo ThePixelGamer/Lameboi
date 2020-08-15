@@ -8,66 +8,74 @@
 
 struct Gameboy;
 
-#define Carry			0x1
-#define HalfCarry		0x2
-#define Negative		0x4
-#define Zero			0x8
-#define Carry_Set		0x10
-#define HalfCarry_Set	0x20
-#define Negative_Set	0x40
-#define Zero_Set		0x80
-#define Carry_Unset		0x100
-#define HalfCarry_Unset 0x200
-#define Negative_Unset	0x400
-#define Zero_Unset		0x800
+#define Carry			0x10
+#define HalfCarry		0x20
+#define Negative		0x40
+#define Zero			0x80
 
-struct individual {
-    u8 low;
-    u8 high;
+struct Instruction {
+	std::string_view name;
+	int arg;
 };
-struct together {
-    u16 value;
-};
-union rp {
-    individual S;
-    together P;
-};
-struct instruction {
-  std::string_view name;
-  int arg;
+
+struct Flags {
+	u8 : 4;
+	u8 C : 1;
+	u8 HC : 1;
+	u8 N : 1;
+	u8 Z : 1;
 };
 
 struct CPU {
 	Gameboy& gb;
 
-	rp af{};
-	rp bc{};
-	rp de{};
-	rp hl{};
+	union {
+		struct {
+			u8 low;
+			u8 high;
+		};
+		struct {
+			u16 value;
+		};
+	} bc{}, de{}, hl{};
 
-	u8& A = af.S.high; u8& F = af.S.low;
-	u8& B = bc.S.high; u8& C = bc.S.low;
-	u8& D = de.S.high; u8& E = de.S.low;
-	u8& H = hl.S.high; u8& L = hl.S.low;
+	union {
+		struct {
+			Flags low;
+			u8 high;
+		};
+		struct {
+			u16 value;
+		};
+	} af{};
 
-	u16& AF = af.P.value;
-	u16& BC = bc.P.value;
-	u16& DE = de.P.value;
-	u16& HL = hl.P.value;
+	u16& AF = af.value; u8& A = af.high; Flags& F = af.low;
+	u16& BC = bc.value; u8& B = bc.high; u8& C = bc.low;
+	u16& DE = de.value; u8& D = de.high; u8& E = de.low;
+	u16& HL = hl.value; u8& H = hl.high; u8& L = hl.low;
 
 	u16 PC, SP;
-	u8 opcode;
+	u8 opcode, cycles;
 
 	CPU(Gameboy&);
 	void handlePrint();
 	void Clean();
-	void ExecuteOpcode();
+	u8 ExecuteOpcode();
 	u8 FetchOpcode(u16);
 	bool CheckZero();
 	bool CheckNegative();
 	bool CheckHalfCarry();
 	bool CheckCarry();
-	u16 setFlags(u16 flags, u16 ans = 0, u8 old = 0, u8 diff = 0);
+	
+	u8 SetFlags(u16 flags, u16 ans, u8 old = 0, u8 diff = 0);
+	u8 SetCarry(u16 ans);
+	u8 SetHalfCarry(u8 ans, u8 old, u8 diff);
+	//u16 SetNegative(u16 ans = 0); no real need for this /shrug
+	u8 SetZero(int ans);
+	inline void SetCarry(bool val);
+	inline void SetHalfCarry(bool val);
+	inline void SetNegative(bool val);
+	inline void SetZero(bool val);
 
 	template <typename T>
 	T GetLEBytes();
@@ -92,6 +100,9 @@ struct CPU {
 	void Decrease(u16& reg);
 
 	//CB
+	template<typename T, typename... Args>
+	u8 CB_HL_Stuff(T func, Args... args);
+
 	void handleCB();
 	void RotateLeft(u8& reg, bool carry = false);
 	void RotateRight(u8& reg, bool carry = false);
@@ -99,9 +110,9 @@ struct CPU {
 	void ShiftRightArithmetic(u8&);
 	void Swap(u8&);
 	void ShiftRightLogical(u8&);
-	void Bit(u8 bit, u8 reg);
-	void Set(u8 bit, u8& reg);
-	void Reset(u8 bit, u8& reg);
+	void Bit(u8 reg, u8 bit);
+	void Set(u8& reg, u8 bit);
+	void Reset(u8& reg, u8 bit);
 
 	//Misc
 	void Load(u8& loc, u8 val);
