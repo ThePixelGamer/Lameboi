@@ -4,33 +4,53 @@
 #include <algorithm> // std::copy
 #include <array> // std::array
 #include <vector> // std::vector
+#include <condition_variable>
+#include <mutex>
 
 #include "Util/types.h"
 
 struct Gameboy;
-
-inline std::array<u32, 4> BasePallete {
-	0xFFFFFFFF,
-	0x7E7E7EFF,
-	0x3F3F3FFF,
-	0x000000FF
-};
+class Memory;
 
 class PPU {
-	Gameboy& gb;
-	friend class Memory;
+	Memory& mem;
 
-	std::array<u8, 5760> display;
-	std::array<u8, 0x4000> bgmap0;
-	std::array<u8, 0x1800> tileData;
+	int cycles;
+	int lastTile;
+
+	u8 currentSprite;
+	u8 spritesScanned;
+	std::array<u8, 10> sprites; //offset
+	
+	bool drewWindowLine;
+	u16 windowLines;
+
+	bool vblankHelper;
 
 public:
+	std::array<u32, 160 * 144> display;
+	int vblankCount;
+
+	bool isVblank;
+	std::condition_variable vblank;
+	std::mutex vblank_m;
+
+	enum Mode {
+		HBlank,
+		VBlank,
+		Searching,
+		Drawing
+	};
+
 	PPU(Gameboy&);
+	void clean();
 	void update(int ticks);
 	
-	void dumpBGMap0RGBA(std::array<u32, 256 * 256>& bgmap);
+	void dumpBGMap(std::array<u32, 256 * 256>& bgmap, bool bgMap, bool tileSet);
 	void dumpTileMap(std::array<u32, 128 * 64 * 3>& tilemap);
+	void dumpSprites(std::array<u32, 64 * 40>& sprites);
 
 private:
-	std::array<u8, 16> _fetchTile(u16 addr, u8 offset = 0);
+	std::array<u8, 16> _fetchTile(u16 addr, u8 tileoffset = 0);
+	std::array<u8, 2> _fetchTileLine(bool method8000, u8 yoffset, u8 tileoffset = 0);
 };

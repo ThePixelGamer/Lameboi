@@ -59,8 +59,26 @@ struct CPU {
 
 	CPU(Gameboy&);
 	void handlePrint();
-	void Clean();
+	void clean();
 	u8 ExecuteOpcode();
+
+private:
+	void write(u16 loc, u8 value);
+	void write(u16 loc, u16 value);
+
+	/*
+	template<typename T>
+	void write(u16 loc, T value) {
+		u8 amount = sizeof(T);
+
+		cycles += amount;
+
+		while (amount > 0) {
+			gb.mem.Write(loc++, (value >> (8 * (sizeof(T) - amount--))) & 0xFF);
+		}
+	}
+	*/
+
 	u8 FetchOpcode(u16);
 	bool CheckZero();
 	bool CheckNegative();
@@ -101,7 +119,7 @@ struct CPU {
 
 	//CB
 	template<typename T, typename... Args>
-	u8 CB_HL_Stuff(T func, Args... args);
+	u8 M_Write_Helper(T func, Args... args);
 
 	void handleCB();
 	void RotateLeft(u8& reg, bool carry = false);

@@ -48,6 +48,7 @@ const std::array<Instruction, 0x100> CBTable{{
 }};
 
 void CPU::handlePrint() {
+	/*
 	gb.log << fmt::format("{:04x} ", PC-1); //PSI
 
 	Instruction inst = (opcode == 0xCB) ? CBTable[FetchOpcode(PC)] : instTable[opcode];
@@ -61,15 +62,16 @@ void CPU::handlePrint() {
 	}
 
 	gb.log << "\n";
+	*/
 
 	//fprintf(gb.log, "PC:%04x OPC:%02x %02x %02x C:%x H:%x N:%x Z:%x A:%02x\n", PC - 1, opcode, GetLEBytes<u8>(PC), GetLEBytes<u8>(PC + 1), CheckCarry(), CheckHalfCarry(), CheckNegative(), CheckZero(), A); //LilaQ
 }
 
 CPU::CPU(Gameboy& t_gb) : gb(t_gb) {
-	Clean();	
+	clean();	
 }
 
-void CPU::Clean() {
+void CPU::clean() {
 	AF = 0;
 	BC = 0;
 	DE = 0;
@@ -81,12 +83,62 @@ void CPU::Clean() {
 	gb.IME = false;
 }
 
+template<typename T, typename... Args>
+u8 CPU::M_Write_Helper(T func, Args... args) {
+	u8 value = GetLEBytes<u8>(HL);
+	(this->*func)(value, args...);
+	return value;
+}
+
 u8 CPU::ExecuteOpcode() {
 	cycles = 0;
+
+	if (gb.IME && gb.mem.Interrupt != 0xE0) {
+		if (gb.mem.IE.vblank && gb.mem.IF.vblank) {
+			gb.mem.IF.vblank = 0;
+
+			//2 nops
+			++cycles;
+			++cycles;
+
+			Push(PC);
+
+			PC = 0x40;
+			++cycles;
+		}
+
+		if (gb.mem.IE.lcdStat && gb.mem.IF.lcdStat) {
+			gb.mem.IF.lcdStat = 0;
+
+			//2 nops
+			++cycles;
+			++cycles;
+
+			Push(PC);
+
+			PC = 0x48;
+			++cycles;
+		}
+
+		if (gb.mem.IE.joypad && gb.mem.IF.joypad) {
+			gb.mem.IF.joypad = 0;
+
+			//2 nops
+			++cycles;
+			++cycles;
+
+			Push(PC);
+
+			PC = 0x60;
+			++cycles;
+		}
+	}
 
 	opcode = FetchOpcode(PC++);
 
 	handlePrint();
+
+	using overloaded = void (CPU::*)(u8&);
 
 	switch(opcode) {
 		case 0x03: Increase(BC); break; //INC BC
@@ -104,7 +156,8 @@ u8 CPU::ExecuteOpcode() {
 		case 0x1C: Increase(E); break; //INC E
 		case 0x24: Increase(H); break; //INC H
 		case 0x2C: Increase(L); break; //INC L
-		case 0x34: gb.mem.Write(HL, [&](){u8 value = GetLEBytes<u8>(HL); Increase(value); return value;}()); break; //INC (HL)
+		//case 0x34: write(HL, M_Write_Helper(static_cast<overloaded>(&CPU::Increase))); break; //INC (HL)
+		case 0x34: write(HL, [&]() {u8 value = GetLEBytes<u8>(HL); Increase(value); return value; }()); break; //INC (HL)
 		case 0x3C: Increase(A); break;
 
 		case 0x05: Decrease(B); break; //DEC B
@@ -113,19 +166,20 @@ u8 CPU::ExecuteOpcode() {
 		case 0x1D: Decrease(E); break; //DEC E
 		case 0x25: Decrease(H); break; //DEC H
 		case 0x2D: Decrease(L); break; //DEC L
-		case 0x35: gb.mem.Write(HL, [&](){u8 value = GetLEBytes<u8>(HL); Decrease(value); return value;}()); break; //DEC (HL)		
+		//case 0x35: write(HL, M_Write_Helper(static_cast<overloaded>(&CPU::Decrease))); break; //DEC (HL)		
+		case 0x35: write(HL, [&]() {u8 value = GetLEBytes<u8>(HL); Decrease(value); return value; }()); break; //DEC (HL)		
 		case 0x3D: Decrease(A); break;
 			
 		case 0x01: Load(BC, GetLEBytes<u16>()); break; //LD BC,u16
 		case 0x11: Load(DE, GetLEBytes<u16>()); break; //LD DE,u16
 		case 0x21: Load(HL, GetLEBytes<u16>()); break; //LD HL,u16
 		case 0x31: Load(SP, GetLEBytes<u16>()); break; //LD SP,u16
-		case 0x08: gb.mem.Write(GetLEBytes<u16>(), SP); break; //LD (u16),SP
+		case 0x08: write(GetLEBytes<u16>(), SP); break; //LD (u16),SP
 			
-		case 0x02: gb.mem.Write(BC, A); break; //LD (BC),A
-		case 0x12: gb.mem.Write(DE, A); break; //LD (DE),A
-		case 0x22: gb.mem.Write(HL++, A); break; //LD (HL+),A
-		case 0x32: gb.mem.Write(HL--, A); break; //LD (HL-),A
+		case 0x02: write(BC, A); break; //LD (BC),A
+		case 0x12: write(DE, A); break; //LD (DE),A
+		case 0x22: write(HL++, A); break; //LD (HL+),A
+		case 0x32: write(HL--, A); break; //LD (HL-),A
 
 		case 0x06: Load(B, GetLEBytes<u8>()); break; //LD B,u8
 		case 0x0E: Load(C, GetLEBytes<u8>()); break; //LD C,u8
@@ -133,7 +187,7 @@ u8 CPU::ExecuteOpcode() {
 		case 0x1E: Load(E, GetLEBytes<u8>()); break; //LD E,u8
 		case 0x26: Load(H, GetLEBytes<u8>()); break; //LD H,u8
 		case 0x2E: Load(L, GetLEBytes<u8>()); break; //LD L,u8
-		case 0x36: gb.mem.Write(HL, GetLEBytes<u8>()); break; //LD (HL),u8
+		case 0x36: write(HL, GetLEBytes<u8>()); break; //LD (HL),u8
 		case 0x3E: Load(A, GetLEBytes<u8>()); break; //LD A,u8
 
 		case 0x0A: Load(A, GetLEBytes<u8>(BC)); break; //LD A,(BC)
@@ -153,9 +207,9 @@ u8 CPU::ExecuteOpcode() {
 
 		case 0x18: JumpRelative(GetLEBytes<u8>()); break; //JR i8
 		case 0x20: JumpRelative(GetLEBytes<u8>(), !CheckZero()); break; //JR NZ,i8
-		case 0x30: JumpRelative(GetLEBytes<u8>(), !CheckCarry()); break;
-		case 0x28: JumpRelative(GetLEBytes<u8>(), CheckZero()); break;
-		case 0x38: JumpRelative(GetLEBytes<u8>(), CheckCarry()); break;
+		case 0x30: JumpRelative(GetLEBytes<u8>(), !CheckCarry()); break; //JR NC,i8
+		case 0x28: JumpRelative(GetLEBytes<u8>(), CheckZero()); break; //JR Z,i8
+		case 0x38: JumpRelative(GetLEBytes<u8>(), CheckCarry()); break; //JR C,i8
 
 		case 0x00: break; //NOP
 		case 0x10: /*throw "Stop called";*/ break; //STOP
@@ -249,14 +303,14 @@ u8 CPU::ExecuteOpcode() {
 		case 0x6D: Load(L, L); break;
 		case 0x6E: Load(L, GetLEBytes<u8>(HL)); break;
 		case 0x6F: Load(L, A); break;
-		case 0x70: gb.mem.Write(HL, B); break;
-		case 0x71: gb.mem.Write(HL, C); break;
-		case 0x72: gb.mem.Write(HL, D); break;
-		case 0x73: gb.mem.Write(HL, E); break;
-		case 0x74: gb.mem.Write(HL, H); break;
-		case 0x75: gb.mem.Write(HL, L); break;
+		case 0x70: write(HL, B); break;
+		case 0x71: write(HL, C); break;
+		case 0x72: write(HL, D); break;
+		case 0x73: write(HL, E); break;
+		case 0x74: write(HL, H); break;
+		case 0x75: write(HL, L); break;
 		case 0x76: /*HALT*/ break;
-		case 0x77: gb.mem.Write(HL, A); break;
+		case 0x77: write(HL, A); break;
 		case 0x78: Load(A, B); break;
 		case 0x79: Load(A, C); break;
 		case 0x7A: Load(A, D); break;
@@ -385,7 +439,7 @@ u8 CPU::ExecuteOpcode() {
 
 		case 0xE8: { //ADD SP,i8
 			u8 offset = GetLEBytes<u8>();
-			SetFlags(HalfCarry | Carry, (SP & 0xff) + offset, SP, offset);
+			SetFlags(HalfCarry | Carry, (SP & 0xff) + offset, u8(SP), offset);
 			SetNegative(false);
 			SetZero(false);
 			SP += s8(offset);
@@ -393,7 +447,7 @@ u8 CPU::ExecuteOpcode() {
 
 		case 0xF8: { //LD HL,SP+i8
 			u8 offset = GetLEBytes<u8>();
-			SetFlags(HalfCarry | Carry, (SP & 0xff) + offset, SP, offset);
+			SetFlags(HalfCarry | Carry, (SP & 0xff) + offset, u8(SP), offset);
 			SetNegative(false);
 			SetZero(false);
 			Load(HL, SP+s8(offset));
@@ -403,9 +457,9 @@ u8 CPU::ExecuteOpcode() {
 		case 0xF0: Load(A, GetLEBytes<u8>(GetLEBytes<u8>() + 0xFF00)); break; //LD A,(FF00+u8)
 		case 0xF2: Load(A, GetLEBytes<u8>(0xFF00 + C)); break; //LD A,(FF00+C)
 		case 0xFA: Load(A, GetLEBytes<u8>(GetLEBytes<u16>())); break; //LD A,(u16)
-		case 0xE0: gb.mem.Write(0xFF00 + GetLEBytes<u8>(), A); break; //LD (FF00+u8),A
-		case 0xE2: gb.mem.Write(0xFF00 + C, A); break; //LD (FF00+C),A
-		case 0xEA: gb.mem.Write(GetLEBytes<u16>(), A); break; //LD (u16),A
+		case 0xE0: write(0xFF00 + GetLEBytes<u8>(), A); break; //LD (FF00+u8),A
+		case 0xE2: write(0xFF00 + C, A); break; //LD (FF00+C),A
+		case 0xEA: write(GetLEBytes<u16>(), A); break; //LD (u16),A
 
 		case 0xF3: gb.IME = false; break; //DI
 		case 0xFB: gb.IME = true; break; //EI
@@ -416,14 +470,7 @@ u8 CPU::ExecuteOpcode() {
 
     //fprintf(gb.log, " AF: $%04X BC: $%04X DE: $%04X HL: $%04X\n", AF, BC, DE, HL);
 
-	return ++cycles;
-}
-
-template<typename T, typename... Args>
-u8 CPU::CB_HL_Stuff(T func, Args... args) {
-	u8 value = GetLEBytes<u8>(HL);
-	(this->*func)(value, args...);
-	return value;
+	return cycles;
 }
 
 void CPU::handleCB() {
@@ -436,7 +483,7 @@ void CPU::handleCB() {
 		case 0x03: RotateLeft(E); break; //RLC E
 		case 0x04: RotateLeft(H); break; //RLC H
 		case 0x05: RotateLeft(L); break; //RLC L
-		case 0x06: gb.mem.Write(HL, CB_HL_Stuff(&CPU::RotateLeft, false)); break; //RLC (HL)
+		case 0x06: write(HL, M_Write_Helper(&CPU::RotateLeft, false)); break; //RLC (HL)
 		case 0x07: RotateLeft(A); break; //RLC A
 		case 0x10: RotateLeft(B, true); break; //RL B
 		case 0x11: RotateLeft(C, true); break; //RL C
@@ -444,7 +491,7 @@ void CPU::handleCB() {
 		case 0x13: RotateLeft(E, true); break; //RL E
 		case 0x14: RotateLeft(H, true); break; //RL H
 		case 0x15: RotateLeft(L, true); break; //RL L
-		case 0x16: gb.mem.Write(HL, CB_HL_Stuff(&CPU::RotateLeft, true)); break; //RL (HL)
+		case 0x16: write(HL, M_Write_Helper(&CPU::RotateLeft, true)); break; //RL (HL)
 		case 0x17: RotateLeft(A, true); break; //RL A
 
 		case 0x08: RotateRight(B); break; //RRC B
@@ -453,7 +500,7 @@ void CPU::handleCB() {
 		case 0x0B: RotateRight(E); break; //RRC E
 		case 0x0C: RotateRight(H); break; //RRC H
 		case 0x0D: RotateRight(L); break; //RRC L
-		case 0x0E: gb.mem.Write(HL, CB_HL_Stuff(&CPU::RotateRight, false)); break; //RRC (HL)
+		case 0x0E: write(HL, M_Write_Helper(&CPU::RotateRight, false)); break; //RRC (HL)
 		case 0x0F: RotateRight(A); break; //RRC A
 		case 0x18: RotateRight(B, true); break; //RR B
 		case 0x19: RotateRight(C, true); break; //RR C
@@ -461,7 +508,7 @@ void CPU::handleCB() {
 		case 0x1B: RotateRight(E, true); break; //RR E
 		case 0x1C: RotateRight(H, true); break; //RR H
 		case 0x1D: RotateRight(L, true); break; //RR L
-		case 0x1E: gb.mem.Write(HL, CB_HL_Stuff(&CPU::RotateRight, true)); break; //RR (HL)
+		case 0x1E: write(HL, M_Write_Helper(&CPU::RotateRight, true)); break; //RR (HL)
 		case 0x1F: RotateRight(A, true); break; //RR A
 
 		case 0x20: ShiftLeftArithmetic(B); break; //SLA B
@@ -470,7 +517,7 @@ void CPU::handleCB() {
 		case 0x23: ShiftLeftArithmetic(E); break; //SLA E
 		case 0x24: ShiftLeftArithmetic(H); break; //SLA H
 		case 0x25: ShiftLeftArithmetic(L); break; //SLA L
-		case 0x26: gb.mem.Write(HL, CB_HL_Stuff(&CPU::ShiftLeftArithmetic)); break; //SLA (HL)
+		case 0x26: write(HL, M_Write_Helper(&CPU::ShiftLeftArithmetic)); break; //SLA (HL)
 		case 0x27: ShiftLeftArithmetic(A); break; //SLA A
 
 		case 0x28: ShiftRightArithmetic(B); break; //SRA B
@@ -479,7 +526,7 @@ void CPU::handleCB() {
 		case 0x2B: ShiftRightArithmetic(E); break; //SRA E
 		case 0x2C: ShiftRightArithmetic(H); break; //SRA H
 		case 0x2D: ShiftRightArithmetic(L); break; //SRA L
-		case 0x2E: gb.mem.Write(HL, CB_HL_Stuff(&CPU::ShiftRightArithmetic)); break; //SRA (HL)
+		case 0x2E: write(HL, M_Write_Helper(&CPU::ShiftRightArithmetic)); break; //SRA (HL)
 		case 0x2F: ShiftRightArithmetic(A); break; //SRA A
 		
 		case 0x30: Swap(B); break; //SWAP B
@@ -488,7 +535,7 @@ void CPU::handleCB() {
 		case 0x33: Swap(E); break; //SWAP E
 		case 0x34: Swap(H); break; //SWAP H
 		case 0x35: Swap(L); break; //SWAP L
-		case 0x36: gb.mem.Write(HL, CB_HL_Stuff(&CPU::Swap)); break; //SWAP (HL)
+		case 0x36: write(HL, M_Write_Helper(&CPU::Swap)); break; //SWAP (HL)
 		case 0x37: Swap(A); break; //SWAP A
 
 		case 0x38: ShiftRightLogical(B); break; //SRL B
@@ -497,7 +544,7 @@ void CPU::handleCB() {
 		case 0x3B: ShiftRightLogical(E); break; //SRL E
 		case 0x3C: ShiftRightLogical(H); break; //SRL H
 		case 0x3D: ShiftRightLogical(L); break; //SRL L
-		case 0x3E: gb.mem.Write(HL, CB_HL_Stuff(&CPU::ShiftRightLogical)); break; //SRL (HL)
+		case 0x3E: write(HL, M_Write_Helper(&CPU::ShiftRightLogical)); break; //SRL (HL)
 		case 0x3F: ShiftRightLogical(A); break; //SRL A
 
 		case 0x40: Bit(B, 0); break; //BIT 0,B
@@ -571,7 +618,7 @@ void CPU::handleCB() {
 		case 0x83: Reset(E, 0); break; //RES 0,E
 		case 0x84: Reset(H, 0); break; //RES 0,H
 		case 0x85: Reset(L, 0); break; //RES 0,L
-		case 0x86: gb.mem.Write(HL, CB_HL_Stuff(&CPU::Reset, 0)); break; //RES 0,(HL)
+		case 0x86: write(HL, M_Write_Helper(&CPU::Reset, 0)); break; //RES 0,(HL)
 		case 0x87: Reset(A, 0); break; //RES 0,A
 		case 0x88: Reset(B, 1); break; //RES 1,B
 		case 0x89: Reset(C, 1); break; //RES 1,C
@@ -579,7 +626,7 @@ void CPU::handleCB() {
 		case 0x8B: Reset(E, 1); break; //RES 1,E
 		case 0x8C: Reset(H, 1); break; //RES 1,H
 		case 0x8D: Reset(L, 1); break; //RES 1,L
-		case 0x8E: gb.mem.Write(HL, CB_HL_Stuff(&CPU::Reset, 1)); break; //RES 1,(HL)
+		case 0x8E: write(HL, M_Write_Helper(&CPU::Reset, 1)); break; //RES 1,(HL)
 		case 0x8F: Reset(A, 1); break; //RES 1,A
 		case 0x90: Reset(B, 2); break; //RES 2,B
 		case 0x91: Reset(C, 2); break; //RES 2,C
@@ -587,7 +634,7 @@ void CPU::handleCB() {
 		case 0x93: Reset(E, 2); break; //RES 2,E
 		case 0x94: Reset(H, 2); break; //RES 2,H
 		case 0x95: Reset(L, 2); break; //RES 2,L
-		case 0x96: gb.mem.Write(HL, CB_HL_Stuff(&CPU::Reset, 2)); break; //RES 2,(HL)
+		case 0x96: write(HL, M_Write_Helper(&CPU::Reset, 2)); break; //RES 2,(HL)
 		case 0x97: Reset(A, 2); break; //RES 2,A
 		case 0x98: Reset(B, 3); break; //RES 3,B
 		case 0x99: Reset(C, 3); break; //RES 3,C
@@ -595,7 +642,7 @@ void CPU::handleCB() {
 		case 0x9B: Reset(E, 3); break; //RES 3,E
 		case 0x9C: Reset(H, 3); break; //RES 3,H
 		case 0x9D: Reset(L, 3); break; //RES 3,L
-		case 0x9E: gb.mem.Write(HL, CB_HL_Stuff(&CPU::Reset, 3)); break; //RES 3,(HL)
+		case 0x9E: write(HL, M_Write_Helper(&CPU::Reset, 3)); break; //RES 3,(HL)
 		case 0x9F: Reset(A, 3); break; //RES 3,A
 		case 0xA0: Reset(B, 4); break; //RES 4,B
 		case 0xA1: Reset(C, 4); break; //RES 4,C
@@ -603,7 +650,7 @@ void CPU::handleCB() {
 		case 0xA3: Reset(E, 4); break; //RES 4,E
 		case 0xA4: Reset(H, 4); break; //RES 4,H
 		case 0xA5: Reset(L, 4); break; //RES 4,L
-		case 0xA6: gb.mem.Write(HL, CB_HL_Stuff(&CPU::Reset, 4)); break; //RES 4,(HL)
+		case 0xA6: write(HL, M_Write_Helper(&CPU::Reset, 4)); break; //RES 4,(HL)
 		case 0xA7: Reset(A, 4); break; //RES 4,A
 		case 0xA8: Reset(B, 5); break; //RES 5,B
 		case 0xA9: Reset(C, 5); break; //RES 5,C
@@ -611,7 +658,7 @@ void CPU::handleCB() {
 		case 0xAB: Reset(E, 5); break; //RES 5,E
 		case 0xAC: Reset(H, 5); break; //RES 5,H
 		case 0xAD: Reset(L, 5); break; //RES 5,L
-		case 0xAE: gb.mem.Write(HL, CB_HL_Stuff(&CPU::Reset, 5)); break; //RES 5,(HL)
+		case 0xAE: write(HL, M_Write_Helper(&CPU::Reset, 5)); break; //RES 5,(HL)
 		case 0xAF: Reset(A, 5); break; //RES 5,A
 		case 0xB0: Reset(B, 6); break; //RES 6,B
 		case 0xB1: Reset(C, 6); break; //RES 6,C
@@ -619,7 +666,7 @@ void CPU::handleCB() {
 		case 0xB3: Reset(E, 6); break; //RES 6,E
 		case 0xB4: Reset(H, 6); break; //RES 6,H
 		case 0xB5: Reset(L, 6); break; //RES 6,L
-		case 0xB6: gb.mem.Write(HL, CB_HL_Stuff(&CPU::Reset, 6)); break; //RES 6,(HL)
+		case 0xB6: write(HL, M_Write_Helper(&CPU::Reset, 6)); break; //RES 6,(HL)
 		case 0xB7: Reset(A, 6); break; //RES 6,A
 		case 0xB8: Reset(B, 7); break; //RES 7,B
 		case 0xB9: Reset(C, 7); break; //RES 7,C
@@ -627,7 +674,7 @@ void CPU::handleCB() {
 		case 0xBB: Reset(E, 7); break; //RES 7,E
 		case 0xBC: Reset(H, 7); break; //RES 7,H
 		case 0xBD: Reset(L, 7); break; //RES 7,L
-		case 0xBE: gb.mem.Write(HL, CB_HL_Stuff(&CPU::Reset, 7)); break; //RES 7,(HL)
+		case 0xBE: write(HL, M_Write_Helper(&CPU::Reset, 7)); break; //RES 7,(HL)
 		case 0xBF: Reset(A, 7); break; //RES 7,A
 
 		case 0xC0: Set(B, 0); break; //SET 0,B
@@ -636,7 +683,7 @@ void CPU::handleCB() {
 		case 0xC3: Set(E, 0); break; //SET 0,E
 		case 0xC4: Set(H, 0); break; //SET 0,H
 		case 0xC5: Set(L, 0); break; //SET 0,L
-		case 0xC6: gb.mem.Write(HL, CB_HL_Stuff(&CPU::Set, 0)); break; //SET 0,(HL)
+		case 0xC6: write(HL, M_Write_Helper(&CPU::Set, 0)); break; //SET 0,(HL)
 		case 0xC7: Set(A, 0); break; //SET 0,A
 		case 0xC8: Set(B, 1); break; //SET 1,B
 		case 0xC9: Set(C, 1); break; //SET 1,C
@@ -644,7 +691,7 @@ void CPU::handleCB() {
 		case 0xCB: Set(E, 1); break; //SET 1,E
 		case 0xCC: Set(H, 1); break; //SET 1,H
 		case 0xCD: Set(L, 1); break; //SET 1,L
-		case 0xCE: gb.mem.Write(HL, CB_HL_Stuff(&CPU::Set, 1)); break; //SET 1,(HL)
+		case 0xCE: write(HL, M_Write_Helper(&CPU::Set, 1)); break; //SET 1,(HL)
 		case 0xCF: Set(A, 1); break; //SET 1,A
 		case 0xD0: Set(B, 2); break; //SET 2,B
 		case 0xD1: Set(C, 2); break; //SET 2,C
@@ -652,7 +699,7 @@ void CPU::handleCB() {
 		case 0xD3: Set(E, 2); break; //SET 2,E
 		case 0xD4: Set(H, 2); break; //SET 2,H
 		case 0xD5: Set(L, 2); break; //SET 2,L
-		case 0xD6: gb.mem.Write(HL, CB_HL_Stuff(&CPU::Set, 2)); break; //SET 2,(HL)
+		case 0xD6: write(HL, M_Write_Helper(&CPU::Set, 2)); break; //SET 2,(HL)
 		case 0xD7: Set(A, 2); break; //SET 2,A
 		case 0xD8: Set(B, 3); break; //SET 3,B
 		case 0xD9: Set(C, 3); break; //SET 3,C
@@ -660,7 +707,7 @@ void CPU::handleCB() {
 		case 0xDB: Set(E, 3); break; //SET 3,E
 		case 0xDC: Set(H, 3); break; //SET 3,H
 		case 0xDD: Set(L, 3); break; //SET 3,L
-		case 0xDE: gb.mem.Write(HL, CB_HL_Stuff(&CPU::Set, 3)); break; //SET 3,(HL)
+		case 0xDE: write(HL, M_Write_Helper(&CPU::Set, 3)); break; //SET 3,(HL)
 		case 0xDF: Set(A, 3); break; //SET 3,A
 		case 0xE0: Set(B, 4); break; //SET 4,B
 		case 0xE1: Set(C, 4); break; //SET 4,C
@@ -668,7 +715,7 @@ void CPU::handleCB() {
 		case 0xE3: Set(E, 4); break; //SET 4,E
 		case 0xE4: Set(H, 4); break; //SET 4,H
 		case 0xE5: Set(L, 4); break; //SET 4,L
-		case 0xE6: gb.mem.Write(HL, CB_HL_Stuff(&CPU::Set, 4)); break; //SET 4,(HL)
+		case 0xE6: write(HL, M_Write_Helper(&CPU::Set, 4)); break; //SET 4,(HL)
 		case 0xE7: Set(A, 4); break; //SET 4,A
 		case 0xE8: Set(B, 5); break; //SET 5,B
 		case 0xE9: Set(C, 5); break; //SET 5,C
@@ -676,7 +723,7 @@ void CPU::handleCB() {
 		case 0xEB: Set(E, 5); break; //SET 5,E
 		case 0xEC: Set(H, 5); break; //SET 5,H
 		case 0xED: Set(L, 5); break; //SET 5,L
-		case 0xEE: gb.mem.Write(HL, CB_HL_Stuff(&CPU::Set, 5)); break; //SET 5,(HL)
+		case 0xEE: write(HL, M_Write_Helper(&CPU::Set, 5)); break; //SET 5,(HL)
 		case 0xEF: Set(A, 5); break; //SET 5,A
 		case 0xF0: Set(B, 6); break; //SET 6,B
 		case 0xF1: Set(C, 6); break; //SET 6,C
@@ -684,7 +731,7 @@ void CPU::handleCB() {
 		case 0xF3: Set(E, 6); break; //SET 6,E
 		case 0xF4: Set(H, 6); break; //SET 6,H
 		case 0xF5: Set(L, 6); break; //SET 6,L
-		case 0xF6: gb.mem.Write(HL, CB_HL_Stuff(&CPU::Set, 6)); break; //SET 6,(HL)
+		case 0xF6: write(HL, M_Write_Helper(&CPU::Set, 6)); break; //SET 6,(HL)
 		case 0xF7: Set(A, 6); break; //SET 6,A
 		case 0xF8: Set(B, 7); break; //SET 7,B
 		case 0xF9: Set(C, 7); break; //SET 7,C
@@ -692,19 +739,18 @@ void CPU::handleCB() {
 		case 0xFB: Set(E, 7); break; //SET 7,E
 		case 0xFC: Set(H, 7); break; //SET 7,H
 		case 0xFD: Set(L, 7); break; //SET 7,L
-		case 0xFE: gb.mem.Write(HL, CB_HL_Stuff(&CPU::Set, 7)); break; //SET 7,(HL)
+		case 0xFE: write(HL, M_Write_Helper(&CPU::Set, 7)); break; //SET 7,(HL)
 		case 0xFF: Set(A, 7); break; //SET 7,A
 
 		default: fmt::printf("Unimplemented CB: 0x%02X\n", opcode); break;
 	}
 	
-	cycles++;
+	++cycles;
 }
 
 u8 CPU::FetchOpcode(u16 counter) {
 	if(counter > 0xFFFF) throw "[CPU::FetchOpcode] counter is bigger than 0xFFFF";  //this should never happen
 
-	cycles -= 1;
 	return GetLEBytes<u8>(counter);
 }
 
@@ -726,15 +772,15 @@ bool CPU::CheckCarry() {
 
 u8 CPU::SetFlags(u16 flags, u16 ans, u8 old, u8 diff) {
 	if(flags & Carry)		SetCarry(ans);
-	if(flags & HalfCarry)	SetHalfCarry(ans, old, diff);
+	if(flags & HalfCarry)	SetHalfCarry(u8(ans), old, diff);
 	if(flags & Zero)		SetZero((ans & 0xff) == 0);
 
-	return ans;
+	return u8(ans);
 }
 
 u8 CPU::SetCarry(u16 ans) {
 	F.C = (ans > 0xff);
-	return ans;
+	return u8(ans);
 }
 
 u8 CPU::SetHalfCarry(u8 ans, u8 old, u8 diff) {
@@ -743,7 +789,7 @@ u8 CPU::SetHalfCarry(u8 ans, u8 old, u8 diff) {
 }
 
 u8 CPU::SetZero(int ans) {
-	F.Z = (ans & 0xff);
+	F.Z = (ans & 0xff) == 0;
 	return ans;
 }
 
@@ -763,6 +809,15 @@ void CPU::SetZero(bool val) {
 	F.Z = val;
 }
 
+void CPU::write(u16 loc, u8 value) {
+	gb.mem.Write(loc, value);
+}
+
+void CPU::write(u16 loc, u16 value) {
+	gb.mem.Write(loc, u8(value & 0xff));
+	gb.mem.Write(++loc, u8(value >> 8));
+}
+
 template <typename T>
 T CPU::GetLEBytes() {
 	return GetLEBytes<T>(PC, true);
@@ -778,7 +833,25 @@ T CPU::GetLEBytes(u16& addr, bool increase) {
 	cycles += sizeof(T);
 
 	T ret = 0, amount = sizeof(T);
-	while(amount > 0) ret += u8(gb.mem.Read((increase) ? addr++ : addr + (sizeof(T) - amount))) << ((sizeof(T) - amount--) * 8);
+	//while(amount > 0) ret += u8(gb.mem.Read((increase) ? addr++ : addr + (sizeof(T) - amount))) << ((sizeof(T) - amount--) * 8);
+	
+	while (amount > 0) {
+		u16 newAddr = 0;
+		u16 currentByte = (sizeof(T) - amount);
+
+		if (increase) {
+			newAddr = addr++;
+		}
+		else {
+			newAddr = addr + currentByte;
+		}
+	
+		ret += gb.mem.Read(newAddr) << (currentByte * 8);
+		
+		--amount;
+	}
+	
+	
 	return ret;
 }
 
@@ -846,7 +919,7 @@ void CPU::Decrease(u16& reg) {
 
 void CPU::RotateLeft(u8& reg, bool carry) {
 	bool bit0 = (reg & 0x80);
-	reg = SetFlags(Zero, (carry ? CheckCarry() : bit0) | (reg << 1));
+	reg = SetFlags(Zero, u8(carry ? CheckCarry() : bit0) | (reg << 1));
 	SetCarry(bit0);
 	SetHalfCarry(false);
 	SetNegative(false);
@@ -911,8 +984,9 @@ void CPU::Load(u16& loc, u16 val) {
 }
 
 void CPU::Push(u16& reg_pair) {
+	++cycles;
 	SP -= 2;
-	gb.mem.Write(SP, reg_pair);
+	write(SP, reg_pair);
 }
 
 void CPU::Pop(u16& reg_pair) {
@@ -921,15 +995,22 @@ void CPU::Pop(u16& reg_pair) {
 }
 
 void CPU::Jump(u16 loc, bool cond) {
-	if(cond) PC = loc;
+	if (cond) {
+		++cycles;
+		PC = loc;
+	}
 }
 
 void CPU::JumpRelative(s8 offset, bool cond) {
-	if(cond) PC += offset;
+	if (cond) {
+		++cycles;
+		PC += offset;
+	}
 }
 
 void CPU::Call(u16 loc, bool cond) {
 	if(cond) {
+		++cycles;
 		Push(PC);
 		Jump(loc);
 	}

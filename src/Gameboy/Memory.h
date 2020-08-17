@@ -47,7 +47,14 @@ struct MBC0 : public IMBC {
 };
 
 struct Sprite {
-	u8 ypos, xpos, tile, flags;
+	u8 yPos, xPos, tile;
+	struct {
+		u8 : 4; //cgb only
+		u8 paletteNum : 1;
+		u8 xFlip : 1;
+		u8 yFlip : 1;
+		u8 priority : 1;
+	} flags;
 };
 
 class Memory {
@@ -59,9 +66,9 @@ public:
 	u8 WRAMBank0[0x1000]; //0xC000
 	u8 WRAMBank1[0x1000]; //0xD000
 	u8 mirrorWRAM[0x1E00]; //0xE000
-	union {
-		Sprite sprites[40];
-		u8 OAM[0xA0]; //0xFE00
+	union { //0xFE00
+		std::array<Sprite, 40> sprites;
+		std::array<u8, 0xA0> OAM;
 	};
 	u8 unusuable[0x60]; //0xFEA0
 	union {
@@ -71,8 +78,8 @@ public:
 				u8 p11 : 1;
 				u8 p12 : 1;
 				u8 p13 : 1;
-				u8 selectButton : 1;
 				u8 selectDirect : 1;
+				u8 selectButton : 1;
 			} joypad;
 			u8 serialData; //0xFF01 Serial Data
 			struct { //0xFF02 Serial Control 
@@ -88,7 +95,7 @@ public:
 				u8 clockSelect : 2;		//(0=Off, 1=On)
 				u8 timerOn : 1;	//(0=Off, 1=On)
 			} TAC;
-			u8 unused2[0x7]; //0xFF08-0xFF0E Unused
+			std::array<u8, 0x7> unused2; //0xFF08-0xFF0E Unused
 			struct { //0xFF0F Interrupt Flags
 				u8 vblank : 1;
 				u8 lcdStat : 1;
@@ -98,7 +105,7 @@ public:
 			} IF;
 			u8 soundStuff[0x30];
 			struct { //0xFF40 LCDC
-				u8 bgDisplay : 1;		//(0=Off, 1=On)
+				u8 displayPriority : 1;		//(0=Off, 1=On)
 				u8 objDisplay : 1;	//(0=Off, 1=On)
 				u8 objSize : 1;		//(0=8x8, 1=8x16)
 				u8 bgMap : 1;			//(0=9800-9BFF, 1=9C00-9FFF)
@@ -109,7 +116,7 @@ public:
 			} LCDC;
 			struct { //0xFF41 LCDC Status
 				u8 mode : 2;
-				u8 lycStat : 1;
+				u8 coincidence : 1;
 				u8 hblankInterrupt : 1;
 				u8 vblankInterrupt : 1;
 				u8 oamInterrupt : 1;
@@ -125,23 +132,36 @@ public:
 			Palette OBP1; //0xFF49 Object Palette 1 Data
 			u8 WY; //0xFF4A Window Y Position
 			u8 WX; //0xFF4B Window X Position
-			u8 unused3[0x04]; //0xFF4C-0xFF4F Unused/CGB only
+			std::array<u8, 0x4> unused3; //0xFF4C-0xFF4F Unused/CGB only
 			struct { //0xFF50 
 				u8 BOOT : 1;
 			};
 			u8 unused4[0x2F]; //0xFF51-0xFF7F Unused/CGB only
+			/*
+			std::array<u8, 0x6> cgb; //0xFF51-0xFF56 Unused/CGB only
+			std::array<u8, 0x29> unused4; //0xFF57-0xFF7F Unused/CGB only
+			*/
 		};
 		u8 IORegs[0x80];
 	};
 	u8 HRAM[0x7F]; //0xFF80
-	u8 IEReg; //0xFFFF
+	union { //0xFFFF
+		struct {
+			u8 vblank : 1;
+			u8 lcdStat : 1;
+			u8 timer : 1;
+			u8 serial : 1;
+			u8 joypad : 1;
+		} IE;
+
+		u8 Interrupt;
+	};
 
 	Memory(Gameboy&);
-	void Clean();
+	void clean();
 	void ResetIORegs();
 
 	void Write(u16, u8);
-	void Write(u16, u16);
 
-	u16 Read(u16 loc);
+	u8 Read(u16 loc);
 };
