@@ -20,7 +20,7 @@ void Memory::clean() {
 	std::fill(mirrorWRAM, std::end(mirrorWRAM), 0);
 	OAM.fill(0);
 	std::fill(unusuable, std::end(unusuable), 0xFF);
-	ResetIORegs();
+	resetIO();
 	std::fill(HRAM, std::end(HRAM), 0);
 	Interrupt = 0xE0;
 }
@@ -28,7 +28,7 @@ void Memory::clean() {
 /*
 This is used to setup the "unimplemented pins" and various default values
 */
-void Memory::ResetIORegs() {
+void Memory::resetIO() {
 	std::fill(IORegs, std::end(IORegs), 0);
 	IORegs[0x00] = 0xFF;
 	Write(0xFF01, u8(0x00)); //Serial Data
@@ -121,18 +121,37 @@ void Memory::ResetIORegs() {
 	*/
 }
 
+void Memory::update() {
+	if (inDMA) {
+		currentDMA = (DMA << 8) | DMAOffset;
+
+		memoryRead = true;
+		OAM[DMAOffset] = Read(currentDMA);
+		memoryRead = false;
+
+		if (DMAOffset != 0x9F) {
+			++DMAOffset;
+		}
+		else {
+			DMAOffset = 0;
+			currentDMA = 0;
+			inDMA = false;
+		}
+	}
+}
+
 void Memory::Write(u16 loc, u8 value) {
-	if(loc == 0xFFFF) {
+	if (loc == 0xFFFF) {
 		IE.vblank = (value >> 0);
 		IE.lcdStat = (value >> 1);
 		IE.timer = (value >> 2);
 		IE.serial = (value >> 3);
 		IE.joypad = (value >> 4);
 	}
-	else if(loc >= 0xFF80) {
+	else if (loc >= 0xFF80) {
 		HRAM[loc - 0xFF80] = value;
 	}
-	else if(loc >= 0xFF00) {
+	else if (loc >= 0xFF00) {
 		u8 ioreg = loc & 0xFF;
 		switch(ioreg) {
 			case 0x00: { //joypad
@@ -142,6 +161,9 @@ void Memory::Write(u16 loc, u8 value) {
 			case 0x02: { //Serial Control
 				serialControl.shiftClock = (value);
 				serialControl.transferStart = (value >> 7);
+			} break;
+			case 0x04: {
+				TIMA = 0;
 			} break;
 			case 0x07: { //Timer Control
 				TAC.clockSelect = (value);
@@ -170,6 +192,14 @@ void Memory::Write(u16 loc, u8 value) {
 				STAT.oamInterrupt = (value >> 5);
 				STAT.lycInterrupt = (value >> 6);
 			} break;
+			case 0x46: { // DMA Transfer
+				inDMA = true;
+				DMA = value;
+
+				if (currentDMA != 0) {
+					DMAOffset = 0;
+				}
+			} break;
 			case 0x47: { //BG Palette Data
 				BGP = value;
 			} break;
@@ -178,38 +208,41 @@ void Memory::Write(u16 loc, u8 value) {
 			} break;
 			
 
-			default: IORegs[loc - 0xFF00] = value; break;
+			default: IORegs[ioreg] = value; break;
 		}
 	}
-	else if(loc >= 0xFEA0) { 
+	else if (loc >= 0xFEA0) { 
 		//tetris does this so I may remove it in order to avoid annoyances
 		std::cout << fmt::format("Writing to unused memory [{:x}]: {}\n", loc, value);
 	}
-	else if(loc >= 0xFE00) {
+	else if (inDMA) {
+		return;
+	}
+	else if (loc >= 0xFE00) {
 		if(STAT.mode < 2) { // only allow writes during hblank and vblank 
 			OAM[loc - 0xFE00] = value;
 		}
 	}
-	else if(loc >= 0xE000) {
+	else if (loc >= 0xE000) {
 		mirrorWRAM[loc - 0xE000] = value;
 	}
-	else if(loc >= 0xD000) {
+	else if (loc >= 0xD000) {
 		WRAMBank1[loc - 0xD000] = value;
 	}
-	else if(loc >= 0xC000) {
+	else if (loc >= 0xC000) {
 		WRAMBank0[loc - 0xC000] = value;
 	}
-	else if(loc >= 0xA000) {
+	else if (loc >= 0xA000) {
 		ERAM[loc - 0xA000] = value;
 	}
-	else if(loc >= 0x8000) {
-		if(STAT.mode != PPU::Drawing) {
+	else if (loc >= 0x8000) {
+		if (STAT.mode != PPU::Drawing) {
 			VRAM[loc - 0x8000] = value;
 		}
 
 		//fprintf(log, "Write to VRAM $%04X: $%02X\n", loc, value); //PSI's Logger
 	}
-	else if(loc >= 0x4000) {
+	else if (loc >= 0x4000) {
 		//gb.mbc->current[loc - 0x4000] = value;
 	}
 	else {
@@ -244,6 +277,9 @@ u8 Memory::Read(u16 loc) {
 	}
 	else if(loc >= 0xFEA0) {
 		return unusuable[loc - 0xFEA0];
+	}
+	else if (inDMA && !memoryRead) {
+		return 0xFF;
 	}
 	else if(loc >= 0xFE00) {
 		if (STAT.mode < 2) {

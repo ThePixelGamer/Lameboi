@@ -58,8 +58,6 @@ struct Sprite {
 };
 
 class Memory {
-	Gameboy& gb;
-
 public:
 	std::array<u8, 0x2000> VRAM; //0x8000
 	u8 ERAM[0x2000]; //0xA000
@@ -92,8 +90,8 @@ public:
 			u8 TIMA; //0xFF05 Timer Counter
 			u8 TMA; //0xFF06 Timer Modulo
 			struct { //0xFF07 Timer Control
-				u8 clockSelect : 2;		//(0=Off, 1=On)
-				u8 timerOn : 1;	//(0=Off, 1=On)
+				u8 clockSelect : 2;		// (00=1024, 01=16, 10=64, 11=256)
+				u8 timerOn : 1;	// (0=Off, 1=On)
 			} TAC;
 			std::array<u8, 0x7> unused2; //0xFF08-0xFF0E Unused
 			struct { //0xFF0F Interrupt Flags
@@ -159,9 +157,16 @@ public:
 
 	Memory(Gameboy&);
 	void clean();
-	void ResetIORegs();
+	void resetIO();
+	void update(); //oam dma
 
 	void Write(u16, u8);
-
 	u8 Read(u16 loc);
+
+private:
+	Gameboy& gb;
+	bool memoryRead = false; //bit of a hack to use the read function during dma
+	bool inDMA = false;
+	u16 currentDMA = 0; //what address the dma was launched with
+	u8 DMAOffset = 0; //which byte we're currently copying
 };

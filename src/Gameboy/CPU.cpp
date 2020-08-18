@@ -79,7 +79,6 @@ void CPU::clean() {
 	SP = 0;
 	PC = 0;
 	opcode = 0;
-	cycles = 0;
 	gb.IME = false;
 }
 
@@ -90,51 +89,78 @@ u8 CPU::M_Write_Helper(T func, Args... args) {
 	return value;
 }
 
-u8 CPU::ExecuteOpcode() {
-	cycles = 0;
+void CPU::interrupt(u8 interrupt) {
+	//2 nops
+	gb.scheduler.newMCycle();
+	gb.scheduler.newMCycle();
 
-	if (gb.IME && gb.mem.Interrupt != 0xE0) {
+	Push(PC);
+
+	PC = interrupt;
+	gb.scheduler.newMCycle();
+}
+
+bool CPU::interruptPending() {
+	return gb.IME && gb.mem.Interrupt != 0xE0;
+}
+
+bool CPU::handleInterrupts() {
+	if (interruptPending()) {
 		if (gb.mem.IE.vblank && gb.mem.IF.vblank) {
 			gb.mem.IF.vblank = 0;
 
-			//2 nops
-			++cycles;
-			++cycles;
-
-			Push(PC);
-
-			PC = 0x40;
-			++cycles;
+			interrupt(0x40);
 		}
 
 		if (gb.mem.IE.lcdStat && gb.mem.IF.lcdStat) {
 			gb.mem.IF.lcdStat = 0;
 
-			//2 nops
-			++cycles;
-			++cycles;
+			interrupt(0x48);
+		}
 
-			Push(PC);
+		if (gb.mem.IE.timer && gb.mem.IF.timer) {
+			gb.mem.IF.timer = 0;
 
-			PC = 0x48;
-			++cycles;
+			interrupt(0x50);
 		}
 
 		if (gb.mem.IE.joypad && gb.mem.IF.joypad) {
 			gb.mem.IF.joypad = 0;
 
-			//2 nops
-			++cycles;
-			++cycles;
-
-			Push(PC);
-
-			PC = 0x60;
-			++cycles;
+			interrupt(0x60);
 		}
+
+		return true;
 	}
 
-	opcode = FetchOpcode(PC++);
+	return false;
+}
+
+void CPU::ExecuteOpcode() {
+	if (lowPower) {
+		if (handler && handleInterrupts()) {
+			handler = false;
+			lowPower = false;
+		}
+		else if (interruptPending()) {
+			lowPower = false;
+		}
+		else {
+			gb.scheduler.newMCycle(); //not sure about how I'm handling it
+			return;
+		}
+	}
+	else {
+		handleInterrupts();
+	}
+
+	if (haltBug) {
+		opcode = FetchOpcode(PC);
+		haltBug = false;
+	}
+	else {
+		opcode = FetchOpcode(PC++);
+	}
 
 	handlePrint();
 
@@ -156,8 +182,7 @@ u8 CPU::ExecuteOpcode() {
 		case 0x1C: Increase(E); break; //INC E
 		case 0x24: Increase(H); break; //INC H
 		case 0x2C: Increase(L); break; //INC L
-		//case 0x34: write(HL, M_Write_Helper(static_cast<overloaded>(&CPU::Increase))); break; //INC (HL)
-		case 0x34: write(HL, [&]() {u8 value = GetLEBytes<u8>(HL); Increase(value); return value; }()); break; //INC (HL)
+		case 0x34: write(HL, M_Write_Helper(static_cast<overloaded>(&CPU::Increase))); break; //INC (HL)
 		case 0x3C: Increase(A); break;
 
 		case 0x05: Decrease(B); break; //DEC B
@@ -166,8 +191,7 @@ u8 CPU::ExecuteOpcode() {
 		case 0x1D: Decrease(E); break; //DEC E
 		case 0x25: Decrease(H); break; //DEC H
 		case 0x2D: Decrease(L); break; //DEC L
-		//case 0x35: write(HL, M_Write_Helper(static_cast<overloaded>(&CPU::Decrease))); break; //DEC (HL)		
-		case 0x35: write(HL, [&]() {u8 value = GetLEBytes<u8>(HL); Decrease(value); return value; }()); break; //DEC (HL)		
+		case 0x35: write(HL, M_Write_Helper(static_cast<overloaded>(&CPU::Decrease))); break; //DEC (HL)		
 		case 0x3D: Decrease(A); break;
 			
 		case 0x01: Load(BC, GetLEBytes<u16>()); break; //LD BC,u16
@@ -212,7 +236,7 @@ u8 CPU::ExecuteOpcode() {
 		case 0x38: JumpRelative(GetLEBytes<u8>(), CheckCarry()); break; //JR C,i8
 
 		case 0x00: break; //NOP
-		case 0x10: /*throw "Stop called";*/ break; //STOP
+		//case 0x10: /*throw "Stop called";*/ break; //STOP
 
 		case 0x27: { //DAA
 			// note: assumes a is a uint8_t and wraps from 0xff to 0
@@ -309,7 +333,23 @@ u8 CPU::ExecuteOpcode() {
 		case 0x73: write(HL, E); break;
 		case 0x74: write(HL, H); break;
 		case 0x75: write(HL, L); break;
-		case 0x76: /*HALT*/ break;
+		
+		case 0x76: 
+		{
+			if (gb.IME == false) {
+				if (gb.mem.Interrupt & gb.mem.Read(0x0F)) {
+					haltBug = true;
+				}
+				else {
+					lowPower = true;
+				}
+			}
+			else {
+				lowPower = true;
+				handler = true;
+			}
+		} break;
+
 		case 0x77: write(HL, A); break;
 		case 0x78: Load(A, B); break;
 		case 0x79: Load(A, C); break;
@@ -465,18 +505,16 @@ u8 CPU::ExecuteOpcode() {
 		case 0xFB: gb.IME = true; break; //EI
 		case 0xCB: handleCB(); break;
 
-		default: /*fmt::printf("Unimplemented Opcode: 0x%02X\n", opcode);*/ break;
+		default: fmt::printf("Unimplemented Opcode: 0x%02X\n", opcode); break;
 	}
 
     //fprintf(gb.log, " AF: $%04X BC: $%04X DE: $%04X HL: $%04X\n", AF, BC, DE, HL);
-
-	return cycles;
 }
 
 void CPU::handleCB() {
 	opcode = FetchOpcode(PC++);
 
-	switch(opcode) {
+	switch (opcode) {
 		case 0x00: RotateLeft(B); break; //RLC B
 		case 0x01: RotateLeft(C); break; //RLC C
 		case 0x02: RotateLeft(D); break; //RLC D
@@ -528,7 +566,7 @@ void CPU::handleCB() {
 		case 0x2D: ShiftRightArithmetic(L); break; //SRA L
 		case 0x2E: write(HL, M_Write_Helper(&CPU::ShiftRightArithmetic)); break; //SRA (HL)
 		case 0x2F: ShiftRightArithmetic(A); break; //SRA A
-		
+
 		case 0x30: Swap(B); break; //SWAP B
 		case 0x31: Swap(C); break; //SWAP C
 		case 0x32: Swap(D); break; //SWAP D
@@ -744,8 +782,6 @@ void CPU::handleCB() {
 
 		default: fmt::printf("Unimplemented CB: 0x%02X\n", opcode); break;
 	}
-	
-	++cycles;
 }
 
 u8 CPU::FetchOpcode(u16 counter) {
@@ -830,7 +866,9 @@ T CPU::GetLEBytes(u16 addr) {
 
 template <typename T>
 T CPU::GetLEBytes(u16& addr, bool increase) {
-	cycles += sizeof(T);
+	for (size_t cycles = 0; cycles < sizeof(T); ++cycles) {
+		gb.scheduler.newMCycle();
+	}
 
 	T ret = 0, amount = sizeof(T);
 	//while(amount > 0) ret += u8(gb.mem.Read((increase) ? addr++ : addr + (sizeof(T) - amount))) << ((sizeof(T) - amount--) * 8);
@@ -984,7 +1022,7 @@ void CPU::Load(u16& loc, u16 val) {
 }
 
 void CPU::Push(u16& reg_pair) {
-	++cycles;
+	gb.scheduler.newMCycle();
 	SP -= 2;
 	write(SP, reg_pair);
 }
@@ -996,28 +1034,29 @@ void CPU::Pop(u16& reg_pair) {
 
 void CPU::Jump(u16 loc, bool cond) {
 	if (cond) {
-		++cycles;
+		gb.scheduler.newMCycle();
 		PC = loc;
 	}
 }
 
 void CPU::JumpRelative(s8 offset, bool cond) {
 	if (cond) {
-		++cycles;
+		gb.scheduler.newMCycle();
 		PC += offset;
 	}
 }
 
 void CPU::Call(u16 loc, bool cond) {
 	if(cond) {
-		++cycles;
+		//gb.scheduler.newMCycle(); push already runs a m-cycle so this isn't needed
 		Push(PC);
-		Jump(loc);
+		PC = loc;
 	}
 }
 
 void CPU::Ret() {
 	Pop(PC);
+	gb.scheduler.newMCycle();
 }
 
 void CPU::Rst(u8 loc) {

@@ -4,6 +4,7 @@
 #include "CPU.h"
 #include "PPU.h"
 #include "Joypad.h"
+#include "Scheduler.h"
 #include "../Debug/Debugger.h"
 
 #include <algorithm> //std::fill
@@ -17,12 +18,17 @@
 
 struct Gameboy {
 	Memory mem;
-	CPU cpu;
-	bool IME = false;
-	PPU ppu;
 	std::array<u8, 0x100> bios;
 	std::unique_ptr<IMBC> mbc;
+
+	CPU cpu;
+	bool IME = false;
+
+	PPU ppu;
+
 	Joypad pad;
+
+	Scheduler scheduler;
 
 	Debugger debug;
 	std::ofstream log;
@@ -33,7 +39,7 @@ struct Gameboy {
 	std::condition_variable emustart;
 	std::mutex emustart_m;
 
-	Gameboy() : mem(*this), cpu(*this), ppu(*this), pad(mem), debug(mem) {
+	Gameboy() : mem(*this), cpu(*this), ppu(*this), pad(mem), debug(mem), scheduler(*this) {
 		bios.fill(0);
 		mbc = std::make_unique<MBC0>(); //change this based on byte
 	}
@@ -54,9 +60,7 @@ struct Gameboy {
 
 		while(running) {
 			for (size_t steps = debug.amountToStep(cpu.PC); steps > 0; --steps) {
-				u8 cycles = cpu.ExecuteOpcode();
-
-				ppu.update(cycles);
+				cpu.ExecuteOpcode();
 			}
 		}
 

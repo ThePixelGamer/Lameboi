@@ -55,14 +55,23 @@ struct CPU {
 	u16& HL = hl.value; u8& H = hl.high; u8& L = hl.low;
 
 	u16 PC, SP;
-	u8 opcode, cycles;
+	u8 opcode;
+	bool halted = false;
 
 	CPU(Gameboy&);
 	void handlePrint();
+	bool handleInterrupts();
 	void clean();
-	u8 ExecuteOpcode();
+	void ExecuteOpcode();
 
 private:
+	bool haltBug = false;
+	bool lowPower = false;
+	bool handler = false;
+
+	void interrupt(u8 interrupt);
+	bool interruptPending();
+
 	void write(u16 loc, u8 value);
 	void write(u16 loc, u16 value);
 

@@ -447,6 +447,9 @@ int main(int, char**) {
 			updateTextures(oamTex);
 			displayImage((void*)(intptr_t)oamTex.texture, oamTex.width, oamTex.height, 3, oamTex.name);
 
+			static u32 u32_one = 1;
+			ImGui::InputScalar("Invisible Color", ImGuiDataType_U32, &gb->ppu.invisPixel, &u32_one, NULL, "%08X", ImGuiInputTextFlags_CharsHexadecimal);
+
 			ImGui::End();
 
 

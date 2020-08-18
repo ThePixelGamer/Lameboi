@@ -18,8 +18,7 @@ class PPU {
 	int cycles;
 	int lastTile;
 
-	u8 currentSprite;
-	u8 spritesScanned;
+	u8 loadedSprites;
 	std::array<u8, 10> sprites; //offset
 	
 	bool drewWindowLine;
@@ -30,6 +29,9 @@ class PPU {
 public:
 	std::array<u32, 160 * 144> display;
 	int vblankCount;
+
+	//helper for dumpSprites
+	inline static u32 invisPixel = 0;
 
 	bool isVblank;
 	std::condition_variable vblank;
@@ -44,13 +46,18 @@ public:
 
 	PPU(Gameboy&);
 	void clean();
-	void update(int ticks);
+	void update();
 	
 	void dumpBGMap(std::array<u32, 256 * 256>& bgmap, bool bgMap, bool tileSet);
 	void dumpTileMap(std::array<u32, 128 * 64 * 3>& tilemap);
 	void dumpSprites(std::array<u32, 64 * 40>& sprites);
 
 private:
+	void fifo();
+	void scanline();
+
+	bool _nextLine();
+
 	std::array<u8, 16> _fetchTile(u16 addr, u8 tileoffset = 0);
 	std::array<u8, 2> _fetchTileLine(bool method8000, u8 yoffset, u8 tileoffset = 0);
 };
