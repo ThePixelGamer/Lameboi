@@ -6,6 +6,7 @@
 #include "Joypad.h"
 #include "Scheduler.h"
 #include "../Debug/Debugger.h"
+#include "fmt/printf.h"
 
 #include <algorithm> //std::fill
 #include <iterator> //std::end
@@ -41,17 +42,34 @@ struct Gameboy {
 
 	Gameboy() : mem(*this), cpu(*this), ppu(*this), pad(mem), debug(mem), scheduler(*this) {
 		bios.fill(0);
-		mbc = std::make_unique<MBC0>(); //change this based on byte
+		mbc = nullptr;
 	}
 
-	void LoadRom(std::istream& file) {
+	bool LoadRom(std::istream& file) {
 		std::ifstream f_bios("D:/dmg_boot.bin", std::ifstream::binary);
 		f_bios.read(reinterpret_cast<char*>(bios.data()), 0x100);
 		f_bios.close();
 
-		mbc->Setup(file);
-					
+		u8 type = file.seekg(0x147).get(); //get mbc type
+		file.seekg(0); //reset istream position
+
+		switch (type) {
+			case 0x0:
+				mbc = std::make_unique<MBC0>();
+				break;
+
+			case 0x13:
+				mbc = std::make_unique<MBC3>(true, true);
+				break;
+
+			default:
+				fmt::printf("Unimplemented Cartridge Type 0x%02X\n", type); 
+				return false;
+		}
+
+		mbc->setup(file);
 		log.open("log.txt");
+		return true;
 	}
 
 	void Start() {
@@ -61,6 +79,15 @@ struct Gameboy {
 		while(running) {
 			for (size_t steps = debug.amountToStep(cpu.PC); steps > 0; --steps) {
 				cpu.ExecuteOpcode();
+
+				if (!running) {
+					break;
+				}
+				/*
+				if (mem.serialControl.transferStart) {
+					std::cout << mem.serialData;
+				}
+				*/
 			}
 		}
 
@@ -70,6 +97,11 @@ struct Gameboy {
 			std::unique_lock lock(emustart_m);
 			finished = true;
 			emustart.notify_one();
+		}
+
+		// write any ram to a file if the mbc needs to
+		if (mbc) {
+			mbc->close();
 		}
 
 		mem.clean();

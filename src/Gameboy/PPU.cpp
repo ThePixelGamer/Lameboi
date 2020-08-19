@@ -238,7 +238,9 @@ void PPU::update() {
 				++mem.LY;
 				if (drewWindowLine) {
 					drewWindowLine = false;
-					++windowLines;
+					if (++windowLines >= 144) {
+						windowLines = 0;
+					}
 				}
 				loadedSprites = 0;
 

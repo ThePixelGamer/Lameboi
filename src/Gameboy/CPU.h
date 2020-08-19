@@ -56,7 +56,6 @@ struct CPU {
 
 	u16 PC, SP;
 	u8 opcode;
-	bool halted = false;
 
 	CPU(Gameboy&);
 	void handlePrint();

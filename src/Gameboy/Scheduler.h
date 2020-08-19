@@ -10,7 +10,6 @@ class Scheduler {
 	const u8 cyclesDiv = 64; // takes the amount of m-cycles to increment the div reg
 	u8 currentCycleCount = 0;
 
-
 public:
 	bool handleInterrupts = true;
 

@@ -4,6 +4,7 @@
 
 #include <array>
 #include <iostream>
+#include <fstream>
 #include <mutex>
 
 #include "Util/types.h"
@@ -11,38 +12,210 @@
 
 struct Gameboy;
 
-struct IMBC {
-	u8* current;
-	std::array<u8, 0x4000> romBank0; //0x0000
-	
-	IMBC() {
-		this->current = nullptr;
-		romBank0.fill(0);
-	}
+class IMBC {
+public:
+	bool ram = false;
+	bool battery = false;
 
-	virtual void switchBank(u8) = 0;
-	virtual void Setup(std::istream&) = 0;
+	virtual void setup(std::istream& stream) = 0;
+	virtual void save() = 0;
+	virtual void close() = 0;
+	virtual void write(u16 location, u8 data) = 0;
+	virtual u8 read(u16 location) = 0;
 };
 
-struct MBC0 : public IMBC {
-	std::array<u8, 0x4000> romBank1;
+class MBC0 : public IMBC {
+	std::array<u8, 0x4000> bank0; // 0x0000
+	std::array<u8, 0x4000> bank1; // 0x8000
+	std::array<u8, 0x2000> ERAM; // 0x8000
 
+public:
 	MBC0() : IMBC() {
-		romBank1.fill(0);
-		switchBank(1);
+		bank0.fill(0);
+		bank1.fill(0);
+		ERAM.fill(0);
 	}
 	
-	virtual void Setup(std::istream& stream) {
-		stream.read((char*)romBank0.data(), 0x4000);
-		stream.read((char*)romBank1.data(), 0x4000);
+	virtual void setup(std::istream& stream) {
+		stream.read((char*)bank0.data(), 0x4000);
+		stream.read((char*)bank1.data(), 0x4000);
 	}
 
-	virtual void switchBank(u8 bank) {
-		switch(bank) {
-			case 0: break;
-			case 1: this->current = romBank1.data(); break;
-			default: printf("Switched to unknown bank"); break;
+	virtual void save() {}
+	virtual void close() {}
+
+	virtual void write(u16 location, u8 data) {
+		if (location >= 0xA000) {
+			ERAM[location] = data;
 		}
+	} 
+
+	virtual u8 read(u16 location) {
+		if (location >= 0xA000) {
+			return ERAM[location - 0xA000];
+		}
+		else if (location >= 0x4000) { //maybe have this restricted to 4000h-7FFFh?
+			return bank1[location - 0x4000];
+		}
+		else {
+			return bank0[location];
+		}
+	}
+};
+
+class MBC3 : public IMBC {
+	bool timer = false;
+	bool ramEnabled = false;
+	u8 romBank = 1; // 1h-7Fh
+	u8 ramBank = 0; // 0h-3h = banks, 8h-Ch = RTC registers
+	u8 rtcRegister = 0;
+	bool ramOrRtc = false; // false = ram, true = rtc
+
+	std::array<std::array<u8, 0x4000>, 0x80> romBanks; // 00h-7Fh
+	std::array<std::array<u8, 0x2000>, 0x4> ramBanks; // 00h-03h
+
+	// unimplemented, use std::chrono?
+	u8 rtcS = 0;
+	u8 rtcM = 0;
+	u8 rtcH = 0;
+	union {
+		struct {
+			u16 counter : 9;
+			u8 : 5;
+			u8 halt : 1;
+			u8 carry : 1;
+		};
+
+		u16 rawValue = 0x3E00;
+	} rtcD;
+
+public:
+	MBC3(bool ram_ = false, bool battery_ = false, bool timer_ = false) : IMBC(),
+		timer(timer_) {
+		battery = battery_;
+		ram = ram_;
+
+		romBanks.fill({});
+		ramBanks.fill({});
+	}
+
+	std::string _getName() {
+		return reinterpret_cast<const char*>(&romBanks[0][0x134]);
+	}
+
+	virtual void setup(std::istream& stream) {
+		stream.read((char*)romBanks[0].data(), 0x4000);
+
+		//change this to use the size of the rom?
+		u16 maxBanks = 0;
+		switch (romBanks[0][0x148]) {
+			case 0x1: maxBanks = 4; break;
+			case 0x5: maxBanks = 64; break;
+			default: std::cout << "Max Banks is 0" << std::endl; break;
+		}
+
+		// 01h - Amount of Banks
+		for (u8 bankAmount = 1; bankAmount < maxBanks; ++bankAmount) {
+			stream.read((char*)romBanks[bankAmount].data(), 0x4000);
+		}
+
+		//probably change this to only save the ram banks used
+		if (battery) {
+			std::ifstream file("saves/" + _getName() + ".lbs", std::ios_base::binary);
+
+			for (size_t i = 0; i < ramBanks.size(); ++i) {
+				file.read((char*)ramBanks[i].data(), 0x2000);
+			}
+
+			file.close();
+		}
+	}
+
+	virtual void save() {
+		// dump ram to file
+		if (battery) {
+			std::ofstream file("saves/" + _getName() + ".lbs", std::ios_base::binary);
+
+			for (size_t i = 0; i < ramBanks.size(); ++i) {
+				file.write((char*)ramBanks[i].data(), 0x2000);
+			}
+
+			file.close();
+		}
+	}
+
+	virtual void close() {
+		save();
+	}
+
+	virtual void write(u16 location, u8 data) {
+		if (location >= 0xA000) {
+			if (ramOrRtc) {
+				switch (rtcRegister) {
+					case 0x0: rtcS = data; break;
+					case 0x1: rtcM = data; break;
+					case 0x2: rtcH = data; break;
+					case 0x3: rtcD.counter = data; break;
+					case 0x4: 
+						rtcD.counter &= 0xFF;
+						rtcD.counter = (data << 8) & 0x100;
+						rtcD.halt = (data >> 6);
+						rtcD.carry = (data >> 7);
+						break;
+					default: break;
+				}
+			}
+			else {
+				ramBanks[ramBank][location - 0xA000] = data;
+			}
+		}
+		else if (location >= 0x6000) {
+			// update the RTC registers?
+		}
+		else if (location >= 0x4000) {
+			if (data & 0x8) {
+				ramOrRtc = true;
+				rtcRegister = (data & 0xF) - 8;
+			}
+			else {
+				ramOrRtc = false;
+				ramBank = (data & 0x3);
+			}
+		}
+		else if (location >= 0x2000) {
+			if (data == 0) {
+				romBank = 1;
+			}
+			else {
+				romBank = (data & 0x7F);
+			}
+		}
+	}
+
+	virtual u8 read(u16 location) {
+		if (location >= 0xA000) {
+			if (ramOrRtc) {
+				switch (rtcRegister) {
+					case 0x0: return rtcS;
+					case 0x1: return rtcM;
+					case 0x2: return rtcH;
+					case 0x3: return (rtcD.rawValue & 0xFF);
+					case 0x4: return (rtcD.rawValue >> 8);
+					default: break;
+				}
+			}
+			else {
+				return ramBanks[ramBank][location - 0xA000];
+			}
+		}
+		else if (location >= 0x4000) {
+			return romBanks[romBank][location - 0x4000];
+		}
+		else {
+			return romBanks[0][location];
+		}
+
+		return 0xFF;
 	}
 };
 
@@ -60,15 +233,14 @@ struct Sprite {
 class Memory {
 public:
 	std::array<u8, 0x2000> VRAM; //0x8000
-	u8 ERAM[0x2000]; //0xA000
-	u8 WRAMBank0[0x1000]; //0xC000
-	u8 WRAMBank1[0x1000]; //0xD000
-	u8 mirrorWRAM[0x1E00]; //0xE000
+	std::array<u8, 0x1000> WRAMBank0; //0xC000
+	std::array<u8, 0x1000> WRAMBank1; //0xD000
+	std::array<u8, 0x1E00> mirrorWRAM; //0xE000
 	union { //0xFE00
 		std::array<Sprite, 40> sprites;
 		std::array<u8, 0xA0> OAM;
 	};
-	u8 unusuable[0x60]; //0xFEA0
+	std::array<u8, 0x60> unusuable; //0xFEA0
 	union {
 		struct {
 			struct { //0xFF00 joypad
@@ -101,7 +273,7 @@ public:
 				u8 serial : 1;
 				u8 joypad : 1;
 			} IF;
-			u8 soundStuff[0x30];
+			std::array<u8, 0x30> soundStuff;
 			struct { //0xFF40 LCDC
 				u8 displayPriority : 1;		//(0=Off, 1=On)
 				u8 objDisplay : 1;	//(0=Off, 1=On)
@@ -134,11 +306,8 @@ public:
 			struct { //0xFF50 
 				u8 BOOT : 1;
 			};
-			u8 unused4[0x2F]; //0xFF51-0xFF7F Unused/CGB only
-			/*
-			std::array<u8, 0x6> cgb; //0xFF51-0xFF56 Unused/CGB only
-			std::array<u8, 0x29> unused4; //0xFF57-0xFF7F Unused/CGB only
-			*/
+			std::array<u8, 0x6> cgb; //0xFF51-0xFF56 CGB only
+			std::array<u8, 0x29> unused4; //0xFF57-0xFF7F Unused only
 		};
 		u8 IORegs[0x80];
 	};

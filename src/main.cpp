@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <filesystem>
 #include <fstream>
 #include <sstream>
 #include <vector>
@@ -172,6 +173,10 @@ int main(int, char**) {
 		"All Files", "*"
 	};
 
+	if (!std::filesystem::exists("saves")) {
+		std::filesystem::create_directories("saves");
+	}
+
 	// Main loop
 	while(!glfwWindowShouldClose(window)) {
 		// Poll and handle events (inputs, window resize, etc.)
@@ -219,18 +224,20 @@ int main(int, char**) {
 				if (!result.empty()) {
 					std::string& file = result[0];
 
-					std::cout << "Opened file " << file << "\n";
 					std::ifstream rom(file, std::ifstream::binary);
 
-					gb->LoadRom(rom);
-					rom.close();
+					if (gb->LoadRom(rom)) {
+						std::cout << "Opened file " << file << "\n";
 
-					if (!show_debug_window) {
-						gb->debug.continuing(true);
+						if (!show_debug_window) {
+							gb->debug.continuing(true);
+						}
+
+						std::thread emuthread(&Gameboy::Start, gb.get());
+						emuthread.detach();
 					}
 
-					std::thread emuthread(&Gameboy::Start, gb.get());
-					emuthread.detach();
+					rom.close();
 				}
 
 				open_file = nullptr;
@@ -322,7 +329,7 @@ int main(int, char**) {
 
 				if (ImGui::Selectable(i_hex.c_str(), false, ImGuiSelectableFlags_AllowDoubleClick) 
 					&& ImGui::IsMouseDoubleClicked(0)) {
-					gb->debug.removeBreakpoint(i);
+					//gb->debug.removeBreakpoint(i); todo fix the map/set iterator issue
 				}
 				else {
 					++i;

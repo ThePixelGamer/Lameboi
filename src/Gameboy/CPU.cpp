@@ -4,8 +4,7 @@
 
 #include <stdexcept>
 #include <array>
-#include <intrin.h>
-#include "fmt/core.h"
+#include "fmt/format.h"
 #include "fmt/printf.h"
 
 const std::array<Instruction, 0x100> instTable {{
@@ -60,15 +59,20 @@ void CPU::handlePrint() {
 		case 2: gb.log << fmt::format(qwq, 0xFF00, GetLEBytes<u8>(PC)); break;
 		case 3: gb.log << fmt::format(qwq, GetLEBytes<u16>(PC)); break;
 	}
+	*/
 
-	gb.log << "\n";
+	/*
+	if (PC >= 0x100) {
+		gb.log << fmt::format("A: {:02X} F: {:02X} B: {:02X} C: {:02X} D: {:02X} E: {:02X} H: {:02X} L: {:02X} SP: {:04X} PC: 00:{:04X} ({:02X} {:02X} {:02X} {:02X})", A, (AF & 0xFF), B, C, D, E, H, L, SP, PC, gb.mem.Read(PC), gb.mem.Read(PC + 1), gb.mem.Read(PC + 2), gb.mem.Read(PC + 3));
+		gb.log << "\n";
+	}
 	*/
 
 	//fprintf(gb.log, "PC:%04x OPC:%02x %02x %02x C:%x H:%x N:%x Z:%x A:%02x\n", PC - 1, opcode, GetLEBytes<u8>(PC), GetLEBytes<u8>(PC + 1), CheckCarry(), CheckHalfCarry(), CheckNegative(), CheckZero(), A); //LilaQ
 }
 
 CPU::CPU(Gameboy& t_gb) : gb(t_gb) {
-	clean();	
+	clean();
 }
 
 void CPU::clean() {
@@ -80,6 +84,10 @@ void CPU::clean() {
 	PC = 0;
 	opcode = 0;
 	gb.IME = false;
+
+	haltBug = false;
+	lowPower = false;
+	handler = false;
 }
 
 template<typename T, typename... Args>
@@ -101,11 +109,11 @@ void CPU::interrupt(u8 interrupt) {
 }
 
 bool CPU::interruptPending() {
-	return gb.IME && gb.mem.Interrupt != 0xE0;
+	return gb.mem.Read(0xFF0F) != 0xE0;
 }
 
 bool CPU::handleInterrupts() {
-	if (interruptPending()) {
+	if (gb.IME && interruptPending()) {
 		if (gb.mem.IE.vblank && gb.mem.IF.vblank) {
 			gb.mem.IF.vblank = 0;
 
@@ -154,6 +162,8 @@ void CPU::ExecuteOpcode() {
 		handleInterrupts();
 	}
 
+	handlePrint();
+
 	if (haltBug) {
 		opcode = FetchOpcode(PC);
 		haltBug = false;
@@ -161,8 +171,6 @@ void CPU::ExecuteOpcode() {
 	else {
 		opcode = FetchOpcode(PC++);
 	}
-
-	handlePrint();
 
 	using overloaded = void (CPU::*)(u8&);
 
@@ -265,7 +273,7 @@ void CPU::ExecuteOpcode() {
 		case 0x2F: { //CPL
 			A = ~A;
 			SetNegative(true);
-			SetHalfCarry(false);
+			SetHalfCarry(true);
 		} break;
 
 		case 0x37: { //SCF
@@ -273,11 +281,12 @@ void CPU::ExecuteOpcode() {
 			SetNegative(false);
 			SetHalfCarry(false);
 		} break;
-		case 0x3F: {
+			
+		case 0x3F: { //CCF
 			SetCarry(!CheckCarry());
 			SetNegative(false);
 			SetHalfCarry(false);
-		} break; //CCF
+		} break;
 
 		case 0x40: Load(B, B); break;
 		case 0x41: Load(B, C); break;
@@ -336,17 +345,15 @@ void CPU::ExecuteOpcode() {
 		
 		case 0x76: 
 		{
-			if (gb.IME == false) {
-				if (gb.mem.Interrupt & gb.mem.Read(0x0F)) {
-					haltBug = true;
-				}
-				else {
-					lowPower = true;
-				}
+			if (gb.IME) {
+				handler = true;
+				lowPower = true;
+			}
+			else if (gb.mem.Interrupt & gb.mem.Read(0xFF0F) & 0x1F) {
+				haltBug = true;
 			}
 			else {
 				lowPower = true;
-				handler = true;
 			}
 		} break;
 
@@ -453,7 +460,7 @@ void CPU::ExecuteOpcode() {
 		case 0xC1: Pop(BC); break; //POP BC
 		case 0xD1: Pop(DE); break; //POP DE
 		case 0xE1: Pop(HL); break; //POP HL
-		case 0xF1: Pop(AF); break; //POP AF
+		case 0xF1: Pop(AF); AF &= 0xFFF0; break; //POP AF
 			
 		case 0xC3: Jump(GetLEBytes<u16>()); break; //JP u16
 		case 0xC2: Jump(GetLEBytes<u16>(), !CheckZero()); break; //JP NZ, u16
@@ -820,7 +827,7 @@ u8 CPU::SetCarry(u16 ans) {
 }
 
 u8 CPU::SetHalfCarry(u8 ans, u8 old, u8 diff) {
-	F.HC = ((old ^ diff ^ ans) & 0x10);
+	F.HC = ((old ^ diff ^ ans) & 0x10) != 0;
 	return ans;
 }
 
@@ -889,7 +896,6 @@ T CPU::GetLEBytes(u16& addr, bool increase) {
 		--amount;
 	}
 	
-	
 	return ret;
 }
 
@@ -907,7 +913,9 @@ void CPU::Add(u8 in, bool carry) {
 }
 
 void CPU::Sub(u8 in, bool carry) {
+	u8 oldA = A;
 	A = SetFlags(Zero | HalfCarry | Carry, A - in - carry, A, in);
+	SetHalfCarry((oldA & 0xF) < (in & 0xF) + carry);
 	SetNegative(true);
 }
 
@@ -921,19 +929,20 @@ void CPU::And(u8 in) {
 void CPU::Xor(u8 in) {
 	A = SetFlags(Zero, A ^ in);
 	SetCarry(false);
-	SetHalfCarry(true);
+	SetHalfCarry(false);
 	SetNegative(false);
 }
 
 void CPU::Or(u8 in) {
 	A = SetFlags(Zero, A | in);
 	SetCarry(false);
-	SetHalfCarry(true);
+	SetHalfCarry(false);
 	SetNegative(false);
 }
 
 void CPU::Compare(u8 in) {
 	SetFlags(Zero | HalfCarry | Carry, A - in, A, in);
+	SetHalfCarry((A & 0xF) < (in & 0xF));
 	SetNegative(true);
 }
 
@@ -972,15 +981,15 @@ void CPU::RotateRight(u8& reg, bool carry) {
 }
 
 void CPU::ShiftLeftArithmetic(u8& reg) {
+	SetCarry((reg & 0x80) == 0x80);
 	reg = SetZero(reg << 1);
-	SetCarry(bool(reg & 0x80));
 	SetHalfCarry(false);
 	SetNegative(false);
 }
 
 void CPU::ShiftRightArithmetic(u8& reg) {
+	SetCarry((reg & 0x1) == 0x1);
 	reg = SetZero((reg & 0x80) | (reg >> 1));
-	SetCarry(bool(reg & 0x1));
 	SetHalfCarry(false);
 	SetNegative(false);
 }
@@ -993,8 +1002,8 @@ void CPU::Swap(u8& reg) {
 }
 
 void CPU::ShiftRightLogical(u8& reg) {
+	SetCarry((reg & 0x1) == 0x1); // set carry before reg gets modified
 	reg = SetZero(reg >> 1);
-	SetCarry(bool(reg & 0x1));
 	SetHalfCarry(false);
 	SetNegative(false);
 }

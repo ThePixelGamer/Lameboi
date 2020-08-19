@@ -14,12 +14,11 @@ Memory::Memory(Gameboy& t_gb) : gb(t_gb) {
 
 void Memory::clean() {
 	VRAM.fill(0);
-	std::fill(ERAM, std::end(ERAM), 0);
-	std::fill(WRAMBank0, std::end(WRAMBank0), 0);
-	std::fill(WRAMBank1, std::end(WRAMBank1), 0);
-	std::fill(mirrorWRAM, std::end(mirrorWRAM), 0);
+	WRAMBank0.fill(0);
+	WRAMBank1.fill(0);
+	mirrorWRAM.fill(0);
 	OAM.fill(0);
-	std::fill(unusuable, std::end(unusuable), 0xFF);
+	unusuable.fill(0xFF);
 	resetIO();
 	std::fill(HRAM, std::end(HRAM), 0);
 	Interrupt = 0xE0;
@@ -32,7 +31,7 @@ void Memory::resetIO() {
 	std::fill(IORegs, std::end(IORegs), 0);
 	IORegs[0x00] = 0xFF;
 	Write(0xFF01, u8(0x00)); //Serial Data
-	Write(0xFF02, u8(0x7E)); //Serial Control
+	IORegs[0x02] = 0x7E; //Serial Control
 	IORegs[0x0F] = 0xE0;
 	LCDC.tileSet = true;
 	LY = 0;
@@ -152,7 +151,7 @@ void Memory::Write(u16 loc, u8 value) {
 		HRAM[loc - 0xFF80] = value;
 	}
 	else if (loc >= 0xFF00) {
-		u8 ioreg = loc & 0xFF;
+		u8 ioreg = loc & 0x7F;
 		switch(ioreg) {
 			case 0x00: { //joypad
 				joypad.selectDirect = (value >> 4);
@@ -233,7 +232,7 @@ void Memory::Write(u16 loc, u8 value) {
 		WRAMBank0[loc - 0xC000] = value;
 	}
 	else if (loc >= 0xA000) {
-		ERAM[loc - 0xA000] = value;
+		gb.mbc->write(loc, value);
 	}
 	else if (loc >= 0x8000) {
 		if (STAT.mode != PPU::Drawing) {
@@ -242,11 +241,8 @@ void Memory::Write(u16 loc, u8 value) {
 
 		//fprintf(log, "Write to VRAM $%04X: $%02X\n", loc, value); //PSI's Logger
 	}
-	else if (loc >= 0x4000) {
-		//gb.mbc->current[loc - 0x4000] = value;
-	}
 	else {
-		//gb.mbc->romBank0[loc] = value;
+		gb.mbc->write(loc, value);
 	}
 }
 
@@ -296,8 +292,8 @@ u8 Memory::Read(u16 loc) {
 	else if(loc >= 0xC000) {
 		return WRAMBank0[loc - 0xC000];
 	}
-	else if(loc >= 0xA000) {
-		return ERAM[loc - 0xA000];
+	else if(loc >= 0xA000) { // External RAM
+		return gb.mbc->read(loc);
 	}
 	else if(loc >= 0x8000) {
 		if (STAT.mode != PPU::Drawing) {
@@ -305,13 +301,10 @@ u8 Memory::Read(u16 loc) {
 		}
 		return 0xFF;
 	}
-	else if(loc >= 0x4000) {
-		return gb.mbc->current[loc - 0x4000];
-	}
-	else {
+	else { // ROM
 		if((loc < 0x100) && BOOT == 0) {
 			return gb.bios[loc];
 		}
-		return gb.mbc->romBank0[loc];
+		return gb.mbc->read(loc);
 	}
 }

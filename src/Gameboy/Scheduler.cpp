@@ -12,9 +12,9 @@ void Scheduler::newMCycle() {
 		++gb.mem.DIV;
 	}
 
-	// need to implement the timer glitch mentioned in pandocs
+	// todo implement the timer glitch mentioned in pandocs
 	if (gb.mem.TAC.timerOn) {
-		constexpr std::array<u16, 4> timer { 1024, 16, 64, 256 };
+		constexpr std::array<u16, 4> timer { 1024 / 4, 16 / 4, 64 / 4, 256 / 4 };
 
 		if ((currentCycleCount % timer[gb.mem.TAC.clockSelect]) == 0) {
 			if (++gb.mem.TIMA == 0) { // overflow
