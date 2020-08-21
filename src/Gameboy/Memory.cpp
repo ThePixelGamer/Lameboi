@@ -178,23 +178,6 @@ void Memory::Write(u16 loc, u8 value) {
 				IF.joypad = (value >> 4);
 			} break;
 
-			case 0x14: { //Frequency HI
-				NR14.frequencyHI = (value);
-				NR14.counterSelection = (value >> 6);
-				NR14.initial = (value >> 7);
-			} break;
-				
-			case 0x24: { // NR50
-				NR50.S01Volume = (value);
-				NR50.vinToS01 = (value >> 3);
-				NR50.S02Volume = (value >> 4);
-				NR50.vinToS02 = (value >> 7);
-			} break;
-
-			case 0x26: { // NR52
-				NR52.soundOn = (value >> 7);
-			} break;
-
 			case 0x40: { //LCDC
 				LCDC.displayPriority = (value);
 				LCDC.objDisplay = (value >> 1);
@@ -299,10 +282,6 @@ u8 Memory::Read(u16 loc) {
 					joypad.p10 = !gb.pad.getButtonState(Button::Right);
 				}
 			} break;
-
-			case 0x11: return (NR11.waveDuty << 6) | 0x3F;
-			case 0x13: return 0xFF;
-			case 0x14: return 0x80 | (NR14.counterSelection << 6) | 0x7;
 		}
 
 		return IORegs[ioreg];

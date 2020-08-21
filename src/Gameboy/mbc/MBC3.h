@@ -132,7 +132,6 @@ public:
 			}
 			else if (ram) {
 				ramOrRtc = false;
-				std::cout << "Ram Bank" << std::hex << +data << std::endl;
 				ramBank = (data & 0x3);
 			}
 		}
