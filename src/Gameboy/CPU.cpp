@@ -59,10 +59,8 @@ void CPU::handlePrint() {
 		case 2: gb.log << fmt::format(qwq, 0xFF00, GetLEBytes<u8>(PC)); break;
 		case 3: gb.log << fmt::format(qwq, GetLEBytes<u16>(PC)); break;
 	}
-	*/
 
-	/*
-	if (PC >= 0x100) {
+	if (gb.mem.BOOT) {
 		gb.log << fmt::format("A: {:02X} F: {:02X} B: {:02X} C: {:02X} D: {:02X} E: {:02X} H: {:02X} L: {:02X} SP: {:04X} PC: 00:{:04X} ({:02X} {:02X} {:02X} {:02X})", A, (AF & 0xFF), B, C, D, E, H, L, SP, PC, gb.mem.Read(PC), gb.mem.Read(PC + 1), gb.mem.Read(PC + 2), gb.mem.Read(PC + 3));
 		gb.log << "\n";
 	}
@@ -106,10 +104,16 @@ void CPU::interrupt(u8 interrupt) {
 
 	PC = interrupt;
 	gb.scheduler.newMCycle();
+
+	gb.IME = false;
 }
 
 bool CPU::interruptPending() {
-	return gb.mem.Read(0xFF0F) != 0xE0;
+	return gb.mem.IF.vblank == 1
+		|| gb.mem.IF.lcdStat == 1
+		|| gb.mem.IF.timer == 1
+		|| gb.mem.IF.serial == 1
+		|| gb.mem.IF.joypad == 1;
 }
 
 bool CPU::handleInterrupts() {
@@ -119,20 +123,22 @@ bool CPU::handleInterrupts() {
 
 			interrupt(0x40);
 		}
-
-		if (gb.mem.IE.lcdStat && gb.mem.IF.lcdStat) {
+		else if (gb.mem.IE.lcdStat && gb.mem.IF.lcdStat) {
 			gb.mem.IF.lcdStat = 0;
 
 			interrupt(0x48);
 		}
-
-		if (gb.mem.IE.timer && gb.mem.IF.timer) {
+		else if (gb.mem.IE.timer && gb.mem.IF.timer) {
 			gb.mem.IF.timer = 0;
 
 			interrupt(0x50);
 		}
+		else if (gb.mem.IE.serial && gb.mem.IF.serial) {
+			gb.mem.IF.serial = 0;
 
-		if (gb.mem.IE.joypad && gb.mem.IF.joypad) {
+			interrupt(0x58);
+		}
+		else if (gb.mem.IE.joypad && gb.mem.IF.joypad) {
 			gb.mem.IF.joypad = 0;
 
 			interrupt(0x60);
@@ -895,7 +901,7 @@ T CPU::GetLEBytes(u16& addr, bool increase) {
 		
 		--amount;
 	}
-	
+
 	return ret;
 }
 

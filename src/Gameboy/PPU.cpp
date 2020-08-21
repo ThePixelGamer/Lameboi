@@ -188,6 +188,7 @@ void PPU::scanline() {
 //called every mcycle
 void PPU::update() {
 	if (mem.LCDC.lcdDisplay == 0) {
+		mem.STAT.mode = Mode::Searching;
 		mem.LY = 0;
 		cycles = 0;
 
@@ -208,6 +209,10 @@ void PPU::update() {
 			//scan 2 sprites for every cycle
 			static u8 spritesScanned = 0;
 			while (spritesScanned < (cycles * 2) && spritesScanned != 40 && loadedSprites != 10) {
+				if (mem.STAT.oamInterrupt) {
+					mem.IF.lcdStat = 1;
+				}
+				
 				Sprite sprite = mem.sprites[spritesScanned];
 
 				if (sprite.xPos != 0 &&
@@ -244,12 +249,8 @@ void PPU::update() {
 				}
 				loadedSprites = 0;
 
-				if (mem.LY == mem.LYC) {
+				if (mem.STAT.hblankInterrupt) {
 					mem.IF.lcdStat = 1;
-					mem.STAT.coincidence = 1;
-				}
-				else {
-					mem.STAT.coincidence = 0;
 				}
 
 				if (mem.LY == 144) {
@@ -266,6 +267,9 @@ void PPU::update() {
 			if (!vblankHelper) {
 				vblankHelper = true;
 				mem.IF.vblank = 1;
+				if (mem.STAT.vblankInterrupt) {
+					mem.IF.lcdStat = 1;
+				}
 
 				std::unique_lock lock(vblank_m);
 				vblank.wait(lock, [this] { return isVblank; });
@@ -287,6 +291,17 @@ void PPU::update() {
 		{
 			throw std::runtime_error("Unknown mode");
 		};
+	}
+
+	if (mem.LY == mem.LYC) {
+		if (mem.STAT.lycInterrupt) {
+			mem.IF.lcdStat = 1;
+		}
+
+		mem.STAT.coincidence = 1;
+	}
+	else {
+		mem.STAT.coincidence = 0;
 	}
 }
 

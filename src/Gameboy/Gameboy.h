@@ -5,12 +5,14 @@
 #include "PPU.h"
 #include "Joypad.h"
 #include "Scheduler.h"
-#include "../Debug/Debugger.h"
+#include "MBC.h"
+#include "Debugger.h"
 #include "fmt/printf.h"
 
 #include <algorithm> //std::fill
 #include <iterator> //std::end
 #include <fstream> //std::istream
+#include <memory>
 #include <set>
 #include <string>
 
@@ -52,19 +54,10 @@ struct Gameboy {
 
 		u8 type = file.seekg(0x147).get(); //get mbc type
 		file.seekg(0); //reset istream position
-
-		switch (type) {
-			case 0x0:
-				mbc = std::make_unique<MBC0>();
-				break;
-
-			case 0x13:
-				mbc = std::make_unique<MBC3>(true, true);
-				break;
-
-			default:
-				fmt::printf("Unimplemented Cartridge Type 0x%02X\n", type); 
-				return false;
+		
+		mbc = loadMBCFromByte(type);
+		if (mbc == nullptr) {
+			return false;
 		}
 
 		mbc->setup(file);
@@ -78,14 +71,16 @@ struct Gameboy {
 
 		while(running) {
 			for (size_t steps = debug.amountToStep(cpu.PC); steps > 0; --steps) {
-				cpu.ExecuteOpcode();
-
 				if (!running) {
 					break;
 				}
+				
+				cpu.ExecuteOpcode();
+				
 				/*
 				if (mem.serialControl.transferStart) {
 					std::cout << mem.serialData;
+					mem.serialControl.transferStart = 0;
 				}
 				*/
 			}
@@ -108,5 +103,6 @@ struct Gameboy {
 		cpu.clean();
 		ppu.clean();
 		log.close();
+		scheduler.clean();
 	}
 };

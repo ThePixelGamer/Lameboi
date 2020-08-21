@@ -153,6 +153,7 @@ void Memory::Write(u16 loc, u8 value) {
 	else if (loc >= 0xFF00) {
 		u8 ioreg = loc & 0x7F;
 		switch(ioreg) {
+			// Valid Writes
 			case 0x00: { //joypad
 				joypad.selectDirect = (value >> 4);
 				joypad.selectButton = (value >> 5);
@@ -162,7 +163,8 @@ void Memory::Write(u16 loc, u8 value) {
 				serialControl.transferStart = (value >> 7);
 			} break;
 			case 0x04: {
-				TIMA = 0;
+				DIV = 0;
+				gb.scheduler.resetDiv();
 			} break;
 			case 0x07: { //Timer Control
 				TAC.clockSelect = (value);
@@ -175,6 +177,24 @@ void Memory::Write(u16 loc, u8 value) {
 				IF.serial = (value >> 3);
 				IF.joypad = (value >> 4);
 			} break;
+
+			case 0x14: { //Frequency HI
+				NR14.frequencyHI = (value);
+				NR14.counterSelection = (value >> 6);
+				NR14.initial = (value >> 7);
+			} break;
+				
+			case 0x24: { // NR50
+				NR50.S01Volume = (value);
+				NR50.vinToS01 = (value >> 3);
+				NR50.S02Volume = (value >> 4);
+				NR50.vinToS02 = (value >> 7);
+			} break;
+
+			case 0x26: { // NR52
+				NR52.soundOn = (value >> 7);
+			} break;
+
 			case 0x40: { //LCDC
 				LCDC.displayPriority = (value);
 				LCDC.objDisplay = (value >> 1);
@@ -199,14 +219,23 @@ void Memory::Write(u16 loc, u8 value) {
 					DMAOffset = 0;
 				}
 			} break;
-			case 0x47: { //BG Palette Data
+			case 0x47: { // BG Palette Data
 				BGP = value;
 			} break;
-			case 0x50: { //BG Palette Data
+			case 0x48: { // OBJ Palette 0 Data
+				OBP0 = value;
+			} break;
+			case 0x49: { // OBJ Palette 1 Data
+				OBP1 = value;
+			} break;
+			case 0x50: { // Boot "boolean"
 				BOOT = (value);
 			} break;
-			
 
+			// Invalid writes
+			case 0x44: break;
+			
+			// To handle most of the u8 writes
 			default: IORegs[ioreg] = value; break;
 		}
 	}
@@ -254,22 +283,29 @@ u8 Memory::Read(u16 loc) {
 		return HRAM[loc - 0xFF80];
 	}
 	else if(loc >= 0xFF00) {
-		if (loc == 0xFF00) {
-			if (joypad.selectButton == 0) {
-				joypad.p13 = !gb.pad.getButtonState(Button::Start);
-				joypad.p12 = !gb.pad.getButtonState(Button::Select);
-				joypad.p11 = !gb.pad.getButtonState(Button::B);
-				joypad.p10 = !gb.pad.getButtonState(Button::A);
-			}
-			else if (joypad.selectDirect == 0) {
-				joypad.p13 = !gb.pad.getButtonState(Button::Down);
-				joypad.p12 = !gb.pad.getButtonState(Button::Up);
-				joypad.p11 = !gb.pad.getButtonState(Button::Left);
-				joypad.p10 = !gb.pad.getButtonState(Button::Right);
-			}
+		u8 ioreg = loc & 0x7F;
+		switch (ioreg) {
+			case 0x00: {
+				if (joypad.selectButton == 0) {
+					joypad.p13 = !gb.pad.getButtonState(Button::Start);
+					joypad.p12 = !gb.pad.getButtonState(Button::Select);
+					joypad.p11 = !gb.pad.getButtonState(Button::B);
+					joypad.p10 = !gb.pad.getButtonState(Button::A);
+				}
+				else if (joypad.selectDirect == 0) {
+					joypad.p13 = !gb.pad.getButtonState(Button::Down);
+					joypad.p12 = !gb.pad.getButtonState(Button::Up);
+					joypad.p11 = !gb.pad.getButtonState(Button::Left);
+					joypad.p10 = !gb.pad.getButtonState(Button::Right);
+				}
+			} break;
+
+			case 0x11: return (NR11.waveDuty << 6) | 0x3F;
+			case 0x13: return 0xFF;
+			case 0x14: return 0x80 | (NR14.counterSelection << 6) | 0x7;
 		}
 
-		return IORegs[loc - 0xFF00];
+		return IORegs[ioreg];
 	}
 	else if(loc >= 0xFEA0) {
 		return unusuable[loc - 0xFEA0];
@@ -281,7 +317,6 @@ u8 Memory::Read(u16 loc) {
 		if (STAT.mode < 2) {
 			return OAM[loc - 0xFE00];
 		}
-		return 0xFF;
 	}
 	else if(loc >= 0xE000) {
 		return mirrorWRAM[loc - 0xE000];
@@ -299,7 +334,6 @@ u8 Memory::Read(u16 loc) {
 		if (STAT.mode != PPU::Drawing) {
 			return VRAM[loc - 0x8000];
 		}
-		return 0xFF;
 	}
 	else { // ROM
 		if((loc < 0x100) && BOOT == 0) {
@@ -307,4 +341,6 @@ u8 Memory::Read(u16 loc) {
 		}
 		return gb.mbc->read(loc);
 	}
+
+	return 0xFF;
 }

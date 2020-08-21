@@ -2,13 +2,23 @@
 
 #include "Gameboy.h"
 
+void Scheduler::clean() {
+	divCycles = 0;
+	currentCycleCount = 0;
+}
+
+void Scheduler::resetDiv() {
+	divCycles = 0;
+}
+
 void Scheduler::newMCycle() {
 	gb.mem.update();
 	gb.ppu.update(); 
 	
+	++divCycles;
 	++currentCycleCount;
 
-	if ((currentCycleCount % cyclesDiv) == 0) {
+	if ((divCycles % cyclesDivNeeds) == 0) {
 		++gb.mem.DIV;
 	}
 
@@ -24,7 +34,8 @@ void Scheduler::newMCycle() {
 		}
 	}
  
-	if (currentCycleCount == 1024) {
+	if (currentCycleCount == 256) { //1024 / 4
 		currentCycleCount = 0;
+		divCycles = 0;
 	}
 }
