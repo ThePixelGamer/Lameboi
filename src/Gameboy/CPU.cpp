@@ -859,12 +859,13 @@ void CPU::SetZero(bool val) {
 }
 
 void CPU::write(u16 loc, u8 value) {
+	gb.scheduler.newMCycle();
 	gb.mem.Write(loc, value);
 }
 
 void CPU::write(u16 loc, u16 value) {
-	gb.mem.Write(loc, u8(value & 0xff));
-	gb.mem.Write(++loc, u8(value >> 8));
+	write(loc, u8(value & 0xff));
+	write(++loc, u8(value >> 8));
 }
 
 template <typename T>

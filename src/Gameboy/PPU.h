@@ -26,6 +26,8 @@ class PPU {
 
 public:
 	std::array<u32, 160 * 144> display;
+	std::array<u32, 160 * 144> displayPresent;
+	bool presenting = false;
 	int vblankCount;
 
 	//helper for dumpSprites

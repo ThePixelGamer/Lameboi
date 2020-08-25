@@ -10,6 +10,7 @@ PPU::PPU(Memory& mem) : mem(mem) {
 
 void PPU::clean() {
 	display.fill(0xFFFFFFFF); //white
+	displayPresent.fill(0xFFFFFFFF); //white
 	sprites.fill(0);
 
 	cycles = 0;
@@ -177,7 +178,12 @@ void PPU::scanline() {
 			}
 		}
 
-		pixelPusher(display, x, mem.LY * 160ll, (c0 << 1) | c1, *palette);
+		if (presenting) {
+			pixelPusher(display, x, mem.LY * 160ll, (c0 << 1) | c1, *palette);
+		}
+		else {
+			pixelPusher(displayPresent, x, mem.LY * 160ll, (c0 << 1) | c1, *palette);
+		}
 	}
 
 	mem.STAT.mode = Mode::HBlank;
@@ -270,8 +276,13 @@ void PPU::update() {
 				}
 
 				std::unique_lock lock(vblank_m);
+
+				presenting = !presenting;
+
+				/*
 				vblank.wait(lock, [this] { return isVblank; });
 				isVblank = false;
+				*/
 			}
 
 			if (_nextLine()) {

@@ -59,7 +59,7 @@ public:
 			//Sound
 			struct { //FF10 Channel 1 Sweep Reg
 				u8 sweepShifts : 3; // Number of sweep shifts 0-7
-				u8 sweepIncrease : 1; // (0=Increase, 1=Decrease)
+				u8 sweepDecrease : 1; // (0=Increase, 1=Decrease)
 				u8 sweepTime : 3; // n/128hz
 			} NR10;
 

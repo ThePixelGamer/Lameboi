@@ -8,10 +8,11 @@
 class Texture {
 	GLuint mId = 0;
 	GLsizei mWidth, mHeight;
-	u32* mData;
 	std::string mName;
 
 public:
+	u32* mData;
+
 	Texture(GLsizei width, GLsizei height, u32* pixels, const char* name = "") :
 		mWidth(width),
 		mHeight(height),

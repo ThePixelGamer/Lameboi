@@ -99,6 +99,8 @@ public:
 	}
 
 	virtual void close() {
+		save();
+
 		for (auto& bank : romBanks) {
 			bank.fill(0xFF);
 		}
@@ -106,8 +108,6 @@ public:
 		for (auto& bank : ramBanks) {
 			bank.fill(0xFF);
 		}
-
-		save();
 	}
 
 	virtual void write(u16 location, u8 data) {

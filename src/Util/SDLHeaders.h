@@ -13,7 +13,7 @@ inline void SDLInit(APU& apu) {
 	spec.format		= AUDIO_S16SYS;
 	spec.channels	= 2;
 	spec.samples	= APU::samples;
-	spec.callback	= &sound_mix;
+	spec.callback	= nullptr;
 	spec.userdata	= &apu;
 
 	SDL_OpenAudio(&spec, nullptr);

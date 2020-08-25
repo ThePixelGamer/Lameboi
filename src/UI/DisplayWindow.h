@@ -23,12 +23,22 @@ namespace ui {
 		void render() {
 			ImGui::Begin("Display");
 
+			std::unique_lock lock(gb->ppu.vblank_m);
+
+			if (gb->ppu.presenting) {
+				tex.mData = gb->ppu.displayPresent.data();
+			}
+			else {
+				tex.mData = gb->ppu.display.data();
+			}
+
 			tex.update();
 			tex.display(zoom, grid);
 
-			std::unique_lock lock(gb->ppu.vblank_m);
+			/*
 			gb->ppu.isVblank = true;
 			gb->ppu.vblank.notify_one();
+			*/
 
 			ImGui::End();
 		}

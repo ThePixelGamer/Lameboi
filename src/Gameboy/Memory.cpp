@@ -112,10 +112,36 @@ void Memory::Write(u16 loc, u8 value) {
 				IF.joypad = (value >> 4);
 			} break;
 
+			case 0x11: {
+				gb.apu.channel1.lengthCounter = 64 - (value & 0x3F);
+
+				NR11.soundLength = (value);
+				NR11.waveDuty = (value >> 6);
+			} break;
+
+			case 0x12: {
+				gb.apu.channel1.runEnvelope = true;
+				gb.apu.channel1.vol = (value >> 4);
+
+				NR12.envelopeSweep = (value);
+				NR12.envelopeDirection = (value >> 3);
+				NR12.initialVolume = (value >> 4);
+			} break;
+
+			case 0x13: {
+				NR13 = value;
+			} break;
+
 			case 0x14: { // Channel 1 Frequency HI
                 NR14.frequencyHI = (value);
                 NR14.counterSelection = (value >> 6);
                 NR14.initial = (value >> 7);
+
+				if (value >> 7) {
+					gb.apu.channel1.shadowFrequency = (NR14.frequencyHI << 8) | NR13;
+					
+					NR52.sound1On = 1;
+				}
             } break;
 
 			case 0x16: {
@@ -127,7 +153,7 @@ void Memory::Write(u16 loc, u8 value) {
 
 			case 0x17: {
 				gb.apu.channel2.runEnvelope = true;
-				gb.apu.channel2.outputVolume = (value >> 4);
+				gb.apu.channel2.vol = (value >> 4);
 
 				NR22.envelopeSweep = (value);
 				NR22.envelopeDirection = (value >> 3);

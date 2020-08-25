@@ -12,7 +12,7 @@ class Square {
 	Memory& mem;
 	u16 timer = 0;
 	u8 vol = 0;
-	short outputVolume = 0;
+	short output = 0;
 	u8 sequence = 0;
 
 	//until I implement a read/write function in the channels
@@ -21,11 +21,11 @@ class Square {
 	int volumeCounter = 0;
 	u8 lengthCounter = 0;
 
-	constexpr static bool dutyTable[4][8] = {
-		{false, false, false, false, false, false, false, true},
-		{true, false, false, false, false, false, false, true},
-		{true, false, false, false, false, true, true, true},
-		{false, true, true, true, true, true, true, false}
+	constexpr static short dutyTable[4][8] = {
+		{ -1, -1, -1, -1, -1, -1, -1, +1 },
+		{ +1, -1, -1, -1, -1, -1, -1, +1 },
+		{ +1, -1, -1, -1, -1, +1, +1, +1 },
+		{ -1, +1, +1, +1, +1, +1, +1, -1 }
 	};
 
 public:
@@ -60,8 +60,68 @@ public:
 		}
 	}
 
-	short volume() {
-		return outputVolume;
+	short sample() {
+		return output;
+	}
+};
+
+class SquareWave {
+	Memory& mem;
+	u16 timer = 0;
+	int sweepTimer = 0;
+	u16 shadowFrequency = 0;
+	u8 vol = 0;
+	short output = 0;
+	u8 sequence = 0;
+
+	//until I implement a read/write function in the channels
+	friend Memory;
+	bool runEnvelope = false;
+	int volumeCounter = 0;
+	u8 lengthCounter = 0;
+
+	constexpr static short dutyTable[4][8] = {
+		{ -1, -1, -1, -1, -1, -1, -1, +1 },
+		{ +1, -1, -1, -1, -1, -1, -1, +1 },
+		{ +1, -1, -1, -1, -1, +1, +1, +1 },
+		{ -1, +1, +1, +1, +1, +1, +1, -1 }
+	};
+
+public:
+	SquareWave(Memory& mem) : mem(mem) {}
+
+	void update();
+	void sweep();
+
+	void envelope() {
+		if (--volumeCounter <= 0) {
+			volumeCounter = mem.NR12.envelopeSweep;
+
+			if (runEnvelope && mem.NR12.envelopeSweep > 0) {
+				if (mem.NR12.envelopeDirection) {
+					++vol;
+				}
+				else {
+					--vol;
+				}
+
+				if (vol == 0 || vol == 15) {
+					runEnvelope = false;
+				}
+			}
+		}
+	}
+
+	void lengthControl() {
+		if (lengthCounter > 0 && mem.NR14.counterSelection) {
+			if (--lengthCounter == 0) {
+				mem.NR52.sound1On = 0;
+			}
+		}
+	}
+
+	short sample() {
+		return output;
 	}
 };
 
@@ -70,8 +130,8 @@ public:
 	constexpr static int clock = 1048576;
 	constexpr static int frequency = 44100;
 	constexpr static int samples = 512;
-	constexpr static double amplitude = 0.15 * std::numeric_limits<short>::max();
-	constexpr static int maxSampleCycles = clock / frequency;
+	constexpr static float amplitude = 0.15f * std::numeric_limits<short>::max();
+	constexpr static int maxSampleCycles = 24;
 
 	using SampleBuffer = std::array<u16, samples * 2>;
 
@@ -88,13 +148,12 @@ private:
 
 	friend Memory;
 	u8 c1Volume = 0;
-	
+	SquareWave channel1;
 	Square channel2;
-	u8 volumeCounter = 0;
 public:
 	std::queue<SampleBuffer> bufferQueue;
 
-	APU(Memory& mem) : mem(mem), channel2(mem) {
+	APU(Memory& mem) : mem(mem), channel1(mem), channel2(mem) {
 		clean();
 	}
 
@@ -127,26 +186,4 @@ inline int samples_played = 0;
 
 inline short generateSinWave(const double amplitude, const double frequency, const double elasped_time) {
 	return static_cast<short>(amplitude * std::sin(2.0 * math::pi * frequency * elasped_time));
-}
-
-inline void sound_mix(void* userdata, u8* strm, int len) {
-	auto apu = reinterpret_cast<APU*>(userdata);
-	auto stream = reinterpret_cast<s16*>(strm);
-
-	const auto new_len = (len / sizeof(short)) / 2;
-	if (!apu->bufferQueue.empty()) {
-		for (int i = 0; i < new_len; i++) {
-			size_t pos = i * 2ll;
-			stream[pos] = static_cast<short>(APU::amplitude * apu->bufferQueue.front()[pos]);
-			stream[pos + 1] = static_cast<short>(APU::amplitude * apu->bufferQueue.front()[pos + 1]);
-		}
-
-		apu->bufferQueue.pop();
-	}
-	else {
-		for (int i = 0; i < new_len; i++) {
-			stream[i * 2 + 0] = 0;
-			stream[i * 2 + 1] = 0;
-		}
-	}
 }
