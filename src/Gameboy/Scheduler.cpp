@@ -13,7 +13,8 @@ void Scheduler::resetDiv() {
 
 void Scheduler::newMCycle() {
 	gb.mem.update();
-	gb.ppu.update(); 
+	gb.apu.update();
+	gb.ppu.update();
 	
 	++divCycles;
 	++currentCycleCount;

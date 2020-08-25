@@ -47,7 +47,7 @@ public:
 				u8 clockSelect : 2;		// (00=1024, 01=16, 10=64, 11=256)
 				u8 timerOn : 1;	// (0=Off, 1=On)
 			} TAC;
-			std::array<u8, 0x7> unused2; //0xFF08-0xFF0E Unused
+			std::array<u8, 0x7> unusedFF08; //0xFF08-0xFF0E Unused
 			struct { //0xFF0F Interrupt Flags
 				u8 vblank : 1;
 				u8 lcdStat : 1;
@@ -56,7 +56,91 @@ public:
 				u8 joypad : 1;
 			} IF;
 
-			std::array<u8, 0x30> soundStuff;
+			//Sound
+			struct { //FF10 Channel 1 Sweep Reg
+				u8 sweepShifts : 3; // Number of sweep shifts 0-7
+				u8 sweepIncrease : 1; // (0=Increase, 1=Decrease)
+				u8 sweepTime : 3; // n/128hz
+			} NR10;
+
+			struct { //FF11 Channel 1 Sound Info
+				u8 soundLength : 6; // (64 - n) * (1 / 256)
+				u8 waveDuty : 2; // (0=12.5%,1=25%,2=50%,3=75%) 2=normal
+			} NR11;
+
+			struct { //FF12 Channel 1 Volume Envelope
+				u8 envelopeSweep : 3; // 0=stop
+				u8 envelopeDirection : 1; // (0=Decrease, 1=Increase)
+				u8 initialVolume : 4;
+			} NR12;
+
+			u8 NR13; //FF13 Channel 1 Frequency LO
+
+			struct { //FF14 Channel 1 Frequency HI
+				u8 frequencyHI : 3;
+				u8 : 3;
+				u8 counterSelection : 1; // 1=stop when length in NR11 expires
+				u8 initial : 1; // 1=restart sound
+			} NR14;
+
+			u8 unusedFF15;
+
+			struct { //FF16 Channel 2 Sound Length/Wave Pattern Duty
+				u8 soundLength : 6; // (64 - n) * (1 / 256)
+				u8 waveDuty : 2; // (0=12.5%,1=25%,2=50%,3=75%) 2=normal
+			} NR21;
+
+			struct { //FF17 Channel 2 Volume Envelope
+				u8 envelopeSweep : 3; // 0=stop
+				u8 envelopeDirection : 1; // (0=Decrease, 1=Increase)
+				u8 initialVolume : 4;
+			} NR22;
+
+			u8 NR23; //FF18 Channel 2 Frequency LO
+
+			struct { //FF19 Channel 2 Frequency HI
+				u8 frequencyHI : 3;
+				u8 : 3;
+				u8 counterSelection : 1; // 1=stop when length in NR11 expires
+				u8 initial : 1; // 1=restart sound
+			} NR24;
+
+
+			std::array<u8, 0x5> channel3;
+
+			u8 unusedFF1F;
+
+			std::array<u8, 0x4> channel4;
+
+			struct { //FF24 Channel control / ON-OFF / Volume
+				u8 SO1Volume : 3; // right headphone
+				u8 vinToS01 : 1;
+				u8 SO2Volume : 3; // left headphone
+				u8 vinToS02 : 1;
+			} NR50;
+
+			struct { //FF25 Selection of Sound output terminal
+				u8 sound1ToSO1 : 1;
+				u8 sound2ToSO1 : 1;
+				u8 sound3ToSO1 : 1;
+				u8 sound4ToSO1 : 1;
+				u8 sound1ToSO2 : 1;
+				u8 sound2ToSO2 : 1;
+				u8 sound3ToSO2 : 1;
+				u8 sound4ToSO2 : 1;
+			} NR51;
+
+			struct { //FF26 Sound on/off
+				u8 sound1On : 1;
+				u8 sound2On : 1;
+				u8 sound3On : 1;
+				u8 sound4On : 1;
+				u8 : 3;
+				u8 soundOn : 1;
+			} NR52;
+
+			std::array<u8, 0x9> unusedFF27; //FF27-FF2F
+			std::array<u8, 0x10> wavePattern; //FF30-FF3F
 
 			//PPU
 			struct { //0xFF40 LCDC
@@ -92,11 +176,13 @@ public:
 				u8 BOOT : 1;
 			};
 			std::array<u8, 0x6> cgb; //0xFF51-0xFF56 CGB only
-			std::array<u8, 0x29> unused4; //0xFF57-0xFF7F Unused only
+			std::array<u8, 0x29> unusedFF57; //0xFF57-0xFF7F Unused only
 		};
-		u8 IORegs[0x80];
+		std::array<u8, 0x80> IORegs;
 	};
-	u8 HRAM[0x7F]; //0xFF80
+
+	std::array<u8, 0x7F> HRAM; //0xFF80
+
 	union { //0xFFFF
 		struct {
 			u8 vblank : 1;
@@ -104,10 +190,9 @@ public:
 			u8 timer : 1;
 			u8 serial : 1;
 			u8 joypad : 1;
-		} IE;
-
-		u8 Interrupt;
-	};
+		};
+		u8 raw;
+	} IE;
 
 	Memory(Gameboy&);
 	void clean();

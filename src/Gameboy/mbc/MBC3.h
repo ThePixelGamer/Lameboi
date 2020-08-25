@@ -99,6 +99,14 @@ public:
 	}
 
 	virtual void close() {
+		for (auto& bank : romBanks) {
+			bank.fill(0xFF);
+		}
+
+		for (auto& bank : ramBanks) {
+			bank.fill(0xFF);
+		}
+
 		save();
 	}
 

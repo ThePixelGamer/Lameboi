@@ -20,7 +20,12 @@ public:
 	}
 
 	virtual void save() {}
-	virtual void close() {}
+
+	virtual void close() {
+		bank0.fill(0xFF);
+		bank1.fill(0xFF);
+		ERAM.fill(0xFF);
+	}
 
 	virtual void write(u16 location, u8 data) {
 		if (location >= 0xA000) {
