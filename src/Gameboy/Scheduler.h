@@ -9,12 +9,14 @@ class Scheduler {
 	Gameboy& gb;
 	const u8 cyclesDivNeeds = 64; // takes the amount of m-cycles to increment the div reg
 	u8 divCycles = 0;
-	u8 currentCycleCount = 0;
+	u16 currentCycleCount = 0;
 
 public:
 	bool handleInterrupts = true;
 
-	Scheduler(Gameboy& gb) : gb(gb) {}
+	Scheduler(Gameboy& gb) : gb(gb) {
+		clean();
+	}
 
 	void clean();
 	void resetDiv();

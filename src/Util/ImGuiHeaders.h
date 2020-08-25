@@ -30,8 +30,8 @@ static void glfw_error_callback(int error, const char* description) {
 
 class GLFWImGui {
 public:
-	GLFWwindow* window;
-	bool error;
+	GLFWwindow* window = nullptr;
+	bool error = false;
 
 	GLFWImGui() {
 		// Setup window
@@ -58,8 +58,8 @@ public:
 	//glfwWindowHint(GLFW_DECORATED, 0); //I want to add my own custom title bar, and how it's styled
 
 	// Create window with graphics context
-		window = glfwCreateWindow(1280, 720, "Lameboi", NULL, NULL);
-		if (window == NULL)
+		window = glfwCreateWindow(1280, 720, "lameboi", nullptr, nullptr);
+		if (window == nullptr)
 			return;
 		glfwMakeContextCurrent(window);
 		glfwSwapInterval(1); // Enable vsync

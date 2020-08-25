@@ -3,6 +3,7 @@
 #include "Memory.h"
 #include "CPU.h"
 #include "PPU.h"
+#include "APU.h"
 #include "Joypad.h"
 #include "Scheduler.h"
 #include "MBC.h"
@@ -29,6 +30,8 @@ struct Gameboy {
 
 	PPU ppu;
 
+	APU apu;
+
 	Joypad pad;
 
 	Scheduler scheduler;
@@ -42,12 +45,20 @@ struct Gameboy {
 	std::condition_variable emustart;
 	std::mutex emustart_m;
 
-	Gameboy() : mem(*this), cpu(*this), ppu(*this), pad(mem), debug(mem), scheduler(*this) {
-		bios.fill(0);
+	Gameboy() : 
+		mem(*this),
+		cpu(*this),
+		ppu(mem),
+		apu(mem),
+		pad(mem),
+		debug(mem),
+		scheduler(*this) {
+		bios.fill(0xFF);
 		mbc = nullptr;
 	}
 
 	bool LoadRom(std::istream& file) {
+		// doing this because it looks better in mem editor /shrug
 		std::ifstream f_bios("D:/dmg_boot.bin", std::ifstream::binary);
 		f_bios.read(reinterpret_cast<char*>(bios.data()), 0x100);
 		f_bios.close();
@@ -57,6 +68,7 @@ struct Gameboy {
 		
 		mbc = loadMBCFromByte(type);
 		if (mbc == nullptr) {
+			bios.fill(0xFF);
 			return false;
 		}
 
@@ -99,9 +111,12 @@ struct Gameboy {
 			mbc->close();
 		}
 
+		bios.fill(0xFF);
+
 		mem.clean();
 		cpu.clean();
 		ppu.clean();
+		apu.clean();
 		log.close();
 		scheduler.clean();
 	}

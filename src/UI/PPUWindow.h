@@ -16,18 +16,20 @@ namespace ui {
 		bool show_tiledata = false;
 		bool show_oam = false;
 
-		BGMapWindow bgmapWindow;
-		TileDataWindow tileDataWindow;
-		OAMWindow oamWindow;
+		std::unique_ptr<BGMapWindow> bgmapWindow;
+		std::unique_ptr<TileDataWindow> tileDataWindow;
+		std::unique_ptr<OAMWindow> oamWindow;
 	public:
 		bool show = false;
 
 		PPUWindow(std::shared_ptr<Gameboy> gb) :
-			gb(gb),
-			bgmapWindow(gb, show_bgmap),
-			tileDataWindow(gb, show_tiledata),
-			oamWindow(gb, show_oam)
-		{}
+			gb(gb)
+		{
+			// Put these on the heap because of their pixel array, todo make a HeapArray class?
+			bgmapWindow = std::make_unique<BGMapWindow>(gb, show_bgmap);
+			tileDataWindow = std::make_unique<TileDataWindow>(gb, show_tiledata);
+			oamWindow = std::make_unique<OAMWindow>(gb, show_oam);
+		}
 
 		void render() {
 			if (show) {
@@ -42,9 +44,9 @@ namespace ui {
 				if (ImGui::Button("Display OAM"))
 					show_oam = !show_oam;
 
-				bgmapWindow.render();
-				tileDataWindow.render();
-				oamWindow.render();
+				bgmapWindow->render();
+				tileDataWindow->render();
+				oamWindow->render();
 
 				ImGui::End();
 			}

@@ -355,7 +355,7 @@ void CPU::ExecuteOpcode() {
 				handler = true;
 				lowPower = true;
 			}
-			else if (gb.mem.Interrupt & gb.mem.Read(0xFF0F) & 0x1F) {
+			else if (gb.mem.Read(0xFFFF) & gb.mem.Read(0xFF0F) & 0x1F) {
 				haltBug = true;
 			}
 			else {

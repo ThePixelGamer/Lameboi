@@ -7,10 +7,8 @@
 #include <condition_variable>
 #include <mutex>
 
+#include "Memory.h"
 #include "Util/types.h"
-
-struct Gameboy;
-class Memory;
 
 class PPU {
 	Memory& mem;
@@ -44,7 +42,7 @@ public:
 		Drawing
 	};
 
-	PPU(Gameboy&);
+	PPU(Memory&);
 	void clean();
 	void update();
 	

@@ -1,12 +1,10 @@
 #include "PPU.h"
 
-#include "Gameboy.h"
-
 #include <algorithm> //std::fill
 #include <iterator> //std::size
 #include <iostream>
 
-PPU::PPU(Gameboy& gb) : mem(gb.mem) {
+PPU::PPU(Memory& mem) : mem(mem) {
 	clean();
 }
 
