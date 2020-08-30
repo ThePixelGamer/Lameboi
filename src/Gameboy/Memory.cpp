@@ -120,16 +120,9 @@ void Memory::Write(u16 loc, u8 value) {
 			} break;
 
 			case 0x12: {
-				gb.apu.channel1.runEnvelope = true;
-				gb.apu.channel1.vol = (value >> 4);
-
 				NR12.envelopeSweep = (value);
 				NR12.envelopeDirection = (value >> 3);
 				NR12.initialVolume = (value >> 4);
-			} break;
-
-			case 0x13: {
-				NR13 = value;
 			} break;
 
 			case 0x14: { // Channel 1 Frequency HI
@@ -137,10 +130,12 @@ void Memory::Write(u16 loc, u8 value) {
                 NR14.counterSelection = (value >> 6);
                 NR14.initial = (value >> 7);
 
-				if (value >> 7) {
+				if (NR14.initial) {
+					gb.apu.channel1.runEnvelope = true;
+					gb.apu.channel1.vol = NR12.initialVolume;
 					gb.apu.channel1.shadowFrequency = (NR14.frequencyHI << 8) | NR13;
 					
-					NR52.sound1On = 1;
+					NR52.sound1On = true;
 				}
             } break;
 
@@ -152,9 +147,6 @@ void Memory::Write(u16 loc, u8 value) {
 			} break;
 
 			case 0x17: {
-				gb.apu.channel2.runEnvelope = true;
-				gb.apu.channel2.vol = (value >> 4);
-
 				NR22.envelopeSweep = (value);
 				NR22.envelopeDirection = (value >> 3);
 				NR22.initialVolume = (value >> 4);
@@ -165,8 +157,11 @@ void Memory::Write(u16 loc, u8 value) {
                 NR24.counterSelection = (value >> 6);
                 NR24.initial = (value >> 7);
 
-				if (value >> 7) {
-					NR52.sound2On = 1;
+				if (NR24.initial) {
+					gb.apu.channel2.runEnvelope = true;
+					gb.apu.channel2.vol = NR22.initialVolume;
+
+					NR52.sound2On = true;
 				}
             } break;
                 

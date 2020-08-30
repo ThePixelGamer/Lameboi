@@ -11,7 +11,7 @@
 class Square {
 	Memory& mem;
 	u16 timer = 0;
-	u8 vol = 0;
+	s8 vol = 0;
 	short output = 0;
 	u8 sequence = 0;
 
@@ -39,13 +39,17 @@ public:
 
 			if (runEnvelope && mem.NR22.envelopeSweep > 0) {
 				if (mem.NR22.envelopeDirection) {
-					++vol;
+					if (++vol > 15) {
+						vol = 15;
+					}
 				}
 				else {
-					--vol;
+					if (--vol < 0) {
+						vol = 0;
+					}
 				}
 
-				if (vol == 0 || vol == 15) {
+				if (vol <= 0 || vol >= 15) {
 					runEnvelope = false;
 				}
 			}
@@ -70,7 +74,7 @@ class SquareWave {
 	u16 timer = 0;
 	int sweepTimer = 0;
 	u16 shadowFrequency = 0;
-	u8 vol = 0;
+	s8 vol = 0;
 	short output = 0;
 	u8 sequence = 0;
 
@@ -99,10 +103,14 @@ public:
 
 			if (runEnvelope && mem.NR12.envelopeSweep > 0) {
 				if (mem.NR12.envelopeDirection) {
-					++vol;
+					if (++vol > 15) {
+						vol = 15;
+					}
 				}
 				else {
-					--vol;
+					if (--vol < 0) {
+						vol = 0;
+					}
 				}
 
 				if (vol == 0 || vol == 15) {

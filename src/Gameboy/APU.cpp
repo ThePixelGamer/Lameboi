@@ -11,7 +11,7 @@ void Square::update() {
 	}
 
 	if (mem.NR52.sound2On) {
-		output = dutyTable[mem.NR21.waveDuty][sequence] * vol;
+		output = dutyTable[mem.NR21.waveDuty][sequence] * std::max(0, std::min(15, static_cast<int>(vol)));
 	}
 	else {
 		output = 0;
@@ -26,7 +26,7 @@ void SquareWave::update() {
 	}
 
 	if (mem.NR52.sound1On) {
-		output = dutyTable[mem.NR11.waveDuty][sequence] * vol;
+		output = dutyTable[mem.NR11.waveDuty][sequence] * std::max(0, std::min(15, static_cast<int>(vol)));
 	}
 	else {
 		output = 0;
@@ -94,39 +94,43 @@ void APU::update() {
 	if (--sampleCycles == 0) {
 		sampleCycles = maxSampleCycles;
 
-		//mix samples and push it to the temp buffer
+		//mix samples and push it to the buffer
 		size_t offset = bufferOffset * 2ll;
 
 		//left
-		float output = 0.0f;
-		int volume = (128 * mem.NR50.SO2Volume) / 7;
+		float leftOutput = 0.0f;
+		int leftVolume = (128 * mem.NR50.SO2Volume) / 7;
 
+		
 		if (mem.NR51.sound1ToSO2) {
 			float sample = static_cast<float>(channel1.sample()) / 100.0f;
-			SDL_MixAudioFormat((Uint8*)&output, (Uint8*)&sample, AUDIO_F32SYS, sizeof(float), volume);
+			SDL_MixAudioFormat((Uint8*)&leftOutput, (Uint8*)&sample, AUDIO_F32SYS, sizeof(float), leftVolume);
 		}
+		
 		if (mem.NR51.sound2ToSO2) {
 			float sample = static_cast<float>(channel2.sample()) / 100.0f;
-			SDL_MixAudioFormat((Uint8*)&output, (Uint8*)&sample, AUDIO_F32SYS, sizeof(float), volume);
+			SDL_MixAudioFormat((Uint8*)&leftOutput, (Uint8*)&sample, AUDIO_F32SYS, sizeof(float), leftVolume);
 		}
 
-		sampleBuffer[offset] = static_cast<short>(amplitude * output);
+		sampleBuffer[offset] = static_cast<short>(amplitude * leftOutput);
 
 
 		//right
-		output = 0.0f;
-		volume = (128 * mem.NR50.SO1Volume) / 7;
+		float rightOutput = 0.0f;
+		int rightVolume = (128 * mem.NR50.SO1Volume) / 7;
 
+		
 		if (mem.NR51.sound1ToSO1) {
 			float sample = static_cast<float>(channel1.sample()) / 100.0f;
-			SDL_MixAudioFormat((Uint8*)&output, (Uint8*)&sample, AUDIO_F32SYS, sizeof(float), volume);
+			SDL_MixAudioFormat((Uint8*)&rightOutput, (Uint8*)&sample, AUDIO_F32SYS, sizeof(float), rightVolume);
 		}
+		
 		if (mem.NR51.sound2ToSO1) {
 			float sample = static_cast<float>(channel2.sample()) / 100.0f;
-			SDL_MixAudioFormat((Uint8*)&output, (Uint8*)&sample, AUDIO_F32SYS, sizeof(float), volume);
+			SDL_MixAudioFormat((Uint8*)&rightOutput, (Uint8*)&sample, AUDIO_F32SYS, sizeof(float), rightVolume);
 		}
 
-		sampleBuffer[offset + 1] = static_cast<short>(amplitude * output);
+		sampleBuffer[offset + 1] = static_cast<short>(amplitude * rightOutput);
 
 		++bufferOffset;
 	}

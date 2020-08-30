@@ -26,7 +26,7 @@ int main(int, char**) {
 
 	SDLInit(gb->apu);
 	
-	ui::DisplayWindow display(gb);
+	ui::DisplayWindow display(gb, context.window);
 	ui::DebugWindow debug(gb);
 	ui::PPUWindow ppu(gb); 
 	ui::InputWindow input(gb);
@@ -44,27 +44,6 @@ int main(int, char**) {
 		// Gameboy Stuff
 		ppu.render();
 		debug.render();
-
-		//Inputs
-		//maybe add support for different types of "pressing" to activate?
-		auto handleInput = [&gb, &window = context.window](int keycode, Button button) {
-			const int key = glfwGetKey(window, keycode);
-			if (key == GLFW_PRESS) {
-				gb->pad.pressButton(button);
-			}
-			else {
-				gb->pad.releaseButton(button);
-			}
-		};
-
-		handleInput(GLFW_KEY_W, Button::Up);
-		handleInput(GLFW_KEY_S, Button::Down);
-		handleInput(GLFW_KEY_A, Button::Left);
-		handleInput(GLFW_KEY_D, Button::Right);
-		handleInput(GLFW_KEY_K, Button::B);
-		handleInput(GLFW_KEY_L, Button::A);
-		handleInput(GLFW_KEY_ENTER, Button::Start);
-		handleInput(GLFW_KEY_E, Button::Select);
 
 		input.render();
 

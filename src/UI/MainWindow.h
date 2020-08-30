@@ -111,6 +111,10 @@ namespace ui {
 				gb->debug.continuing((show_debug_window) ? false : gb->debug.isContinuing());
 			}
 
+			if (ImGui::Button("Show Inputs")) {
+				show_inputs_window = !show_inputs_window;
+			}
+
 			ImGui::End();
 		}
 	};

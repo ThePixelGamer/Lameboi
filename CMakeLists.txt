@@ -33,7 +33,7 @@ include_directories("${PROJECT_SOURCE_DIR}/lib/glfw/include")
 include_directories("${PROJECT_SOURCE_DIR}/lib/SDL2/include")
 
 # change these to use the architecture configuration
-link_directories("${PROJECT_SOURCE_DIR}/lib/glfw/lib-vc2010-64")
+link_directories("${PROJECT_SOURCE_DIR}/lib/glfw/lib-vc2019-64")
 link_directories("${PROJECT_SOURCE_DIR}/lib/SDL2/lib/x64")
 
 file(GLOB_RECURSE SRC_LIST "src/*.cpp")
