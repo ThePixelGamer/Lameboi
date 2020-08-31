@@ -64,7 +64,7 @@ struct Gameboy {
 		f_bios.close();
 
 		u8 type = file.seekg(0x147).get(); //get mbc type
-		file.seekg(0); //reset istream position
+		file.seekg(0); //reset ifstream position
 		
 		mbc = loadMBCFromByte(type);
 		if (mbc == nullptr) {

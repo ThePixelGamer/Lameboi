@@ -17,7 +17,6 @@ void Scheduler::newMCycle() {
 	gb.ppu.update();
 	
 	++divCycles;
-	++currentCycleCount;
 
 	if ((divCycles % cyclesDivNeeds) == 0) {
 		++gb.mem.DIV;
@@ -25,6 +24,8 @@ void Scheduler::newMCycle() {
 
 	// todo implement the timer glitch mentioned in pandocs
 	if (gb.mem.TAC.timerOn) {
+		++currentCycleCount;
+
 		constexpr std::array<u16, 4> timer { 1024 / 4, 16 / 4, 64 / 4, 256 / 4 };
 
 		if ((currentCycleCount % timer[gb.mem.TAC.clockSelect]) == 0) {
@@ -33,10 +34,16 @@ void Scheduler::newMCycle() {
 				gb.mem.IF.timer = 1;
 			}
 		}
+
+		if (currentCycleCount == timer[0]) { //1024 / 4
+			currentCycleCount = 0;
+		}
 	}
- 
-	if (currentCycleCount == 256) { //1024 / 4
+	else {
 		currentCycleCount = 0;
+	}
+
+	if (divCycles == cyclesDivNeeds) {
 		divCycles = 0;
 	}
 }

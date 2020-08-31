@@ -22,7 +22,7 @@ public:
 		std::array<Sprite, 40> sprites;
 		std::array<u8, 0xA0> OAM;
 	};
-	std::array<u8, 0x60> unusuable; //0xFEA0
+	std::array<u8, 0x60> undocumented; //0xFEA0
 	union {
 		struct {
 			struct { //0xFF00 joypad

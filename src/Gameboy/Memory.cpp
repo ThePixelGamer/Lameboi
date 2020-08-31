@@ -18,7 +18,7 @@ void Memory::clean() {
 	WRAMBank1.fill(0);
 	mirrorWRAM.fill(0);
 	OAM.fill(0);
-	unusuable.fill(0xFF);
+	undocumented.fill(0);
 	resetIO();
 	HRAM.fill(0);
 	IE.raw = 0xE0;
@@ -296,7 +296,7 @@ u8 Memory::Read(u16 loc) {
 		return IORegs[ioreg];
 	}
 	else if(loc >= 0xFEA0) {
-		return unusuable[loc - 0xFEA0];
+		return undocumented[loc - 0xFEA0];
 	}
 	else if (inDMA && !memoryRead) {
 		return 0xFF;
