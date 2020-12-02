@@ -22,6 +22,12 @@ void Memory::clean() {
 	resetIO();
 	HRAM.fill(0);
 	IE.raw = 0xE0;
+
+	memoryRead = false;
+	inDMA = false;
+	currentDMA = 0;
+	DMAOffset = 0;
+	DMAByte = 0;
 }
 
 /*
@@ -59,13 +65,12 @@ void Memory::update() {
 		currentDMA = (DMA << 8) | DMAOffset;
 
 		memoryRead = true;
-		OAM[DMAOffset] = Read(currentDMA);
+		DMAByte = Read(currentDMA);
 		memoryRead = false;
 
-		if (DMAOffset != 0x9F) {
-			++DMAOffset;
-		}
-		else {
+		OAM[DMAOffset] = DMAByte;
+
+		if (++DMAOffset == 0x9F) {
 			DMAOffset = 0;
 			currentDMA = 0;
 			inDMA = false;
@@ -83,6 +88,9 @@ void Memory::Write(u16 loc, u8 value) {
 	}
 	else if (loc >= 0xFF80) {
 		HRAM[loc - 0xFF80] = value;
+	}
+	else if (inDMA) {
+		return;
 	}
 	else if (loc >= 0xFF00) {
 		u8 ioreg = loc & 0x7F;
@@ -112,69 +120,17 @@ void Memory::Write(u16 loc, u8 value) {
 				IF.joypad = (value >> 4);
 			} break;
 
-			case 0x11: {
-				gb.apu.channel1.lengthCounter = 64 - (value & 0x3F);
+			case 0x10: case 0x11: case 0x12: case 0x13: case 0x14:
+				gb.apu.channel1.write(ioreg - 0x10, value);
+				break;
 
-				NR11.soundLength = (value);
-				NR11.waveDuty = (value >> 6);
-			} break;
-
-			case 0x12: {
-				NR12.envelopeSweep = (value);
-				NR12.envelopeDirection = (value >> 3);
-				NR12.initialVolume = (value >> 4);
-			} break;
-
-			case 0x14: { // Channel 1 Frequency HI
-                NR14.frequencyHI = (value);
-                NR14.counterSelection = (value >> 6);
-                NR14.initial = (value >> 7);
-
-				if (NR14.initial) {
-					gb.apu.channel1.runEnvelope = true;
-					gb.apu.channel1.vol = NR12.initialVolume;
-					gb.apu.channel1.shadowFrequency = (NR14.frequencyHI << 8) | NR13;
-					
-					NR52.sound1On = true;
-				}
-            } break;
-
-			case 0x16: {
-				gb.apu.channel2.lengthCounter = 64 - (value & 0x3F);
-
-				NR21.soundLength = (value);
-				NR21.waveDuty = (value >> 6);
-			} break;
-
-			case 0x17: {
-				NR22.envelopeSweep = (value);
-				NR22.envelopeDirection = (value >> 3);
-				NR22.initialVolume = (value >> 4);
-			} break;
-
-			case 0x19: { // Channel 2 Frequency HI
-                NR24.frequencyHI = (value);
-                NR24.counterSelection = (value >> 6);
-                NR24.initial = (value >> 7);
-
-				if (NR24.initial) {
-					gb.apu.channel2.runEnvelope = true;
-					gb.apu.channel2.vol = NR22.initialVolume;
-
-					NR52.sound2On = true;
-				}
-            } break;
+			case 0x16: case 0x17: case 0x18: case 0x19:
+				gb.apu.channel2.write(ioreg - 0x15, value);
+				break;
                 
-            case 0x24: { // NR50
-                NR50.SO1Volume = (value);
-                NR50.vinToS01 = (value >> 3);
-                NR50.SO2Volume = (value >> 4);
-                NR50.vinToS02 = (value >> 7);
-            } break;
-
-            case 0x26: { // NR52
-                NR52.soundOn = (value >> 7);
-            } break;
+            case 0x24: case 0x25: case 0x26:
+				gb.apu.soundControl.write(ioreg - 0x24, value);
+				break;
 
 			case 0x40: { //LCDC
 				LCDC.displayPriority = (value);
@@ -224,9 +180,6 @@ void Memory::Write(u16 loc, u8 value) {
 		//tetris does this so I may remove it in order to avoid annoyances
 		std::cout << fmt::format("Writing to unused memory [{:x}]: {}\n", loc, value);
 	}
-	else if (inDMA) {
-		return;
-	}
 	else if (loc >= 0xFE00) {
 		if(STAT.mode < 2) { // only allow writes during hblank and vblank 
 			OAM[loc - 0xFE00] = value;
@@ -265,6 +218,9 @@ u8 Memory::Read(u16 loc) {
 	else if(loc >= 0xFF80) {
 		return HRAM[loc - 0xFF80];
 	}
+	else if (inDMA && !memoryRead) {
+		return DMAByte;
+	}
 	else if(loc >= 0xFF00) {
 		u8 ioreg = loc & 0x7F;
 		switch (ioreg) {
@@ -284,22 +240,20 @@ u8 Memory::Read(u16 loc) {
 			} break; 
 			
 			//Write Only bits/registers
-			case 0x11: return (NR11.waveDuty << 6) | 0x3F;
-			case 0x13: return 0xFF;
-			case 0x14: return 0x80 | (NR14.counterSelection << 6) | 0x7;
+			case 0x10: case 0x11: case 0x12: case 0x13: case 0x14:
+				return gb.apu.channel1.read(ioreg - 0x10);
 
-			case 0x16: return (NR21.waveDuty << 6) | 0x3F;
-			case 0x18: return 0xFF;
-			case 0x19: return 0x80 | (NR24.counterSelection << 6) | 0x7;
+			case 0x16: case 0x17: case 0x18: case 0x19:
+				return gb.apu.channel2.read(ioreg - 0x15);
+
+			case 0x24: case 0x25: case 0x26:
+				return gb.apu.soundControl.read(ioreg - 0x24);
 		}
 
 		return IORegs[ioreg];
 	}
 	else if(loc >= 0xFEA0) {
 		return undocumented[loc - 0xFEA0];
-	}
-	else if (inDMA && !memoryRead) {
-		return 0xFF;
 	}
 	else if(loc >= 0xFE00) {
 		if (STAT.mode < 2) {

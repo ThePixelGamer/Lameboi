@@ -49,7 +49,7 @@ struct Gameboy {
 		mem(*this),
 		cpu(*this),
 		ppu(mem),
-		apu(mem),
+		apu(),
 		pad(mem),
 		debug(mem),
 		scheduler(*this) {

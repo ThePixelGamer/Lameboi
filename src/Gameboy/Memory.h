@@ -57,87 +57,13 @@ public:
 			} IF;
 
 			//Sound
-			struct { //FF10 Channel 1 Sweep Reg
-				u8 sweepShifts : 3; // Number of sweep shifts 0-7
-				u8 sweepDecrease : 1; // (0=Increase, 1=Decrease)
-				u8 sweepTime : 3; // n/128hz
-			} NR10;
-
-			struct { //FF11 Channel 1 Sound Info
-				u8 soundLength : 6; // (64 - n) * (1 / 256)
-				u8 waveDuty : 2; // (0=12.5%,1=25%,2=50%,3=75%) 2=normal
-			} NR11;
-
-			struct { //FF12 Channel 1 Volume Envelope
-				u8 envelopeSweep : 3; // 0=stop
-				u8 envelopeDirection : 1; // (0=Decrease, 1=Increase)
-				u8 initialVolume : 4;
-			} NR12;
-
-			u8 NR13; //FF13 Channel 1 Frequency LO
-
-			struct { //FF14 Channel 1 Frequency HI
-				u8 frequencyHI : 3;
-				u8 : 3;
-				u8 counterSelection : 1; // 1=stop when length in NR11 expires
-				u8 initial : 1; // 1=restart sound
-			} NR14;
-
+			std::array<u8, 0x5> channel1;
 			u8 unusedFF15;
-
-			struct { //FF16 Channel 2 Sound Length/Wave Pattern Duty
-				u8 soundLength : 6; // (64 - n) * (1 / 256)
-				u8 waveDuty : 2; // (0=12.5%,1=25%,2=50%,3=75%) 2=normal
-			} NR21;
-
-			struct { //FF17 Channel 2 Volume Envelope
-				u8 envelopeSweep : 3; // 0=stop
-				u8 envelopeDirection : 1; // (0=Decrease, 1=Increase)
-				u8 initialVolume : 4;
-			} NR22;
-
-			u8 NR23; //FF18 Channel 2 Frequency LO
-
-			struct { //FF19 Channel 2 Frequency HI
-				u8 frequencyHI : 3;
-				u8 : 3;
-				u8 counterSelection : 1; // 1=stop when length in NR11 expires
-				u8 initial : 1; // 1=restart sound
-			} NR24;
-
-
+			std::array<u8, 0x4> channel2;
 			std::array<u8, 0x5> channel3;
-
 			u8 unusedFF1F;
-
 			std::array<u8, 0x4> channel4;
-
-			struct { //FF24 Channel control / ON-OFF / Volume
-				u8 SO1Volume : 3; // right headphone
-				u8 vinToS01 : 1;
-				u8 SO2Volume : 3; // left headphone
-				u8 vinToS02 : 1;
-			} NR50;
-
-			struct { //FF25 Selection of Sound output terminal
-				u8 sound1ToSO1 : 1;
-				u8 sound2ToSO1 : 1;
-				u8 sound3ToSO1 : 1;
-				u8 sound4ToSO1 : 1;
-				u8 sound1ToSO2 : 1;
-				u8 sound2ToSO2 : 1;
-				u8 sound3ToSO2 : 1;
-				u8 sound4ToSO2 : 1;
-			} NR51;
-
-			struct { //FF26 Sound on/off
-				u8 sound1On : 1;
-				u8 sound2On : 1;
-				u8 sound3On : 1;
-				u8 sound4On : 1;
-				u8 : 3;
-				u8 soundOn : 1;
-			} NR52;
+			std::array<u8, 0x3> soundControl;
 
 			std::array<u8, 0x9> unusedFF27; //FF27-FF2F
 			std::array<u8, 0x10> wavePattern; //FF30-FF3F
@@ -206,6 +132,7 @@ private:
 	Gameboy& gb;
 	bool memoryRead = false; //bit of a hack to use the read function during dma
 	bool inDMA = false;
-	u16 currentDMA = 0; //what address the dma was launched with
+	u16 currentDMA = 0; //what address the dma is currently on
 	u8 DMAOffset = 0; //which byte we're currently copying
+	u8 DMAByte = 0; //what byte is on the bus for reads below hram
 };

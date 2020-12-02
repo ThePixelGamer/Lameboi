@@ -51,3 +51,6 @@ target_link_libraries(lameboi
     opengl32
     SDL2 SDL2main
 )
+
+source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR}/src PREFIX "Source Files//" FILES ${SRC_LIST})
+source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR}/src PREFIX "Header Files//" FILES ${INCLUDE_LIST})

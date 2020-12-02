@@ -3,61 +3,6 @@
 #include <algorithm>
 #include "Util/SDLHeaders.h"
 
-void Square::update() {
-	if (--timer == 0) {
-		timer = 2048 - ((mem.NR24.frequencyHI << 8) | mem.NR23);
-		if (++sequence == 8)
-			sequence = 0;
-	}
-
-	if (mem.NR52.sound2On) {
-		output = dutyTable[mem.NR21.waveDuty][sequence] * std::max(0, std::min(15, static_cast<int>(vol)));
-	}
-	else {
-		output = 0;
-	}
-}
-
-void SquareWave::update() {
-	if (--timer == 0) {
-		timer = 2048 - shadowFrequency;
-		if (++sequence == 8)
-			sequence = 0;
-	}
-
-	if (mem.NR52.sound1On) {
-		output = dutyTable[mem.NR11.waveDuty][sequence] * std::max(0, std::min(15, static_cast<int>(vol)));
-	}
-	else {
-		output = 0;
-	}
-}
-
-void SquareWave::sweep() {
-	if (--sweepTimer <= 0) {
-		sweepTimer = mem.NR10.sweepTime;
-
-		if (mem.NR10.sweepTime != 0 || mem.NR10.sweepShifts != 0) {
-			short adjustedFrequency = shadowFrequency >> mem.NR10.sweepShifts;
-
-			if (mem.NR10.sweepDecrease) {
-				adjustedFrequency = -adjustedFrequency;
-			}
-
-			adjustedFrequency = shadowFrequency + adjustedFrequency;
-
-			if (adjustedFrequency > 2047 || adjustedFrequency < 0) {
-				mem.NR52.sound1On = false;
-			}
-			else {
-				shadowFrequency = adjustedFrequency;
-				mem.NR13 = shadowFrequency & 0xFF;
-				mem.NR14.frequencyHI = shadowFrequency >> 8;
-			}
-		}
-	}
-}
-
 void APU::clean() {
 	sampleBuffer.fill(0);
 }
@@ -99,16 +44,15 @@ void APU::update() {
 
 		//left
 		float leftOutput = 0.0f;
-		int leftVolume = (128 * mem.NR50.SO2Volume) / 7;
-
+		int leftVolume = (128 * soundControl.NR50.SO2Volume) / 7;
 		
-		if (mem.NR51.sound1ToSO2) {
-			float sample = static_cast<float>(channel1.sample()) / 100.0f;
+		if (soundControl.NR51.sound1ToSO2) {
+			float sample = channel1.sample() / 100.0f;
 			SDL_MixAudioFormat((Uint8*)&leftOutput, (Uint8*)&sample, AUDIO_F32SYS, sizeof(float), leftVolume);
 		}
 		
-		if (mem.NR51.sound2ToSO2) {
-			float sample = static_cast<float>(channel2.sample()) / 100.0f;
+		if (soundControl.NR51.sound2ToSO2) {
+			float sample = channel2.sample() / 100.0f;
 			SDL_MixAudioFormat((Uint8*)&leftOutput, (Uint8*)&sample, AUDIO_F32SYS, sizeof(float), leftVolume);
 		}
 
@@ -117,16 +61,15 @@ void APU::update() {
 
 		//right
 		float rightOutput = 0.0f;
-		int rightVolume = (128 * mem.NR50.SO1Volume) / 7;
-
+		int rightVolume = (128 * soundControl.NR50.SO1Volume) / 7;
 		
-		if (mem.NR51.sound1ToSO1) {
-			float sample = static_cast<float>(channel1.sample()) / 100.0f;
+		if (soundControl.NR51.sound1ToSO1) {
+			float sample = channel1.sample() / 100.0f;
 			SDL_MixAudioFormat((Uint8*)&rightOutput, (Uint8*)&sample, AUDIO_F32SYS, sizeof(float), rightVolume);
 		}
 		
-		if (mem.NR51.sound2ToSO1) {
-			float sample = static_cast<float>(channel2.sample()) / 100.0f;
+		if (soundControl.NR51.sound2ToSO1) {
+			float sample = channel2.sample() / 100.0f;
 			SDL_MixAudioFormat((Uint8*)&rightOutput, (Uint8*)&sample, AUDIO_F32SYS, sizeof(float), rightVolume);
 		}
 
