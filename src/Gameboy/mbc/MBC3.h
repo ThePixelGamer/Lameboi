@@ -53,7 +53,7 @@ public:
 
 		//probably change this to only save the ram banks used
 		if (battery) {
-			std::ifstream file("saves/" + _getName(&romBanks[0][0x134]) + ".lbs", std::ios_base::binary);
+			std::ifstream file(_getName(&romBanks[0][0x134]), std::ios_base::binary);
 			maxBanks = _getMaxRamBanks(romBanks[0][0x149]);
 
 			for (size_t i = 0; i < maxBanks; ++i) {
@@ -67,7 +67,7 @@ public:
 	virtual void save() {
 		// dump ram to file
 		if (battery) {
-			std::ofstream file("saves/" + _getName(&romBanks[0][0x134]) + ".lbs", std::ios_base::binary);
+			std::ofstream file(_getName(&romBanks[0][0x134]), std::ios_base::binary);
 			u16 maxBanks = _getMaxRamBanks(romBanks[0][0x149]);
 
 			for (size_t i = 0; i < maxBanks; ++i) {

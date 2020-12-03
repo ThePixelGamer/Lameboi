@@ -4,13 +4,20 @@
 #include <iterator> //std::size
 #include <iostream>
 
+inline std::array<u32, 4> RGBAFrom2bpp{
+	0x9BBC0FFF,
+	0x8BAC0FFF,
+	0x306230FF,
+	0x0F380FFF
+};
+
 PPU::PPU(Memory& mem) : mem(mem) {
 	clean();
 }
 
 void PPU::clean() {
-	display.fill(0xFFFFFFFF); //white
-	displayPresent.fill(0xFFFFFFFF); //white
+	display.fill(RGBAFrom2bpp[0]); //white
+	displayPresent.fill(RGBAFrom2bpp[0]); //white
 	sprites.fill(0);
 
 	cycles = 0;
@@ -18,7 +25,7 @@ void PPU::clean() {
 
 	loadedSprites = 0;
 
-	drewWindowLine = false;
+	windowYTrigger = false;
 	windowLines = 0;
 
 	vblankHelper = false;
@@ -28,13 +35,6 @@ void PPU::clean() {
 
 	mem.STAT.mode = Mode::Searching;
 }
-
-inline std::array<u32, 4> RGBAFrom2bpp {
-	0xFFFFFFFF,
-	0xAAAAAAFF,
-	0x555555FF,
-	0x000000FF
-};
 
 u8 GetBit(u8 byte, u8 bit) {
 	return (byte & (1 << bit)) != 0;
@@ -121,7 +121,7 @@ void PPU::scanline() {
 					if (mem.LY >= mem.WY) {
 						u8 offset = map[((x - adjustedX) / 8) + ((windowLines / 8ll) * 32)];
 						line = _fetchTileLine(mem.LCDC.tileSet, windowLines % 8, offset);
-						drewWindowLine = true;
+						windowYTrigger = true;
 					}
 				}
 			}
@@ -244,13 +244,13 @@ void PPU::update() {
 		case Mode::HBlank:
 		{
 			if (_nextLine()) {
-				++mem.LY;
-				if (drewWindowLine) {
-					drewWindowLine = false;
+				if (windowYTrigger) {
+					windowYTrigger = false;
 					if (++windowLines >= 144) {
 						windowLines = 0;
 					}
 				}
+
 				loadedSprites = 0;
 
 				if (mem.STAT.hblankInterrupt) {
@@ -270,6 +270,7 @@ void PPU::update() {
 		{
 			if (!vblankHelper) {
 				vblankHelper = true;
+
 				mem.IF.vblank = 1;
 				if (mem.STAT.vblankInterrupt) {
 					mem.IF.lcdStat = 1;
@@ -286,7 +287,7 @@ void PPU::update() {
 			}
 
 			if (_nextLine()) {
-				if (++mem.LY >= 154) {
+				if (mem.LY >= 154) {
 					windowLines = 0;
 					mem.LY = 0;
 					mem.STAT.mode = Mode::Searching;
@@ -302,23 +303,22 @@ void PPU::update() {
 		};
 	}
 
-	if (mem.LY == mem.LYC) {
-		if (mem.STAT.lycInterrupt) {
-			mem.IF.lcdStat = 1;
-		}
-
-		mem.STAT.coincidence = 1;
-	}
-	else {
-		mem.STAT.coincidence = 0;
-	}
+	mem.STAT.coincidence = mem.LY == mem.LYC;
 }
 
+//name is a bit ambigious but checks if we're going to the next line with the amount of cycles
 bool PPU::_nextLine() {
 	if (cycles >= 114) {
 		cycles -= 114;
+
+		mem.STAT.coincidence = ++mem.LY == mem.LYC;
+		if (mem.STAT.coincidence && mem.STAT.lycInterrupt) {
+			mem.IF.lcdStat = 1;
+		}
+			
 		return true;
 	}
+
 	return false;
 }
 

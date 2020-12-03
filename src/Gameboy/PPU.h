@@ -19,7 +19,7 @@ class PPU {
 	u8 loadedSprites;
 	std::array<u8, 10> sprites; //offset
 	
-	bool drewWindowLine;
+	bool windowYTrigger;
 	u16 windowLines;
 
 	bool vblankHelper;

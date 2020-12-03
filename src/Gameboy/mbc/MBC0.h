@@ -29,7 +29,7 @@ public:
 
 	virtual void write(u16 location, u8 data) {
 		if (location >= 0xA000) {
-			ERAM[location] = data;
+			ERAM[location - 0xA000] = data;
 		}
 	}
 

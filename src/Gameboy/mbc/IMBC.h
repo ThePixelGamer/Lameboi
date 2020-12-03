@@ -2,6 +2,7 @@
 
 #include "Util/Types.h"
 
+#include <algorithm>
 #include <fstream>
 
 class IMBC {
@@ -16,17 +17,19 @@ public:
 	virtual u8 read(u16 location) = 0;
 
 protected:
-	std::string _getName(u8* start) {
-		u8 end = *(start + 15);
-		if (end == 0) {
-			return reinterpret_cast<const char*>(start);
+	std::string _getName(u8* start_) {
+		std::string_view name(reinterpret_cast<const char*>(start_), 16);
+		size_t trimPos = name.find('\0');
+		if (trimPos != name.npos) {
+			name.remove_suffix(name.size() - trimPos);
 		}
-		else if (end == 0x80 || end == 0xC0) {
-			return std::string(reinterpret_cast<const char*>(start), 15);
+
+		u8 end = *(start_ + 15);
+		if ((name.size() == 16) && (end == 0x80 || end == 0xC0)) {
+			name.remove_suffix(1);
 		}
-		else {
-			return std::string(reinterpret_cast<const char*>(start), 16);
-		}
+
+		return "saves/" + std::string(name) + ".lbs";
 	}
 
 	//change this to use the size of the rom?
