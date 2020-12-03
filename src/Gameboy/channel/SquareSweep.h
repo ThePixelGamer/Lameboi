@@ -6,7 +6,6 @@
 
 class SquareSweep : public Square {
 	u16 shadowFrequency = 0;
-	bool runSweep = false;
 	int sweepTimer = 0;
 
 
@@ -27,7 +26,8 @@ public:
 	void sweep();
 
 private:
-	void _sweep();
+	u16 calcFrequency();
+	bool overflowCheck(u16 freq);
 
 	void reloadSweepTimer() {
 		sweepTimer = sweepTime;

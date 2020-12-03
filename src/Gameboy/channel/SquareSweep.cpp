@@ -8,11 +8,9 @@ void SquareSweep::trigger() {
 
 	shadowFrequency = frequency;
 	reloadSweepTimer();
-	runSweep = (sweepTime != 0);
 
 	if (sweepShifts != 0) {
-		runSweep = true;
-		_sweep();
+		overflowCheck(calcFrequency());
 	}
 }
 
@@ -30,39 +28,32 @@ void SquareSweep::sweep() {
 
 	reloadSweepTimer();
 
-	_sweep();
-}
+	if (sweepTimer != 8 && sweepShifts != 0) {
+		u16 adjustedFrequency = calcFrequency();
 
-void SquareSweep::_sweep() {
-	auto frequencyCalc = [this]() {
-		u16 adjustedFrequency = shadowFrequency >> sweepShifts;
-
-		if (sweepDecrease) {
-			adjustedFrequency = -adjustedFrequency;
-		}
-
-		adjustedFrequency += shadowFrequency;
-
-		return adjustedFrequency;
-	};
-
-	auto overflowCheck = [this](u16 freq) {
-		if (freq > 2047) {
-			soundOn = false;
-			return true;
-		}
-		return false;
-	};
-
-	if (runSweep && sweepTimer != 8) {
-		u16 adjustedFrequency = frequencyCalc();
-
-		if (!overflowCheck(adjustedFrequency) && sweepShifts != 0) {
+		if (overflowCheck(adjustedFrequency) && sweepShifts != 0) {
 			frequency = shadowFrequency = adjustedFrequency;
-
-			overflowCheck(frequencyCalc());
+			overflowCheck(calcFrequency());
 		}
 	}
+}
+
+u16 SquareSweep::calcFrequency() {
+	u16 adjustedFrequency = shadowFrequency >> sweepShifts;
+
+	if (sweepDecrease) {
+		adjustedFrequency = -adjustedFrequency;
+	}
+
+	return shadowFrequency + adjustedFrequency;
+}
+
+bool SquareSweep::overflowCheck(u16 freq) {
+	if (freq <= 2047)
+		return true;
+
+	soundOn = false;
+	return false;
 }
 
 u8 SquareSweep::read(u8 reg) {
@@ -75,13 +66,12 @@ u8 SquareSweep::read(u8 reg) {
 }
 
 void SquareSweep::write(u8 reg, u8 value) {
-	// need to change to allow for writes to the length counter
-	if (!control.soundOn) {
+	if (!control.soundOn && reg != 0x1) {
 		return;
 	}
 
 	if (reg == 0x0) {
-		sweepShifts = (value);
+		sweepShifts = (value & 0x7);
 		sweepDecrease = (value & 0x8);
 		sweepTime = (value >> 4);
 	}

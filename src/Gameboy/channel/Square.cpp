@@ -85,14 +85,13 @@ u8 Square::read(u8 reg) {
 		case 0x4: return 0x80 | (lengthEnable << 6) | 0x7;
 
 		default:
-			std::cout << "Reading from unknown Square register" << std::endl;
+			std::cout << "Reading from unknown Square register: NRx" << reg << std::endl;
 			return 0xFF;
 	}
 }
 
 void Square::write(u8 reg, u8 value) {
-	// need to change to allow for writes to the length counter
-	if (!control.soundOn) {
+	if (!control.soundOn && reg != 0x1) {
 		return;
 	}
 
@@ -109,11 +108,13 @@ void Square::write(u8 reg, u8 value) {
 			break;
 
 		case 0x3:
-			frequency = (frequency & 0x700) | value;
+			frequency &= 0x700;
+			frequency |= value;
 			break;
 
 		case 0x4:
-			frequency = ((value & 0x7) << 8) | (frequency & 0xFF);
+			frequency &= 0xFF;
+			frequency |= (value & 0x7) << 8;
 			lengthEnable = (value & 0x40);
 
 			if (value & 0x80) {
@@ -122,7 +123,7 @@ void Square::write(u8 reg, u8 value) {
 			break;
 
 		default:
-			std::cout << "Writing to unknown Envelope register" << std::endl;
+			std::cout << "Writing to unknown Square register: NRx" << reg << std::endl;
 			break;
 	}
 }
