@@ -2,6 +2,8 @@
 
 #include "IMBC.h"
 
+#include <array>
+
 class MBC0 : public IMBC {
 	std::array<u8, 0x4000> bank0; // 0x0000
 	std::array<u8, 0x4000> bank1; // 0x8000
@@ -29,13 +31,17 @@ public:
 
 	virtual void write(u16 location, u8 data) {
 		if (location >= 0xA000) {
-			ERAM[location - 0xA000] = data;
+			if (ram) {
+				ERAM[location - 0xA000] = data;
+			}
 		}
 	}
 
 	virtual u8 read(u16 location) {
 		if (location >= 0xA000) {
-			return ERAM[location - 0xA000];
+			if (ram) {
+				return ERAM[location - 0xA000];
+			}
 		}
 		else if (location >= 0x4000) { //maybe have this restricted to 4000h-7FFFh?
 			return bank1[location - 0x4000];
@@ -43,5 +49,7 @@ public:
 		else {
 			return bank0[location];
 		}
+
+		return 0xFF;
 	}
 };

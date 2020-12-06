@@ -1,38 +1,20 @@
 #pragma once
 
 #include "IMBC.h"
-#include "Util/Common.h"
 
-#include <iostream>
+#include <array>
 
-class MBC3 : public IMBC {
-	bool timer = false; 
+class MBC1 : public IMBC {
 	bool ramEnabled = false;
+	bool altBankMode = false;
 	u8 romBank = 1; // 1h-7Fh
-	u8 ramBank = 0; // 0h-3h = banks
-	u8 rtcRegister = 0; // 0h-4h = RTC registers
-	bool ramOrRtc = false; // false = ram, true = rtc
+	u8 ramBank = 0; // 0h-3h = banks 
 
 	std::array<std::array<u8, 0x4000>, 0x80> romBanks; // 00h-7Fh
 	std::array<std::array<u8, 0x2000>, 0x4> ramBanks; // 00h-03h
 
-	// unimplemented, use std::chrono?
-	u8 rtcS = 0;
-	u8 rtcM = 0;
-	u8 rtcH = 0;
-	union {
-		struct {
-			u16 counter : 9;
-			u8 : 5;
-			u8 halt : 1;
-			u8 carry : 1;
-		};
-
-		u16 rawValue = 0x3E00;
-	} rtcD;
-
 public:
-	MBC3(bool ram_ = false, bool battery_ = false, bool timer_ = false) : IMBC(ram_, battery_), timer(timer_) {
+	MBC1(bool ram = false, bool battery = false) : IMBC(ram, battery) {
 		romBanks.fill({});
 		ramBanks.fill({});
 	}
@@ -88,42 +70,32 @@ public:
 
 	virtual void write(u16 location, u8 data) {
 		if (location >= 0xA000) {
-			if (ramOrRtc) {
-				switch (rtcRegister) {
-					case 0x0: rtcS = data; break;
-					case 0x1: rtcM = data; break;
-					case 0x2: rtcH = data; break;
-					case 0x3: rtcD.counter = data; break;
-					case 0x4:
-						rtcD.counter = (data << 8) | (rtcD.counter & 0xFF);
-						rtcD.halt = (data >> 6);
-						rtcD.carry = (data >> 7);
-						break;
-					default: break;
-				}
-			}
-			else if (ramEnabled && ram) {
+			if (ramEnabled && ram) {
 				ramBanks[ramBank][location - 0xA000] = data;
 			}
 		}
 		else if (location >= 0x6000) {
-			// update the RTC registers?
+			altBankMode = (data & 0x1);
 		}
 		else if (location >= 0x4000) {
-			if (timer && (data & 0x8)) {
-				ramOrRtc = true;
-				rtcRegister = (data & 0xF) - 8;
+			if (altBankMode) {
+				if (_getMaxRamBanks(romBanks[0][0x149]) >= 4) {
+					ramBank = (data & 0x3);
+				}
+				else if (_getMaxRomBanks(romBanks[0][0x148]) >= 64) {
+					romBank &= 0x1F;
+					romBank |= (data & 0x3) << 5;
+				}
 			}
-			else if (ram) {
-				ramOrRtc = false;
-				ramBank = (data & 0x3);
+			else {
+				ramBank = 0;
+				romBank = (data & 0x7F);
 			}
 		}
 		else if (location >= 0x2000) {
-			romBank = (data & 0x7F);
-			if (romBank == 0) {
-				romBank = 1;
-			}
+			romBank &= 0x60;
+			u8 bank = (data & 0x1F);
+			romBank |= (bank == 0) ? 1 : bank;
 		}
 		else {
 			ramEnabled = (data & 0xF) == 0xA;
@@ -132,17 +104,7 @@ public:
 
 	virtual u8 read(u16 location) {
 		if (location >= 0xA000) {
-			if (ramOrRtc && timer) {
-				switch (rtcRegister) {
-					case 0x0: return rtcS;
-					case 0x1: return rtcM;
-					case 0x2: return rtcH;
-					case 0x3: return (rtcD.rawValue & 0xFF);
-					case 0x4: return (rtcD.rawValue >> 8);
-					default: break;
-				}
-			}
-			else if (ramEnabled && ram) {
+			if (ramEnabled && ram) {
 				return ramBanks[ramBank][location - 0xA000];
 			}
 		}
@@ -150,7 +112,7 @@ public:
 			return romBanks[romBank][location - 0x4000];
 		}
 		else {
-			return romBanks[0][location];
+			return romBanks[(altBankMode) ? (romBank & 0x60) : 0][location];
 		}
 
 		return 0xFF;

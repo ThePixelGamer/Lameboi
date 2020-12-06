@@ -16,11 +16,7 @@ class MBC5 : public IMBC {
 	std::array<std::array<u8, 0x2000>, 0x10> ramBanks; // 00h-0Fh
 
 public:
-	MBC5(bool ram_ = false, bool battery_ = false, bool rumble_ = false) : IMBC(),
-		rumble(rumble_) {
-		battery = battery_;
-		ram = ram_;
-
+	MBC5(bool ram_ = false, bool battery_ = false, bool rumble_ = false) : IMBC(ram_, battery_), rumble(rumble_) {
 		romBanks.fill({});
 		ramBanks.fill({});
 	}
@@ -77,7 +73,7 @@ public:
 
 	virtual void write(u16 location, u8 data) {
 		if (location >= 0xA000) {
-			if (ramEnabled) {
+			if (ramEnabled && ram) {
 				ramBanks[ramBank][location - 0xA000] = data;
 			}
 		}
@@ -107,7 +103,7 @@ public:
 
 	virtual u8 read(u16 location) {
 		if (location >= 0xA000) {
-			if (ramEnabled) {
+			if (ramEnabled && ram) {
 				return ramBanks[ramBank][location - 0xA000];
 			}
 		}

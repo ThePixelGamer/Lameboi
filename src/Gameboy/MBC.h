@@ -4,6 +4,7 @@
 
 #include "mbc/IMBC.h"
 #include "mbc/MBC0.h"
+#include "mbc/MBC1.h"
 #include "mbc/MBC3.h"
 #include "mbc/MBC5.h"
 
@@ -13,6 +14,9 @@ inline std::unique_ptr<IMBC> loadMBCFromByte(u8 type) {
 	//https://gbdev.io/pandocs/#_0147-cartridge-type
 	switch (type) {
 		case 0x00: return std::make_unique<MBC0>();
+		case 0x01: return std::make_unique<MBC1>();
+		case 0x02: return std::make_unique<MBC1>(true);
+		case 0x03: return std::make_unique<MBC1>(true, true);
 		case 0x10: return std::make_unique<MBC3>(true, true, true);
 		case 0x11: return std::make_unique<MBC3>();
 		case 0x12: return std::make_unique<MBC3>(true);

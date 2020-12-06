@@ -6,10 +6,11 @@
 #include <fstream>
 
 class IMBC {
-public:
-	bool ram = false;
-	bool battery = false;
+protected:
+	bool ram;
+	bool battery;
 
+public:
 	virtual void setup(std::istream& stream) = 0;
 	virtual void save() = 0;
 	virtual void close() = 0;
@@ -17,6 +18,11 @@ public:
 	virtual u8 read(u16 location) = 0;
 
 protected:
+	IMBC(bool ram_ = false, bool battery_ = false) :
+		ram(ram_),
+		battery(battery_) 
+	{}
+
 	std::string _getName(u8* start_) {
 		std::string_view name(reinterpret_cast<const char*>(start_), 16);
 		size_t trimPos = name.find('\0');
@@ -36,6 +42,7 @@ protected:
 	u16 _getMaxRomBanks(u8 type) {
 		switch (type) {
 			case 0x1: return 4;
+			case 0x4: return 32;
 			case 0x5: return 64;
 			case 0x6: return 128;
 			case 0x7: return 128; //a test does this, not sure if any commerical roms does it
