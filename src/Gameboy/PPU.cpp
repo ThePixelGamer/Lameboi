@@ -116,7 +116,7 @@ void PPU::scanline() {
 			if (mem.LCDC.displayPriority && mem.LCDC.windowDisplay) {
 				auto map = mem.VRAM.begin() + ((mem.LCDC.windowMap) ? 0x1C00 : 0x1800);
 
-				u8 adjustedX = (mem.WX - 7);
+				s16 adjustedX = (mem.WX - 7);
 				if (x >= adjustedX) {
 					if (mem.LY >= mem.WY) {
 						u8 offset = map[((x - adjustedX) / 8) + ((windowLines / 8ll) * 32)];
@@ -211,7 +211,6 @@ void PPU::update() {
 		case Mode::Searching:
 		{
 			//scan 2 sprites for every cycle
-			static u8 spritesScanned = 0;
 			while (spritesScanned < (cycles * 2) && spritesScanned != 40 && loadedSprites != 10) {
 				if (mem.STAT.oamInterrupt) {
 					mem.IF.lcdStat = 1;
@@ -236,10 +235,9 @@ void PPU::update() {
 			}
 		} break;
 
-		case Mode::Drawing:
-		{
+		case Mode::Drawing: 
 			scanline();
-		} break;
+			break;
 
 		case Mode::HBlank:
 		{
@@ -289,7 +287,7 @@ void PPU::update() {
 			if (_nextLine()) {
 				if (mem.LY >= 154) {
 					windowLines = 0;
-					mem.LY = 0;
+					_updateLY(0);
 					mem.STAT.mode = Mode::Searching;
 				}
 			}
@@ -306,16 +304,20 @@ void PPU::update() {
 	mem.STAT.coincidence = mem.LY == mem.LYC;
 }
 
+void PPU::_updateLY(u8 y) {
+	mem.LY = y;
+	mem.STAT.coincidence = y == mem.LYC;
+	if (mem.STAT.coincidence && mem.STAT.lycInterrupt) {
+		mem.IF.lcdStat = 1;
+	}
+}
+
 //name is a bit ambigious but checks if we're going to the next line with the amount of cycles
 bool PPU::_nextLine() {
 	if (cycles >= 114) {
 		cycles -= 114;
 
-		mem.STAT.coincidence = ++mem.LY == mem.LYC;
-		if (mem.STAT.coincidence && mem.STAT.lycInterrupt) {
-			mem.IF.lcdStat = 1;
-		}
-			
+		_updateLY(mem.LY + 1);
 		return true;
 	}
 

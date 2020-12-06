@@ -16,6 +16,7 @@ class PPU {
 	int cycles;
 	int lastTile;
 
+	u8 spritesScanned;
 	u8 loadedSprites;
 	std::array<u8, 10> sprites; //offset
 	
@@ -56,6 +57,7 @@ private:
 	void fifo();
 	void scanline();
 
+	void _updateLY(u8 y);
 	bool _nextLine();
 
 	std::array<u8, 16> _fetchTile(u16 addr, u8 tileoffset = 0);
