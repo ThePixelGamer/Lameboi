@@ -81,7 +81,7 @@ void CPU::clean() {
 	SP = 0;
 	PC = 0;
 	opcode = 0;
-	gb.IME = false;
+	IME = false;
 
 	haltBug = false;
 	lowPower = false;
@@ -105,7 +105,7 @@ void CPU::interrupt(u8 interrupt) {
 	PC = interrupt;
 	gb.scheduler.newMCycle();
 
-	gb.IME = false;
+	IME = false;
 }
 
 bool CPU::interruptPending() {
@@ -117,7 +117,7 @@ bool CPU::interruptPending() {
 }
 
 bool CPU::handleInterrupts() {
-	if (gb.IME && interruptPending()) {
+	if (IME && interruptPending()) {
 		if (gb.mem.IE.vblank && gb.mem.IF.vblank) {
 			gb.mem.IF.vblank = 0;
 
@@ -351,7 +351,7 @@ void CPU::ExecuteOpcode() {
 		
 		case 0x76: 
 		{
-			if (gb.IME) {
+			if (IME) {
 				handler = true;
 				lowPower = true;
 			}
@@ -456,7 +456,7 @@ void CPU::ExecuteOpcode() {
 		case 0xD0: if(!CheckCarry()) Ret(); break; //RET NC
 		case 0xC8: if(CheckZero()) Ret(); break; //RET Z
 		case 0xD8: if(CheckCarry()) Ret(); break; //RET C
-		case 0xD9: Ret(); gb.IME = true; break; //RETI
+		case 0xD9: Ret(); IME = true; break; //RETI
 			
 		case 0xC5: Push(BC); break; //PUSH BC
 		case 0xD5: Push(DE); break; //PUSH DE
@@ -514,8 +514,8 @@ void CPU::ExecuteOpcode() {
 		case 0xE2: write(0xFF00 + C, A); break; //LD (FF00+C),A
 		case 0xEA: write(GetLEBytes<u16>(), A); break; //LD (u16),A
 
-		case 0xF3: gb.IME = false; break; //DI
-		case 0xFB: gb.IME = true; break; //EI
+		case 0xF3: IME = false; break; //DI
+		case 0xFB: IME = true; break; //EI
 		case 0xCB: handleCB(); break;
 
 		default: fmt::printf("Unimplemented Opcode: 0x%02X\n", opcode); break;

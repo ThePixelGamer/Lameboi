@@ -26,7 +26,6 @@ struct Gameboy {
 	std::unique_ptr<IMBC> mbc;
 
 	CPU cpu;
-	bool IME = false;
 
 	PPU ppu;
 

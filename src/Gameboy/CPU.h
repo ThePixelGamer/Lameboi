@@ -56,6 +56,7 @@ struct CPU {
 
 	u16 PC, SP;
 	u8 opcode;
+	bool IME = false;
 
 	CPU(Gameboy&);
 	void handlePrint();
