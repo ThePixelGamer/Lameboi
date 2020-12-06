@@ -9,7 +9,7 @@
 #include "Util/Texture.h"
 
 namespace ui {
-	class PPUWindow {
+	class PPUMenu {
 		std::shared_ptr<Gameboy> gb;
 
 		bool show_bgmap = false;
@@ -22,9 +22,8 @@ namespace ui {
 	public:
 		bool show = false;
 
-		PPUWindow(std::shared_ptr<Gameboy> gb) :
-			gb(gb)
-		{
+		PPUMenu(std::shared_ptr<Gameboy> gb) :
+			gb(gb) {
 			// Put these on the heap because of their pixel array, todo make a HeapArray class?
 			bgmapWindow = std::make_unique<BGMapWindow>(gb, show_bgmap);
 			tileDataWindow = std::make_unique<TileDataWindow>(gb, show_tiledata);
@@ -32,24 +31,18 @@ namespace ui {
 		}
 
 		void render() {
-			if (show) {
-				ImGui::Begin("PPU", &show);
+			if (ImGui::BeginMenu("PPU")) {
+				ImGui::MenuItem("Background Map", nullptr, &show_bgmap);
+				ImGui::MenuItem("Tile Data", nullptr, &show_tiledata);
+				ImGui::MenuItem("OAM Sprites", nullptr, &show_oam);
 
-				if (ImGui::Button("Display Background Map"))
-					show_bgmap = !show_bgmap;
-
-				if (ImGui::Button("Display Tile Data"))
-					show_tiledata = !show_tiledata;
-
-				if (ImGui::Button("Display OAM"))
-					show_oam = !show_oam;
-
-				bgmapWindow->render();
-				tileDataWindow->render();
-				oamWindow->render();
-
-				ImGui::End();
+				ImGui::EndMenu();
 			}
+
+			// doesn't actually render unless show is set
+			bgmapWindow->render();
+			tileDataWindow->render();
+			oamWindow->render();
 		}
 	};
 }

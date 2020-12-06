@@ -11,6 +11,7 @@ namespace ui {
 		
 		bool& show;
 		std::array<u32, 64 * 40> pixels;
+		float color[3];
 		Texture tex;
 
 		u32 zoom = 3;
@@ -18,9 +19,10 @@ namespace ui {
 		u32 step = 1;
 
 	public:
-		OAMWindow(std::shared_ptr<Gameboy> gb, bool& show) : 
+		OAMWindow(std::shared_ptr<Gameboy> gb, bool& show) :
 			gb(gb),
 			show(show),
+			color{}, // 0 it out
 			tex(64, 40, pixels.data())
 		{
 			pixels.fill(0xFFFFFFFF);
@@ -34,8 +36,11 @@ namespace ui {
 				tex.update();
 				tex.display(zoom, grid);
 
-				//Need to switch this to a proper 4 slider RGBA
-				ImGui::InputScalar("Invisible Color", ImGuiDataType_U32, &gb->ppu.invisPixel, &step, NULL, "%08X", ImGuiInputTextFlags_CharsHexadecimal);
+				ImGui::ColorEdit3("Invisible Color", color);
+				gb->ppu.invisPixel = 0xFF;
+				gb->ppu.invisPixel |= u8(color[2] * 255.0f) << 8;
+				gb->ppu.invisPixel |= u8(color[1] * 255.0f) << 16;
+				gb->ppu.invisPixel |= u8(color[0] * 255.0f) << 24;
 
 				ImGui::End();
 			}

@@ -10,8 +10,8 @@
 #include "UI/DisplayWindow.h"
 #include "UI/DebugWindow.h"
 #include "UI/InputWindow.h"
-#include "UI/PPUWindow.h"
 #include "UI/MainWindow.h"
+#include "UI/MainMenu.h"
 
 #include "Util/ImGuiHeaders.h"
 #include "Util/SDLHeaders.h"
@@ -28,9 +28,9 @@ int main(int, char**) {
 
 	ui::DisplayWindow display(gb, context.window);
 	ui::DebugWindow debug(gb);
-	ui::PPUWindow ppu(gb); 
 	ui::InputWindow input(gb);
-	ui::MainWindow menu(gb, debug.show, ppu.show, input.show);
+	ui::MainWindow lameboi(gb);
+	ui::MainMenu menubar(gb, debug.show, input.show);
 
 	if (!std::filesystem::exists("saves")) {
 		std::filesystem::create_directories("saves");
@@ -38,15 +38,17 @@ int main(int, char**) {
 
 	// Main loop
 	while(context.NewFrame()) {
-		menu.render();
+		lameboi.render();
 		display.render();
 
-		// Gameboy Stuff
-		ppu.render();
+		// Gameboy Debug Stuff
 		debug.render();
 
 		input.render();
 
+		menubar.render();
+
+		//render imgui and push it the screen
 		context.Render();
 	}
 
