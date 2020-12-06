@@ -5,8 +5,9 @@
 #include "Memory.h"
 #include "channel/SquareSweep.h"
 #include "channel/Square.h"
+#include "channel/Wave.h"
 #include "Util/Common.h"
-#include "Util/Math.h"
+#include "Util/SDLHeaders.h"
 #include "Util/Types.h"
 
 class APU {
@@ -14,12 +15,10 @@ public:
 	constexpr static int clock = 1048576;
 	constexpr static int frequency = 44100;
 	constexpr static int samples = 512;
-	constexpr static float amplitude = 0.15f * std::numeric_limits<short>::max();
-	constexpr static int maxSampleCycles = 24;
-
-	using SampleBuffer = std::array<u16, samples * 2>;
+	constexpr static float amplitude = 0.15f;
 
 private:
+	constexpr static int maxSampleCycles = (clock * 4) / frequency;
 	constexpr static int maxSequencerCycles = clock / 512;
 
 	u8 sequencer = 0;
@@ -27,22 +26,26 @@ private:
 	u8 sampleCycles = maxSampleCycles;
 	u16 bufferOffset = 0;
 
-	SampleBuffer sampleBuffer;
+	SDL_AudioDeviceID audio_device;
+	std::array<float, samples * 2> sampleBuffer;
 
 	friend Memory;
 	friend SoundControl;
 	SoundControl soundControl;
-	SquareSweep channel1;
-	Square channel2;
-public:
-	std::queue<SampleBuffer> bufferQueue;
 
-	APU() : soundControl(*this), channel1(soundControl), channel2(soundControl) {
-		clean();
-	}
+	SquareSweep squareSweep;
+	Square square;
+	Wave wave;
+
+public:
+	APU();
+	~APU();
 
 	void clean();
 
 	//called in Scheduler::newMCycle
 	void update();
+
+	u8 read(u8 reg);
+	void write(u8 reg, u8 value);
 };

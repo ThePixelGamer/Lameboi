@@ -50,6 +50,10 @@ public:
 	}
 
 private:
+	void reloadFrequency() {
+		frequencyTimer = (2048 - frequency) * 4;
+	}
+
 	void reloadEnvTimer() {
 		envelopeTimer = envelopeSweep;
 		if (envelopeTimer == 0)

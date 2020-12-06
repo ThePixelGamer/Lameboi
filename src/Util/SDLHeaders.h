@@ -5,22 +5,14 @@
 
 #include "Gameboy/APU.h"
 
-inline void SDLInit(APU& apu) {
-	SDL_Init(SDL_INIT_AUDIO);
+//may need a better name :P
+class SDLHandle {
+public:
+	SDLHandle() {
+		SDL_Init(SDL_INIT_AUDIO);
+	}
 
-	SDL_AudioSpec spec;
-	spec.freq		= APU::frequency;
-	spec.format		= AUDIO_S16SYS;
-	spec.channels	= 2;
-	spec.samples	= APU::samples;
-	spec.callback	= nullptr;
-	spec.userdata	= &apu;
-
-	SDL_OpenAudio(&spec, nullptr);
-	SDL_PauseAudio(0);
-}
-
-inline void SDLUninit() {
-	SDL_CloseAudio();
-	SDL_Quit();
-}
+	~SDLHandle() {
+		SDL_Quit();
+	}
+};

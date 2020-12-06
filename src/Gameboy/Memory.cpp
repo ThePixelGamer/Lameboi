@@ -94,6 +94,12 @@ void Memory::Write(u16 loc, u8 value) {
 	}
 	else if (loc >= 0xFF00) {
 		u8 ioreg = loc & 0x7F;
+
+		if (ioreg >= 0x10 && ioreg <= 0x3F) {
+			gb.apu.write(ioreg, value);
+			return;
+		}
+
 		switch(ioreg) {
 			// Valid Writes
 			case 0x00: { //joypad
@@ -119,18 +125,6 @@ void Memory::Write(u16 loc, u8 value) {
 				IF.serial = (value >> 3);
 				IF.joypad = (value >> 4);
 			} break;
-
-			case 0x10: case 0x11: case 0x12: case 0x13: case 0x14:
-				gb.apu.channel1.write(ioreg - 0x10, value);
-				break;
-
-			case 0x16: case 0x17: case 0x18: case 0x19:
-				gb.apu.channel2.write(ioreg - 0x15, value);
-				break;
-                
-            case 0x24: case 0x25: case 0x26:
-				gb.apu.soundControl.write(ioreg - 0x24, value);
-				break;
 
 			case 0x40: { //LCDC
 				LCDC.displayPriority = (value);
@@ -223,31 +217,22 @@ u8 Memory::Read(u16 loc) {
 	}
 	else if(loc >= 0xFF00) {
 		u8 ioreg = loc & 0x7F;
-		switch (ioreg) {
-			case 0x00: {
-				if (joypad.selectButton == 0) {
-					joypad.p13 = !gb.pad.getButtonState(Button::Start);
-					joypad.p12 = !gb.pad.getButtonState(Button::Select);
-					joypad.p11 = !gb.pad.getButtonState(Button::B);
-					joypad.p10 = !gb.pad.getButtonState(Button::A);
-				}
-				else if (joypad.selectDirect == 0) {
-					joypad.p13 = !gb.pad.getButtonState(Button::Down);
-					joypad.p12 = !gb.pad.getButtonState(Button::Up);
-					joypad.p11 = !gb.pad.getButtonState(Button::Left);
-					joypad.p10 = !gb.pad.getButtonState(Button::Right);
-				}
-			} break; 
-			
-			//Write Only bits/registers
-			case 0x10: case 0x11: case 0x12: case 0x13: case 0x14:
-				return gb.apu.channel1.read(ioreg - 0x10);
-
-			case 0x16: case 0x17: case 0x18: case 0x19:
-				return gb.apu.channel2.read(ioreg - 0x15);
-
-			case 0x24: case 0x25: case 0x26:
-				return gb.apu.soundControl.read(ioreg - 0x24);
+		if (ioreg == 0x00) {
+			if (joypad.selectButton == 0) {
+				joypad.p13 = !gb.pad.getButtonState(Button::Start);
+				joypad.p12 = !gb.pad.getButtonState(Button::Select);
+				joypad.p11 = !gb.pad.getButtonState(Button::B);
+				joypad.p10 = !gb.pad.getButtonState(Button::A);
+			}
+			else if (joypad.selectDirect == 0) {
+				joypad.p13 = !gb.pad.getButtonState(Button::Down);
+				joypad.p12 = !gb.pad.getButtonState(Button::Up);
+				joypad.p11 = !gb.pad.getButtonState(Button::Left);
+				joypad.p10 = !gb.pad.getButtonState(Button::Right);
+			}
+		}
+		else if (ioreg >= 0x10 && ioreg <= 0x3F) {
+			return gb.apu.read(ioreg);
 		}
 
 		return IORegs[ioreg];

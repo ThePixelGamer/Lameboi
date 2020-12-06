@@ -31,7 +31,7 @@ u8 SoundControl::read(u8 reg) {
 			return (soundOn << 7) | 0x70 | (sound4On << 3) | (sound3On << 2) | (sound2On << 1) | u8(sound1On);
 
 		default:
-			std::cout << "Reading from unknown SoundControl register" << std::endl;
+			std::cout << "Reading from unknown SoundControl register: NR5" << +reg << std::endl;
 			return 0xFF;
 	}
 }
@@ -58,18 +58,22 @@ void SoundControl::write(u8 reg, u8 value) {
 
 		case 0x2: // NR52
 			soundOn = (value >> 7);
-
 			if (soundOn) {
 				apu.sequencer = 0;
-				apu.channel1.resetWaveDuty();
-				apu.channel2.resetWaveDuty();
+				apu.squareSweep.resetWaveDuty();
+				apu.square.resetWaveDuty();
+				apu.wave.resetWaveBuffer();
 			}
 			else {
 				reset();
-				apu.channel1.reset();
-				apu.channel2.reset();
+				apu.squareSweep.reset();
+				apu.square.reset();
+				apu.wave.reset();
 			}
-
+			break;
+		
+		default:
+			std::cout << "Writing to unknown SoundControl register: NR5" << +reg << std::endl;
 			break;
 	}
 }

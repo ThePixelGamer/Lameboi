@@ -12,13 +12,13 @@ constexpr short dutyTable[4][8] = {
 
 void Square::update() {
 	if (--frequencyTimer == 0) {
-		frequencyTimer = 2048 - frequency;
+		reloadFrequency();
 		if (++sequence == 8)
 			sequence = 0;
 	}
 
 	if (soundOn) {
-		output = dutyTable[waveDuty][sequence] * std::clamp(volume, 0, 15);
+		output = dutyTable[waveDuty][sequence] * (volume & 0xF);
 	}
 	else {
 		output = 0;
@@ -32,7 +32,7 @@ void Square::trigger() {
 		lengthCounter = 64;
 	}
 
-	frequencyTimer = 2048 - frequency;
+	reloadFrequency();
 
 	reloadEnvTimer();
 	runEnvelope = true;
@@ -47,6 +47,7 @@ void Square::reset() {
 	envelopeSweep = 0;
 	envelopeIncrease = false;
 	initialVolume = 0;
+	volume = 0;
 
 	frequency = 0;
 	lengthEnable = false;
@@ -61,7 +62,8 @@ void Square::envelope() {
 	if (runEnvelope && envelopeTimer != 8) {
 		volume += (envelopeIncrease) ? 1 : -1;
 
-		volume = std::clamp(volume, 0, 15);
+		if (volume > 15) volume = 15;
+		if (volume < 0) volume = 0;
 
 		if (volume == 0 || volume == 15) {
 			runEnvelope = false;
@@ -85,7 +87,7 @@ u8 Square::read(u8 reg) {
 		case 0x4: return 0x80 | (lengthEnable << 6) | 0x7;
 
 		default:
-			std::cout << "Reading from unknown Square register: NRx" << reg << std::endl;
+			std::cout << "Reading from unknown Square register: NRx" << +reg << std::endl;
 			return 0xFF;
 	}
 }
@@ -123,7 +125,7 @@ void Square::write(u8 reg, u8 value) {
 			break;
 
 		default:
-			std::cout << "Writing to unknown Square register: NRx" << reg << std::endl;
+			std::cout << "Writing to unknown Square register: NRx" << +reg << std::endl;
 			break;
 	}
 }

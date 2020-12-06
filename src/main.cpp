@@ -22,10 +22,10 @@ int main(int, char**) {
 		return 1;
 	}
 
+	SDLHandle sdl;
+
 	auto gb = std::make_shared<Gameboy>();
 
-	SDLInit(gb->apu);
-	
 	ui::DisplayWindow display(gb, context.window);
 	ui::DebugWindow debug(gb);
 	ui::PPUWindow ppu(gb); 
@@ -54,8 +54,6 @@ int main(int, char**) {
 		gb->running = false;
 		gb->mbc->close();
 	}
-
-	SDLUninit();
 	
 	return 0;
 }
