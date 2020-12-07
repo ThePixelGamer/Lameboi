@@ -4,6 +4,9 @@ build/
 # Gameboy ROMS
 *.bin
 
+# imgui
+*.ini
+
 # Prerequisites
 *.d
 

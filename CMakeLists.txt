@@ -38,7 +38,11 @@ link_directories("${PROJECT_SOURCE_DIR}/lib/SDL2/lib/x64")
 
 file(GLOB_RECURSE SRC_LIST "src/*.cpp")
 file(GLOB_RECURSE INCLUDE_LIST "src/*.h")
-add_executable(lameboi ${SRC_LIST} ${INCLUDE_LIST})
+add_executable(lameboi 
+    ${SRC_LIST} 
+    ${INCLUDE_LIST}
+    src/lameboi.rc
+)
 
 target_include_directories(lameboi PUBLIC ./src)
 
