@@ -34,7 +34,7 @@ namespace ui {
 
 		void render() {
 			if (show) {
-				mem_edit.DrawWindow("Memory", &gb->mem, 0xFFFF);
+				mem_edit.DrawWindow("Memory", &gb->mem, 0x10000);
 			}
 		}
 	};

@@ -35,6 +35,7 @@ void APU::clean() {
 	wave.reset();
 }
 
+//todo: switch to SDL_mixer or something
 void APU::update() {
 	if (--sequencerCycles == 0) {
 		sequencerCycles = maxSequencerCycles;
@@ -115,46 +116,52 @@ void APU::update() {
 	}
 }
 
-template <typename T>
-bool inRange(const T& value, int low, int high) {
-	return (value >= low) && (value <= high);
-}
-
 u8 APU::read(u8 reg) {
 	if (inRange(reg, 0x10, 0x14)) {
-		return squareSweep.read(reg - 0x10);
+		return squareSweep.read(reg);
 	}
-	else if (inRange(reg, 0x15, 0x19)) {
-		return square.read(reg - 0x15);
+	else if (inRange(reg, 0x16, 0x19)) {
+		return square.read(reg);
 	}
 	else if (inRange(reg, 0x1A, 0x1E)) {
-		return wave.read(reg - 0x1A);
-	}
-	else if (inRange(reg, 0x24, 0x26)) {
-		return soundControl.read(reg - 0x24);
-	}
-	else if (inRange(reg, 0x30, 0x3F)) {
 		return wave.read(reg);
 	}
+	else if (inRange(reg, 0x20, 0x23)) {
+		//noise
+		return 0xFF;
+	}
+	else if (inRange(reg, 0x24, 0x26)) {
+		return soundControl.read(reg);
+	}
+	else if (inRange(reg, 0x30, 0x3F)) {
+		return wave.readPattern(reg);
+	}
 	else {
+		//log
 		return 0xFF;
 	}
 }
 
 void APU::write(u8 reg, u8 value) {
 	if (inRange(reg, 0x10, 0x14)) {
-		squareSweep.write(reg - 0x10, value);
+		squareSweep.write(reg, value);
 	}
-	else if (inRange(reg, 0x15, 0x19)) {
-		square.write(reg - 0x15, value);
+	else if (inRange(reg, 0x16, 0x19)) {
+		square.write(reg, value);
 	}
 	else if (inRange(reg, 0x1A, 0x1E)) {
-		wave.write(reg - 0x1A, value);
+		wave.write(reg, value);
+	}
+	else if (inRange(reg, 0x20, 0x23)) {
+		//noise
 	}
 	else if (inRange(reg, 0x24, 0x26)) {
-		soundControl.write(reg - 0x24, value);
+		soundControl.write(reg, value);
 	}
 	else if (inRange(reg, 0x30, 0x3F)) {
-		wave.write(reg, value);
+		wave.writePattern(reg, value);
+	}
+	else {
+		//log
 	}
 }

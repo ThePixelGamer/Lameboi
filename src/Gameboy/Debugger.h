@@ -69,6 +69,4 @@ public:
 
 		return 0;
 	}
-
-	void printSerialData();
 };

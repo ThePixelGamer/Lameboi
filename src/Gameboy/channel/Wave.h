@@ -37,6 +37,9 @@ public:
 	u8 read(u8 reg);
 	void write(u8 reg, u8 value);
 
+	u8 readPattern(u8 offset);
+	void writePattern(u8 offset, u8 value);
+
 	float sample() {
 		return static_cast<float>(output);
 	}

@@ -1,75 +1,81 @@
 #include "CPU.h"
 
+#include <array>
+#include <stdexcept>
+#include <fmt/format.h>
+#include <fmt/printf.h>
+
 #include "Gameboy.h"
 
-#include <stdexcept>
-#include <array>
-#include "fmt/format.h"
-#include "fmt/printf.h"
+struct Instruction {
+	std::string_view name;
+	int arg;
+};
 
-const std::array<Instruction, 0x100> instTable {{
-//             0                              1                   2								3                 4                         5                       6			         7                     8                        9               A                     B                C                      D                       E                F
-	{"NOP",						0}, {"LD BC, {:04x}",	3}, {"LD (BC), A",				0}, {"INC BC",		0}, {"INC B",			0}, {"DEC B",		0}, {"LD B, {:02x}",    3}, {"RLCA",		0}, {"LD ({:04x}), SP",	3}, {"ADD HL, BC", 0}, {"LD A, (BC)",     0}, {"DEC BC",  0}, {"INC C",			 0}, {"DEC C",		 0}, {"LD C, {:02x}", 3}, {"RRCA",    0}, //00
-	{"STOP",					0}, {"LD DE, {:04x}",	3}, {"LD (DE), A",				0}, {"INC DE",		0}, {"INC D",			0}, {"DEC D",		0}, {"LD D, {:02x}",    3}, {"RLA",		0}, {"JR {:02x}",		3}, {"ADD HL, DE", 0}, {"LD A, (DE)",     0}, {"DEC DE",  0}, {"INC E",			 0}, {"DEC E",		 0}, {"LD E, {:02x}", 3}, {"RRA",     0}, //10
-	{"JR NZ, {:02x}",			3}, {"LD HL, {:04x}",	3}, {"LD (HL+), A",				0}, {"INC HL",		0}, {"INC H",			0}, {"DEC H",		0}, {"LD H, {:02x}",    3}, {"DAA",		0}, {"JR Z, {:02x}",	3}, {"ADD HL, HL", 0}, {"LD A, (HL+)",    0}, {"DEC HL",  0}, {"INC L",			 0}, {"DEC L",		 0}, {"LD L, {:02x}", 3}, {"CPL",     0}, //20
-	{"JR NC, {:02x}",			3}, {"LD SP, {:04x}",	3}, {"LD (HL-), A",				0}, {"INC SP",		0}, {"INC (HL)",		0}, {"DEC (HL)",	0}, {"LD (HL), {:02x}", 3}, {"SCF",		0}, {"JR C, {:02x}",	3}, {"ADD HL, SP", 0}, {"LD A, (HL-)",    0}, {"DEC SP",  0}, {"INC A",			 0}, {"DEC A",		 0}, {"LD A, {:02x}", 3}, {"CCF",     0}, //30
-	{"LD B, B",					0}, {"LD B, C",			0}, {"LD B, D",					0}, {"LD B, E",		0}, {"LD B, H",			0}, {"LD B, L",		0}, {"LD B, (HL)",		 0}, {"LD B, A",    0}, {"LD C, B",         0}, {"LD C, C",    0}, {"LD C, D",        0}, {"LD C, E", 0}, {"LD C, H",		 0}, {"LD C, L",	 0}, {"LD C, (HL)",    0}, {"LD C, A", 0}, //40
-	{"LD D, B",					0}, {"LD D, C",			0}, {"LD D, D",					0}, {"LD D, E",		0}, {"LD D, H",			0}, {"LD D, L",		0}, {"LD D, (HL)",		 0}, {"LD D, A",    0}, {"LD E, B",         0}, {"LD E, C",    0}, {"LD E, D",        0}, {"LD E, E", 0}, {"LD E, H",		 0}, {"LD E, L",	 0}, {"LD E, (HL)",    0}, {"LD E, A", 0}, //50
-	{"LD H, B",					0}, {"LD H, C",			0}, {"LD H, D",					0}, {"LD H, E",		0}, {"LD H, H",			0}, {"LD H, L",		0}, {"LD H, (HL)",		 0}, {"LD H, A",    0}, {"LD L, B",         0}, {"LD L, C",    0}, {"LD L, D",        0}, {"LD L, E", 0}, {"LD L, H",		 0}, {"LD L, L",	 0}, {"LD L, (HL)",    0}, {"LD L, A", 0}, //60
-	{"LD (HL), B",				0}, {"LD (HL), C",		0}, {"LD (HL), D",				0}, {"LD (HL), E",	0}, {"LD (HL), H",		0}, {"LD (HL), L",	0}, {"HALT",			 0}, {"LD (HL), A", 0}, {"LD A, B",         0}, {"LD A, C",    0}, {"LD A, D",        0}, {"LD A, E", 0}, {"LD A, H",		 0}, {"LD A, L",	 0}, {"LD A, (HL)",    0}, {"LD A, A", 0}, //70
-	{"ADD B",					0}, {"ADD C",			0}, {"ADD D",					0}, {"ADD E",		0}, {"ADD H",			0}, {"ADD L",		0}, {"ADD (HL)",		 0}, {"ADD A",		0}, {"ADC B",			0}, {"ADC C",	   0}, {"ADC D",		  0}, {"ADC E",   0}, {"ADC H",			 0}, {"ADC L",		 0}, {"ADC (HL)",	   0}, {"ADC A",   0}, //80
-	{"SUB B",					0}, {"SUB C",			0}, {"SUB D",					0}, {"SUB E",		0}, {"SUB H",			0}, {"SUB L",		0}, {"SUB (HL)",		 0}, {"SUB A",		0}, {"SBC B",			0}, {"SBC C",	   0}, {"SBC D",		  0}, {"SBC E",   0}, {"SBC H",			 0}, {"SBC L",		 0}, {"SBC (HL)",	   0}, {"SBC A",   0}, //90
-	{"AND B",					0}, {"AND C",			0}, {"AND D",					0}, {"AND E",		0}, {"AND H",			0}, {"AND L",		0}, {"AND (HL)",		 0}, {"AND A",		0}, {"XOR B",			0}, {"XOR C",	   0}, {"XOR D",		  0}, {"XOR E",   0}, {"XOR H",			 0}, {"XOR L",		 0}, {"XOR (HL)",	   0}, {"XOR A",   0}, //a0
-	{"OR B",					0}, {"OR C",			0}, {"OR D",					0}, {"OR E",		0}, {"OR H",			0}, {"OR L",		0}, {"OR (HL)",			 0}, {"OR A",		0}, {"CP B",			0}, {"CP C",	   0}, {"CP D",			  0}, {"CP E",    0}, {"CP H",			 0}, {"CP L",		 0}, {"CP (HL)",	   0}, {"CP A",    0}, //b0
-	{"RET NZ",					0}, {"POP BC",			0}, {"JP NZ, {:04x}",			3}, {"JP {:04x}",	3}, {"CALL NZ, {:04x}",	3}, {"PUSH BC",		0}, {"ADD A, {:02x}",	 3}, {"RST $00",	0}, {"RET Z",			0}, { "RET",       0}, {"JP Z, $hX",	  3}, {"CB:",     0}, {"CALL Z, {:04x}", 3}, {"CALL {:04x}", 3}, {"ADC {:02x}",   3}, {"RST $08", 0}, //c0
-	{"RET NC",					0}, {"POP DE",			0}, {"JP NC, {:04x}",			3}, {"",			0}, {"CALL NC, {:04x}",	3}, {"PUSH DE",		0}, {"SUB {:02x}",		 3}, {"RST $10",	0}, {"RET C",			0}, { "RETI",      0}, {"JP C, $hX",	  3}, {"",        0}, {"CALL C, {:04x}", 3}, { "",			 0}, {"SBC {:02x}",   3}, {"RST $18", 0}, //d0
-	{"LD ({:04x}+{:02x}), A",	2}, {"POP HL",			0}, {"LD ({:04x}+{:02x}), A",	1}, {"",			0}, {"",				0}, {"PUSH HL",		0}, {"AND {:02x}",		 3}, {"RST $20",	0}, {"ADD SP,%hhd",		3}, { "JP HL",     0}, {"LD ($%02hX), A", 3}, {"",        0}, {"",				 0}, { "",			 0}, {"XOR {:02x}",   3}, {"RST $28", 0}, //e0
-	{"LD A, ({:04x}+{:02x})",	2}, {"POP AF",			0}, {"LD A, ({:04x}+{:02x})",	1}, {"DI",			0}, {"",				0}, {"PUSH AF",		0}, {"OR {:02x}",		 3}, {"RST $30",	0}, {"LD HL, SP+%hhd",	3}, {"LD SP,HL",   0}, {"LD A, ($%02hX)", 3}, {"EI",      0}, {"",				 0}, { "",			 0}, {"CP {:02x}",    3}, {"RST $38", 0}, //f0
+constexpr std::array<Instruction, 0x100> instTable {{
+//      0                         1                     2                          3                  4                       5                  6                       7                  8                        9                  A                      B               C                      D                   E                    F
+/*0n*/ {"NOP",                0}, {"LD BC, {:04x}", 3}, {"LD (BC), A",         0}, {"INC BC",     0}, {"INC B",           0}, {"DEC B",      0}, {"LD B, {:02x}",    2}, {"RLCA",       0}, {"LD ({:04x}), SP",  3}, {"ADD HL, BC", 0}, {"LD A, (BC)",     0}, {"DEC BC",  0}, {"INC C",          0}, {"DEC C",       0}, {"LD C, {:02x}", 2}, {"RRCA",    0},
+/*1n*/ {"STOP",               0}, {"LD DE, {:04x}", 3}, {"LD (DE), A",         0}, {"INC DE",     0}, {"INC D",           0}, {"DEC D",      0}, {"LD D, {:02x}",    2}, {"RLA",        0}, {"JR {:02x}",        2}, {"ADD HL, DE", 0}, {"LD A, (DE)",     0}, {"DEC DE",  0}, {"INC E",          0}, {"DEC E",       0}, {"LD E, {:02x}", 2}, {"RRA",     0},
+/*2n*/ {"JR NZ, {:02x}",      2}, {"LD HL, {:04x}", 3}, {"LD (HL+), A",        0}, {"INC HL",     0}, {"INC H",           0}, {"DEC H",      0}, {"LD H, {:02x}",    2}, {"DAA",        0}, {"JR Z, {:02x}",     2}, {"ADD HL, HL", 0}, {"LD A, (HL+)",    0}, {"DEC HL",  0}, {"INC L",          0}, {"DEC L",       0}, {"LD L, {:02x}", 2}, {"CPL",     0},
+/*3n*/ {"JR NC, {:02x}",      2}, {"LD SP, {:04x}", 3}, {"LD (HL-), A",        0}, {"INC SP",     0}, {"INC (HL)",        0}, {"DEC (HL)",   0}, {"LD (HL), {:02x}", 2}, {"SCF",        0}, {"JR C, {:02x}",     2}, {"ADD HL, SP", 0}, {"LD A, (HL-)",    0}, {"DEC SP",  0}, {"INC A",          0}, {"DEC A",       0}, {"LD A, {:02x}", 2}, {"CCF",     0},
+/*4n*/ {"LD B, B",            0}, {"LD B, C",       0}, {"LD B, D",            0}, {"LD B, E",    0}, {"LD B, H",         0}, {"LD B, L",    0}, {"LD B, (HL)",      0}, {"LD B, A",    0}, {"LD C, B",          0}, {"LD C, C",    0}, {"LD C, D",        0}, {"LD C, E", 0}, {"LD C, H",        0}, {"LD C, L",     0}, {"LD C, (HL)",   0}, {"LD C, A", 0},
+/*5n*/ {"LD D, B",            0}, {"LD D, C",       0}, {"LD D, D",            0}, {"LD D, E",    0}, {"LD D, H",         0}, {"LD D, L",    0}, {"LD D, (HL)",      0}, {"LD D, A",    0}, {"LD E, B",          0}, {"LD E, C",    0}, {"LD E, D",        0}, {"LD E, E", 0}, {"LD E, H",        0}, {"LD E, L",     0}, {"LD E, (HL)",   0}, {"LD E, A", 0},
+/*6n*/ {"LD H, B",            0}, {"LD H, C",       0}, {"LD H, D",            0}, {"LD H, E",    0}, {"LD H, H",         0}, {"LD H, L",    0}, {"LD H, (HL)",      0}, {"LD H, A",    0}, {"LD L, B",          0}, {"LD L, C",    0}, {"LD L, D",        0}, {"LD L, E", 0}, {"LD L, H",        0}, {"LD L, L",     0}, {"LD L, (HL)",   0}, {"LD L, A", 0},
+/*7n*/ {"LD (HL), B",         0}, {"LD (HL), C",    0}, {"LD (HL), D",         0}, {"LD (HL), E", 0}, {"LD (HL), H",      0}, {"LD (HL), L", 0}, {"HALT",            0}, {"LD (HL), A", 0}, {"LD A, B",          0}, {"LD A, C",    0}, {"LD A, D",        0}, {"LD A, E", 0}, {"LD A, H",        0}, {"LD A, L",     0}, {"LD A, (HL)",   0}, {"LD A, A", 0},
+/*8n*/ {"ADD B",              0}, {"ADD C",         0}, {"ADD D",              0}, {"ADD E",      0}, {"ADD H",           0}, {"ADD L",      0}, {"ADD (HL)",        0}, {"ADD A",      0}, {"ADC B",            0}, {"ADC C",      0}, {"ADC D",          0}, {"ADC E",   0}, {"ADC H",          0}, {"ADC L",       0}, {"ADC (HL)",     0}, {"ADC A",   0},
+/*9n*/ {"SUB B",              0}, {"SUB C",         0}, {"SUB D",              0}, {"SUB E",      0}, {"SUB H",           0}, {"SUB L",      0}, {"SUB (HL)",        0}, {"SUB A",      0}, {"SBC B",            0}, {"SBC C",      0}, {"SBC D",          0}, {"SBC E",   0}, {"SBC H",          0}, {"SBC L",       0}, {"SBC (HL)",     0}, {"SBC A",   0},
+/*An*/ {"AND B",              0}, {"AND C",         0}, {"AND D",              0}, {"AND E",      0}, {"AND H",           0}, {"AND L",      0}, {"AND (HL)",        0}, {"AND A",      0}, {"XOR B",            0}, {"XOR C",      0}, {"XOR D",          0}, {"XOR E",   0}, {"XOR H",          0}, {"XOR L",       0}, {"XOR (HL)",     0}, {"XOR A",   0},
+/*Bn*/ {"OR B",               0}, {"OR C",          0}, {"OR D",               0}, {"OR E",       0}, {"OR H",            0}, {"OR L",       0}, {"OR (HL)",         0}, {"OR A",       0}, {"CP B",             0}, {"CP C",       0}, {"CP D",           0}, {"CP E",    0}, {"CP H",           0}, {"CP L",        0}, {"CP (HL)",      0}, {"CP A",    0},
+/*Cn*/ {"RET NZ",             0}, {"POP BC",        0}, {"JP NZ, {:04x}",      3}, {"JP {:04x}",  3}, {"CALL NZ, {:04x}", 3}, {"PUSH BC",    0}, {"ADD A, {:02x}",   2}, {"RST $00",    0}, {"RET Z",            0}, {"RET",        0}, {"JP Z, {:04x}",   3}, {"CB:",     0}, {"CALL Z, {:04x}", 3}, {"CALL {:04x}", 3}, {"ADC {:02x}",   2}, {"RST $08", 0},
+/*Dn*/ {"RET NC",             0}, {"POP DE",        0}, {"JP NC, {:04x}",      3}, {"",           0}, {"CALL NC, {:04x}", 3}, {"PUSH DE",    0}, {"SUB {:02x}",      2}, {"RST $10",    0}, {"RET C",            0}, {"RETI",       0}, {"JP C, {:04x}",   3}, {"",        0}, {"CALL C, {:04x}", 3}, { "",           0}, {"SBC {:02x}",   2}, {"RST $18", 0},
+/*En*/ {"LD (0xFF{:02x}), A", 2}, {"POP HL",        0}, {"LD (0xFF{:02x}), A", 1}, {"",           0}, {"",                0}, {"PUSH HL",    0}, {"AND {:02x}",      2}, {"RST $20",    0}, {"ADD SP, {:02x}",   3}, {"JP HL",      0}, {"LD ({:04x}), A", 3}, {"",        0}, {"",               0}, { "",           0}, {"XOR {:02x}",   2}, {"RST $28", 0},
+/*Fn*/ {"LD A, (0xFF{:02x})", 2}, {"POP AF",        0}, {"LD A, (0xFF{:02x})", 1}, {"DI",         0}, {"",                0}, {"PUSH AF",    0}, {"OR {:02x}",       2}, {"RST $30",    0}, {"LD HL, SP+{:02x}", 3}, {"LD SP,HL",   0}, {"LD A, ({:04x})", 3}, {"EI",      0}, {"",               0}, { "",           0}, {"CP {:02x}",    2}, {"RST $38", 0},
 }};
-const std::array<Instruction, 0x100> CBTable{{
-//     0               1               2                3              4                 5                6                   7                8               9               A              B                C              D                   E                 F
-	{"RLC B",	0}, {"RLC C",	0}, {"RLC D",	0}, {"RLC E",	0}, {"RLC H",	 0}, {"RLC L",	  0}, {"RLC (HL)",    0}, {"RLC A",    0}, {"RRC B",   0}, {"RRC C",   0}, {"RRC D",   0}, {"RRC E",   0}, {"RRC H",	0}, {"RRC L",	 0}, {"RRC (HL)",    0}, {"RRC A",    0}, //00
-	{"RL B",	0}, {"RL C",	0}, {"RL D",	0}, {"RL E",	0}, {"RL H",	 0}, {"RL L",	  0}, {"RL (HL)",     0}, {"RL A",     0}, {"RR B",	   0}, {"RR C",	   0}, {"RR D",    0}, {"RR E",	   0}, {"RR H",		0}, {"RR L",	 0}, {"RR (HL)",     0}, {"RR A",     0}, //10
-	{"SLA B",	0}, {"SLA C",	0}, {"SLA D",	0}, {"SLA E",	0}, {"SLA H",	 0}, {"SLA L",	  0}, {"SLA (HL)",    0}, {"SLA A",    0}, {"SRA B",   0}, {"SRA C",   0}, {"SRA D",   0}, {"SRA E",   0}, {"SRA H",	0}, {"SRA L",	 0}, {"SRA (HL)",    0}, {"SRA A",    0}, //20
-	{"SWAP B",	0}, {"SWAP C",	0}, {"SWAP D",	0}, {"SWAP E",	0}, {"SWAP H",	 0}, {"SWAP L",   0}, {"SWAP (HL)",   0}, {"SWAP A",   0}, {"SRL B",   0}, {"SRL C",   0}, {"SRL D",   0}, {"SRL E",   0}, {"SRL H",	0}, {"SRL L",	 0}, {"SRL (HL)",    0}, {"SRL A",    0}, //30
-	{"BIT 0,B",	0}, {"BIT 0,C",	0}, {"BIT 0,C",	0}, {"BIT 0,C",	0}, {"BIT 0, H", 0}, {"BIT 0, L", 0}, {"BIT 0, (HL)", 0}, {"BIT 0, A", 0}, {"BIT 1,B", 0}, {"BIT 1,C", 0}, {"BIT 1,C", 0}, {"BIT 1,C", 0}, {"BIT 1, H",	0}, {"BIT 1, L", 0}, {"BIT 1, (HL)", 0}, {"BIT 1, A", 0}, //40
-	{"BIT 2,B",	0}, {"BIT 2,C",	0}, {"BIT 2,C",	0}, {"BIT 2,C",	0}, {"BIT 2, H", 0}, {"BIT 2, L", 0}, {"BIT 2, (HL)", 0}, {"BIT 2, A", 0}, {"BIT 3,B", 0}, {"BIT 3,C", 0}, {"BIT 3,C", 0}, {"BIT 3,C", 0}, {"BIT 3, H",	0}, {"BIT 3, L", 0}, {"BIT 3, (HL)", 0}, {"BIT 3, A", 0}, //50
-	{"BIT 4,B",	0}, {"BIT 4,C",	0}, {"BIT 4,C",	0}, {"BIT 4,C",	0}, {"BIT 4, H", 0}, {"BIT 4, L", 0}, {"BIT 4, (HL)", 0}, {"BIT 4, A", 0}, {"BIT 5,B", 0}, {"BIT 5,C", 0}, {"BIT 5,C", 0}, {"BIT 5,C", 0}, {"BIT 5, H",	0}, {"BIT 5, L", 0}, {"BIT 5, (HL)", 0}, {"BIT 5, A", 0}, //60
-	{"BIT 6,B",	0}, {"BIT 6,C",	0}, {"BIT 6,C",	0}, {"BIT 6,C",	0}, {"BIT 6, H", 0}, {"BIT 6, L", 0}, {"BIT 6, (HL)", 0}, {"BIT 6, A", 0}, {"BIT 7,B", 0}, {"BIT 7,C", 0}, {"BIT 7,C", 0}, {"BIT 7,C", 0}, {"BIT 7, H",	0}, {"BIT 7, L", 0}, {"BIT 7, (HL)", 0}, {"BIT 7, A", 0}, //70
-	{"RES 0,B",	0}, {"RES 0,C",	0}, {"RES 0,C",	0}, {"RES 0,C",	0}, {"RES 0, H", 0}, {"RES 0, L", 0}, {"RES 0, (HL)", 0}, {"RES 0, A", 0}, {"RES 1,B", 0}, {"RES 1,C", 0}, {"RES 1,C", 0}, {"RES 1,C", 0}, {"RES 1, H",	0}, {"RES 1, L", 0}, {"RES 1, (HL)", 0}, {"RES 1, A", 0}, //80
-	{"RES 2,B",	0}, {"RES 2,C",	0}, {"RES 2,C",	0}, {"RES 2,C",	0}, {"RES 2, H", 0}, {"RES 2, L", 0}, {"RES 2, (HL)", 0}, {"RES 2, A", 0}, {"RES 3,B", 0}, {"RES 3,C", 0}, {"RES 3,C", 0}, {"RES 3,C", 0}, {"RES 3, H",	0}, {"RES 3, L", 0}, {"RES 3, (HL)", 0}, {"RES 3, A", 0}, //90
-	{"RES 4,B",	0}, {"RES 4,C",	0}, {"RES 4,C",	0}, {"RES 4,C",	0}, {"RES 4, H", 0}, {"RES 4, L", 0}, {"RES 4, (HL)", 0}, {"RES 4, A", 0}, {"RES 5,B", 0}, {"RES 5,C", 0}, {"RES 5,C", 0}, {"RES 5,C", 0}, {"RES 5, H",	0}, {"RES 5, L", 0}, {"RES 5, (HL)", 0}, {"RES 5, A", 0}, //A0
-	{"RES 6,B",	0}, {"RES 6,C",	0}, {"RES 6,C",	0}, {"RES 6,C",	0}, {"RES 6, H", 0}, {"RES 6, L", 0}, {"RES 6, (HL)", 0}, {"RES 6, A", 0}, {"RES 7,B", 0}, {"RES 7,C", 0}, {"RES 7,C", 0}, {"RES 7,C", 0}, {"RES 7, H",	0}, {"RES 7, L", 0}, {"RES 7, (HL)", 0}, {"RES 7, A", 0}, //B0
-	{"SET 0,B",	0}, {"SET 0,C",	0}, {"SET 0,C",	0}, {"SET 0,C",	0}, {"SET 0, H", 0}, {"SET 0, L", 0}, {"SET 0, (HL)", 0}, {"SET 0, A", 0}, {"SET 1,B", 0}, {"SET 1,C", 0}, {"SET 1,C", 0}, {"SET 1,C", 0}, {"SET 1, H",	0}, {"SET 1, L", 0}, {"SET 1, (HL)", 0}, {"SET 1, A", 0}, //C0
-	{"SET 2,B",	0}, {"SET 2,C",	0}, {"SET 2,C",	0}, {"SET 2,C",	0}, {"SET 2, H", 0}, {"SET 2, L", 0}, {"SET 2, (HL)", 0}, {"SET 2, A", 0}, {"SET 3,B", 0}, {"SET 3,C", 0}, {"SET 3,C", 0}, {"SET 3,C", 0}, {"SET 3, H",	0}, {"SET 3, L", 0}, {"SET 3, (HL)", 0}, {"SET 3, A", 0}, //D0
-	{"SET 4,B",	0}, {"SET 4,C",	0}, {"SET 4,C",	0}, {"SET 4,C",	0}, {"SET 4, H", 0}, {"SET 4, L", 0}, {"SET 4, (HL)", 0}, {"SET 4, A", 0}, {"SET 5,B", 0}, {"SET 5,C", 0}, {"SET 5,C", 0}, {"SET 5,C", 0}, {"SET 5, H",	0}, {"SET 5, L", 0}, {"SET 5, (HL)", 0}, {"SET 5, A", 0}, //E0
-	{"SET 6,B",	0}, {"SET 6,C",	0}, {"SET 6,C",	0}, {"SET 6,C",	0}, {"SET 6, H", 0}, {"SET 6, L", 0}, {"SET 6, (HL)", 0}, {"SET 6, A", 0}, {"SET 7,B", 0}, {"SET 7,C", 0}, {"SET 7,C", 0}, {"SET 7,C", 0}, {"SET 7, H",	0}, {"SET 7, L", 0}, {"SET 7, (HL)", 0}, {"SET 7, A", 0}, //F0
+
+constexpr std::array<Instruction, 0x100> CBTable = { {
+//     0               1               2               3               4                5                6                   7                8               9               A               B               C                D                E                   F
+/*0n*/ {"RLC B",   0}, {"RLC C",   0}, {"RLC D",   0}, {"RLC E",   0}, {"RLC H",    0}, {"RLC L",    0}, {"RLC (HL)",    0}, {"RLC A",    0}, {"RRC B",   0}, {"RRC C",   0}, {"RRC D",   0}, {"RRC E",   0}, {"RRC H",    0}, {"RRC L",    0}, {"RRC (HL)",    0}, {"RRC A",    0},
+/*1n*/ {"RL B",    0}, {"RL C",    0}, {"RL D",    0}, {"RL E",    0}, {"RL H",     0}, {"RL L",     0}, {"RL (HL)",     0}, {"RL A",     0}, {"RR B",    0}, {"RR C",    0}, {"RR D",    0}, {"RR E",    0}, {"RR H",     0}, {"RR L",     0}, {"RR (HL)",     0}, {"RR A",     0},
+/*2n*/ {"SLA B",   0}, {"SLA C",   0}, {"SLA D",   0}, {"SLA E",   0}, {"SLA H",    0}, {"SLA L",    0}, {"SLA (HL)",    0}, {"SLA A",    0}, {"SRA B",   0}, {"SRA C",   0}, {"SRA D",   0}, {"SRA E",   0}, {"SRA H",    0}, {"SRA L",    0}, {"SRA (HL)",    0}, {"SRA A",    0},
+/*3n*/ {"SWAP B",  0}, {"SWAP C",  0}, {"SWAP D",  0}, {"SWAP E",  0}, {"SWAP H",   0}, {"SWAP L",   0}, {"SWAP (HL)",   0}, {"SWAP A",   0}, {"SRL B",   0}, {"SRL C",   0}, {"SRL D",   0}, {"SRL E",   0}, {"SRL H",    0}, {"SRL L",    0}, {"SRL (HL)",    0}, {"SRL A",    0},
+/*4n*/ {"BIT 0,B", 0}, {"BIT 0,C", 0}, {"BIT 0,C", 0}, {"BIT 0,C", 0}, {"BIT 0, H", 0}, {"BIT 0, L", 0}, {"BIT 0, (HL)", 0}, {"BIT 0, A", 0}, {"BIT 1,B", 0}, {"BIT 1,C", 0}, {"BIT 1,C", 0}, {"BIT 1,C", 0}, {"BIT 1, H", 0}, {"BIT 1, L", 0}, {"BIT 1, (HL)", 0}, {"BIT 1, A", 0},
+/*5n*/ {"BIT 2,B", 0}, {"BIT 2,C", 0}, {"BIT 2,C", 0}, {"BIT 2,C", 0}, {"BIT 2, H", 0}, {"BIT 2, L", 0}, {"BIT 2, (HL)", 0}, {"BIT 2, A", 0}, {"BIT 3,B", 0}, {"BIT 3,C", 0}, {"BIT 3,C", 0}, {"BIT 3,C", 0}, {"BIT 3, H", 0}, {"BIT 3, L", 0}, {"BIT 3, (HL)", 0}, {"BIT 3, A", 0},
+/*6n*/ {"BIT 4,B", 0}, {"BIT 4,C", 0}, {"BIT 4,C", 0}, {"BIT 4,C", 0}, {"BIT 4, H", 0}, {"BIT 4, L", 0}, {"BIT 4, (HL)", 0}, {"BIT 4, A", 0}, {"BIT 5,B", 0}, {"BIT 5,C", 0}, {"BIT 5,C", 0}, {"BIT 5,C", 0}, {"BIT 5, H", 0}, {"BIT 5, L", 0}, {"BIT 5, (HL)", 0}, {"BIT 5, A", 0},
+/*7n*/ {"BIT 6,B", 0}, {"BIT 6,C", 0}, {"BIT 6,C", 0}, {"BIT 6,C", 0}, {"BIT 6, H", 0}, {"BIT 6, L", 0}, {"BIT 6, (HL)", 0}, {"BIT 6, A", 0}, {"BIT 7,B", 0}, {"BIT 7,C", 0}, {"BIT 7,C", 0}, {"BIT 7,C", 0}, {"BIT 7, H", 0}, {"BIT 7, L", 0}, {"BIT 7, (HL)", 0}, {"BIT 7, A", 0},
+/*8n*/ {"RES 0,B", 0}, {"RES 0,C", 0}, {"RES 0,C", 0}, {"RES 0,C", 0}, {"RES 0, H", 0}, {"RES 0, L", 0}, {"RES 0, (HL)", 0}, {"RES 0, A", 0}, {"RES 1,B", 0}, {"RES 1,C", 0}, {"RES 1,C", 0}, {"RES 1,C", 0}, {"RES 1, H", 0}, {"RES 1, L", 0}, {"RES 1, (HL)", 0}, {"RES 1, A", 0},
+/*9n*/ {"RES 2,B", 0}, {"RES 2,C", 0}, {"RES 2,C", 0}, {"RES 2,C", 0}, {"RES 2, H", 0}, {"RES 2, L", 0}, {"RES 2, (HL)", 0}, {"RES 2, A", 0}, {"RES 3,B", 0}, {"RES 3,C", 0}, {"RES 3,C", 0}, {"RES 3,C", 0}, {"RES 3, H", 0}, {"RES 3, L", 0}, {"RES 3, (HL)", 0}, {"RES 3, A", 0},
+/*An*/ {"RES 4,B", 0}, {"RES 4,C", 0}, {"RES 4,C", 0}, {"RES 4,C", 0}, {"RES 4, H", 0}, {"RES 4, L", 0}, {"RES 4, (HL)", 0}, {"RES 4, A", 0}, {"RES 5,B", 0}, {"RES 5,C", 0}, {"RES 5,C", 0}, {"RES 5,C", 0}, {"RES 5, H", 0}, {"RES 5, L", 0}, {"RES 5, (HL)", 0}, {"RES 5, A", 0},
+/*Bn*/ {"RES 6,B", 0}, {"RES 6,C", 0}, {"RES 6,C", 0}, {"RES 6,C", 0}, {"RES 6, H", 0}, {"RES 6, L", 0}, {"RES 6, (HL)", 0}, {"RES 6, A", 0}, {"RES 7,B", 0}, {"RES 7,C", 0}, {"RES 7,C", 0}, {"RES 7,C", 0}, {"RES 7, H", 0}, {"RES 7, L", 0}, {"RES 7, (HL)", 0}, {"RES 7, A", 0},
+/*Cn*/ {"SET 0,B", 0}, {"SET 0,C", 0}, {"SET 0,C", 0}, {"SET 0,C", 0}, {"SET 0, H", 0}, {"SET 0, L", 0}, {"SET 0, (HL)", 0}, {"SET 0, A", 0}, {"SET 1,B", 0}, {"SET 1,C", 0}, {"SET 1,C", 0}, {"SET 1,C", 0}, {"SET 1, H", 0}, {"SET 1, L", 0}, {"SET 1, (HL)", 0}, {"SET 1, A", 0},
+/*Dn*/ {"SET 2,B", 0}, {"SET 2,C", 0}, {"SET 2,C", 0}, {"SET 2,C", 0}, {"SET 2, H", 0}, {"SET 2, L", 0}, {"SET 2, (HL)", 0}, {"SET 2, A", 0}, {"SET 3,B", 0}, {"SET 3,C", 0}, {"SET 3,C", 0}, {"SET 3,C", 0}, {"SET 3, H", 0}, {"SET 3, L", 0}, {"SET 3, (HL)", 0}, {"SET 3, A", 0},
+/*En*/ {"SET 4,B", 0}, {"SET 4,C", 0}, {"SET 4,C", 0}, {"SET 4,C", 0}, {"SET 4, H", 0}, {"SET 4, L", 0}, {"SET 4, (HL)", 0}, {"SET 4, A", 0}, {"SET 5,B", 0}, {"SET 5,C", 0}, {"SET 5,C", 0}, {"SET 5,C", 0}, {"SET 5, H", 0}, {"SET 5, L", 0}, {"SET 5, (HL)", 0}, {"SET 5, A", 0},
+/*Fn*/ {"SET 6,B", 0}, {"SET 6,C", 0}, {"SET 6,C", 0}, {"SET 6,C", 0}, {"SET 6, H", 0}, {"SET 6, L", 0}, {"SET 6, (HL)", 0}, {"SET 6, A", 0}, {"SET 7,B", 0}, {"SET 7,C", 0}, {"SET 7,C", 0}, {"SET 7,C", 0}, {"SET 7, H", 0}, {"SET 7, L", 0}, {"SET 7, (HL)", 0}, {"SET 7, A", 0},
 }};
 
 void CPU::handlePrint() {
 	/*
-	gb.log << fmt::format("{:04x} ", PC-1); //PSI
+	log << fmt::format("{:04x} ", PC-1); //PSI
 
 	Instruction inst = (opcode == 0xCB) ? CBTable[FetchOpcode(PC)] : instTable[opcode];
 	auto qwqs = std::string(inst.name);
 	auto qwq = qwqs.c_str();
 	switch(inst.arg) {
-		case 0: gb.log << qwq; break;
-		case 1: gb.log << fmt::format(qwq, 0xFF00, C); break;
-		case 2: gb.log << fmt::format(qwq, 0xFF00, GetLEBytes<u8>(PC)); break;
-		case 3: gb.log << fmt::format(qwq, GetLEBytes<u16>(PC)); break;
+		case 0: log << qwq; break;
+		case 1: log << fmt::format(qwq, C); break;
+		case 2: log << fmt::format(qwq, GetLEBytes<u8>(PC)); break;
+		case 3: log << fmt::format(qwq, GetLEBytes<u16>(PC)); break;
 	}
 
-	if (gb.mem.BOOT) {
-		gb.log << fmt::format("A: {:02X} F: {:02X} B: {:02X} C: {:02X} D: {:02X} E: {:02X} H: {:02X} L: {:02X} SP: {:04X} PC: 00:{:04X} ({:02X} {:02X} {:02X} {:02X})", A, (AF & 0xFF), B, C, D, E, H, L, SP, PC, gb.mem.Read(PC), gb.mem.Read(PC + 1), gb.mem.Read(PC + 2), gb.mem.Read(PC + 3));
-		gb.log << "\n";
+	if (mem.BOOT) {
+		log << fmt::format("A: {:02X} F: {:02X} B: {:02X} C: {:02X} D: {:02X} E: {:02X} H: {:02X} L: {:02X} SP: {:04X} PC: 00:{:04X} ({:02X} {:02X} {:02X} {:02X})", A, (AF & 0xFF), B, C, D, E, H, L, SP, PC, mem.Read(PC), mem.Read(PC + 1), mem.Read(PC + 2), mem.Read(PC + 3));
+		log << "\n";
 	}
 	*/
 
-	//fprintf(gb.log, "PC:%04x OPC:%02x %02x %02x C:%x H:%x N:%x Z:%x A:%02x\n", PC - 1, opcode, GetLEBytes<u8>(PC), GetLEBytes<u8>(PC + 1), CheckCarry(), CheckHalfCarry(), CheckNegative(), CheckZero(), A); //LilaQ
+	//fprintf(log, "PC:%04x OPC:%02x %02x %02x C:%x H:%x N:%x Z:%x A:%02x\n", PC - 1, opcode, GetLEBytes<u8>(PC), GetLEBytes<u8>(PC + 1), CheckCarry(), CheckHalfCarry(), CheckNegative(), CheckZero(), A); //LilaQ
 }
 
-CPU::CPU(Gameboy& t_gb) : gb(t_gb) {
+CPU::CPU(Memory& mem, Scheduler& scheduler, Interrupt& interrupt) : mem(mem), scheduler(scheduler), interrupt(interrupt) {
 	clean();
 }
 
@@ -95,53 +101,45 @@ u8 CPU::M_Write_Helper(T func, Args... args) {
 	return value;
 }
 
-void CPU::interrupt(u8 interrupt) {
+void CPU::fireInterrupt(u8 interrupt) {
 	//2 nops
-	gb.scheduler.newMCycle();
-	gb.scheduler.newMCycle();
+	scheduler.newMCycle();
+	scheduler.newMCycle();
 
 	Push(PC);
 
 	PC = interrupt;
-	gb.scheduler.newMCycle();
+	scheduler.newMCycle();
 
 	IME = false;
 }
 
-bool CPU::interruptPending() {
-	return gb.mem.IF.vblank == 1
-		|| gb.mem.IF.lcdStat == 1
-		|| gb.mem.IF.timer == 1
-		|| gb.mem.IF.serial == 1
-		|| gb.mem.IF.joypad == 1;
-}
-
 bool CPU::handleInterrupts() {
-	if (IME && interruptPending()) {
-		if (gb.mem.IE.vblank && gb.mem.IF.vblank) {
-			gb.mem.IF.vblank = 0;
+	if (IME && interrupt.pending()) {
+		if (interrupt.shouldFire(Interrupt::Type::VBlank)) {
+			interrupt.requestVblank = false;
 
-			interrupt(0x40);
+			fireInterrupt(0x40);
 		}
-		else if (gb.mem.IE.lcdStat && gb.mem.IF.lcdStat) {
-			gb.mem.IF.lcdStat = 0;
+		else if (interrupt.shouldFire(Interrupt::Type::LCD_STAT)) {
+			interrupt.requestLcdStat = false;
 
-			interrupt(0x48);
+			fireInterrupt(0x48);
 		}
-		else if (gb.mem.IE.timer && gb.mem.IF.timer) {
-			gb.mem.IF.timer = 0;
+		else if (interrupt.shouldFire(Interrupt::Type::Timer)) {
+			interrupt.requestTimer = false;
 
-			interrupt(0x50);
+			fireInterrupt(0x50);
 		}
-		else if (gb.mem.IE.serial && gb.mem.IF.serial) {
-			gb.mem.IF.serial = 0;
+		else if (interrupt.shouldFire(Interrupt::Type::Serial)) {
+			interrupt.requestSerial = false;
 
-			interrupt(0x58);
+			fireInterrupt(0x58);
 		}
-		else if (gb.mem.IE.joypad && gb.mem.IF.joypad) {
-			gb.mem.IF.joypad = 0;
+		else if (interrupt.shouldFire(Interrupt::Type::Joypad)) {
+			interrupt.requestJoypad = false;
 
-			interrupt(0x60);
+			fireInterrupt(0x60);
 		}
 
 		return true;
@@ -156,11 +154,11 @@ void CPU::ExecuteOpcode() {
 			handler = false;
 			lowPower = false;
 		}
-		else if (interruptPending()) {
+		else if (interrupt.pending()) {
 			lowPower = false;
 		}
 		else {
-			gb.scheduler.newMCycle(); //not sure about how I'm handling it
+			scheduler.newMCycle(); //not sure about how I'm handling it
 			return;
 		}
 	}
@@ -355,7 +353,7 @@ void CPU::ExecuteOpcode() {
 				handler = true;
 				lowPower = true;
 			}
-			else if (gb.mem.Read(0xFFFF) & gb.mem.Read(0xFF0F) & 0x1F) {
+			else if (interrupt.read(0xFF) & interrupt.read(0x0F) & 0x1F) {
 				haltBug = true;
 			}
 			else {
@@ -521,7 +519,7 @@ void CPU::ExecuteOpcode() {
 		default: fmt::printf("Unimplemented Opcode: 0x%02X\n", opcode); break;
 	}
 
-    //fprintf(gb.log, " AF: $%04X BC: $%04X DE: $%04X HL: $%04X\n", AF, BC, DE, HL);
+    //fprintf(log, " AF: $%04X BC: $%04X DE: $%04X HL: $%04X\n", AF, BC, DE, HL);
 }
 
 void CPU::handleCB() {
@@ -859,8 +857,8 @@ void CPU::SetZero(bool val) {
 }
 
 void CPU::write(u16 loc, u8 value) {
-	gb.scheduler.newMCycle();
-	gb.mem.Write(loc, value);
+	scheduler.newMCycle();
+	mem.Write(loc, value);
 }
 
 void CPU::write(u16 loc, u16 value) {
@@ -881,11 +879,11 @@ T CPU::GetLEBytes(u16 addr) {
 template <typename T>
 T CPU::GetLEBytes(u16& addr, bool increase) {
 	for (size_t cycles = 0; cycles < sizeof(T); ++cycles) {
-		gb.scheduler.newMCycle();
+		scheduler.newMCycle();
 	}
 
 	T ret = 0, amount = sizeof(T);
-	//while(amount > 0) ret += u8(gb.mem.Read((increase) ? addr++ : addr + (sizeof(T) - amount))) << ((sizeof(T) - amount--) * 8);
+	//while(amount > 0) ret += u8(mem.Read((increase) ? addr++ : addr + (sizeof(T) - amount))) << ((sizeof(T) - amount--) * 8);
 	
 	while (amount > 0) {
 		u16 newAddr = 0;
@@ -898,7 +896,7 @@ T CPU::GetLEBytes(u16& addr, bool increase) {
 			newAddr = addr + currentByte;
 		}
 	
-		ret += gb.mem.Read(newAddr) << (currentByte * 8);
+		ret += mem.Read(newAddr) << (currentByte * 8);
 		
 		--amount;
 	}
@@ -1038,7 +1036,7 @@ void CPU::Load(u16& loc, u16 val) {
 }
 
 void CPU::Push(u16& reg_pair) {
-	gb.scheduler.newMCycle();
+	scheduler.newMCycle();
 	SP -= 2;
 	write(SP, reg_pair);
 }
@@ -1050,21 +1048,21 @@ void CPU::Pop(u16& reg_pair) {
 
 void CPU::Jump(u16 loc, bool cond) {
 	if (cond) {
-		gb.scheduler.newMCycle();
+		scheduler.newMCycle();
 		PC = loc;
 	}
 }
 
 void CPU::JumpRelative(s8 offset, bool cond) {
 	if (cond) {
-		gb.scheduler.newMCycle();
+		scheduler.newMCycle();
 		PC += offset;
 	}
 }
 
 void CPU::Call(u16 loc, bool cond) {
 	if(cond) {
-		//gb.scheduler.newMCycle(); push already runs a m-cycle so this isn't needed
+		//scheduler.newMCycle(); push already runs a m-cycle so this isn't needed
 		Push(PC);
 		PC = loc;
 	}
@@ -1072,7 +1070,7 @@ void CPU::Call(u16 loc, bool cond) {
 
 void CPU::Ret() {
 	Pop(PC);
-	gb.scheduler.newMCycle();
+	scheduler.newMCycle();
 }
 
 void CPU::Rst(u8 loc) {

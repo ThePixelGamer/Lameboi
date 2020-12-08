@@ -57,7 +57,7 @@ bool SquareSweep::overflowCheck(u16 freq) {
 }
 
 u8 SquareSweep::read(u8 reg) {
-	if (reg == 0x0) {
+	if (reg == 0x10) {
 		return 0x80 | (sweepTime << 4) | (sweepDecrease << 3) | (sweepShifts);
 	}
 	else {
@@ -66,14 +66,14 @@ u8 SquareSweep::read(u8 reg) {
 }
 
 void SquareSweep::write(u8 reg, u8 value) {
-	if (!control.soundOn && reg != 0x1) {
+	if (!control.soundOn && reg != 0x16) {
 		return;
 	}
 
-	if (reg == 0x0) {
+	if (reg == 0x10) {
 		sweepShifts = (value & 0x7);
 		sweepDecrease = (value & 0x8);
-		sweepTime = (value >> 4);
+		sweepTime = (value & 70) >> 4;
 	}
 	else {
 		Square::write(reg, value);

@@ -20,14 +20,14 @@ void SoundControl::reset() {
 
 u8 SoundControl::read(u8 reg) {
 	switch (reg) {
-		case 0x0: // NR50
+		case 0x24: // NR50
 			return (NR50.vinToS02 << 7) | (NR50.SO2Volume << 4) | (NR50.vinToS01 << 3) | (NR50.SO1Volume);
 
-		case 0x1:
+		case 0x25:
 			return (NR51.sound1ToSO1) | (NR51.sound2ToSO1 << 1) | (NR51.sound3ToSO1 << 2) | (NR51.sound4ToSO1 << 3) |
 				(NR51.sound1ToSO2 << 4) | (NR51.sound2ToSO2 << 5) | (NR51.sound3ToSO2 << 6) | (NR51.sound4ToSO2 << 7);
 
-		case 0x2: // NR52
+		case 0x26: // NR52
 			return (soundOn << 7) | 0x70 | (sound4On << 3) | (sound3On << 2) | (sound2On << 1) | u8(sound1On);
 
 		default:
@@ -38,14 +38,14 @@ u8 SoundControl::read(u8 reg) {
 
 void SoundControl::write(u8 reg, u8 value) {
 	switch (reg) {
-		case 0x0: // NR50
+		case 0x24: // NR50
 			NR50.SO1Volume = (value);
 			NR50.vinToS01 = (value >> 3);
 			NR50.SO2Volume = (value >> 4);
 			NR50.vinToS02 = (value >> 7);
 			break;
 
-		case 0x1:
+		case 0x25:
 			NR51.sound1ToSO1 = (value);
 			NR51.sound2ToSO1 = (value >> 1);
 			NR51.sound3ToSO1 = (value >> 2);
@@ -56,7 +56,7 @@ void SoundControl::write(u8 reg, u8 value) {
 			NR51.sound4ToSO2 = (value >> 7);
 			break;
 
-		case 0x2: // NR52
+		case 0x26: // NR52
 			soundOn = (value >> 7);
 			if (soundOn) {
 				apu.sequencer = 0;

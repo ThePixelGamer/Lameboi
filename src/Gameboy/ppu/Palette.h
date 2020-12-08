@@ -8,11 +8,19 @@ struct Palette {
 	u8 color2 : 2;
 	u8 color3 : 2;
 
+	Palette() :
+		color0(0),
+		color1(0),
+		color2(0),
+		color3(0) 
+	{}
+
 	Palette(u8 c0, u8 c1, u8 c2, u8 c3) :
 		color0(c0),
 		color1(c1),
 		color2(c2),
-		color3(c3) {}
+		color3(c3) 
+	{}
 
 	Palette& operator=(u8 c) {
 		color0 = (c);
@@ -41,5 +49,9 @@ struct Palette {
 			case 3: return color3;
 			default: return 0;
 		}
+	}
+
+	u8 read() {
+		return (color3 << 6) | (color2 << 4) | (color1 << 2) | (color0);
 	}
 };

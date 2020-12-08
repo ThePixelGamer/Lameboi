@@ -51,18 +51,14 @@ namespace ui {
 						const auto boxColor = IM_COL32(255, 0, 0, 255);
 						const auto boxThickness = 1.5f;
 
-						float scx = topleft.x + (gb->mem.SCX * mult);
-						float scy = topleft.y + (gb->mem.SCY * mult);
+						float scx = topleft.x + (gb->ppu.SCX * mult);
+						float scy = topleft.y + (gb->ppu.SCY * mult);
 
-						float boxXSize =
-							(gb->mem.SCX < 96)
-							? topleft.x + ((gb->mem.SCX + 160) * mult)
-							: topleft.x + ((gb->mem.SCX - 96) * mult);
+						float boxXSize = topleft.x +
+							mult * ((gb->ppu.SCX < 96) ? (gb->ppu.SCX + 160) : (gb->ppu.SCX - 96));
 
-						float boxYSize =
-							(gb->mem.SCY < 112)
-							? topleft.y + ((gb->mem.SCY + 144) * mult)
-							: boxYSize = topleft.y + ((gb->mem.SCY - 112) * mult);
+						float boxYSize = topleft.y +
+							mult * ((gb->ppu.SCY < 112) ? (gb->ppu.SCY + 144) : (gb->ppu.SCY - 112));
 
 						ImVec2 boxTL = ImVec2(scx, scy),
 							boxTR = ImVec2(boxXSize, scy),
@@ -74,7 +70,7 @@ namespace ui {
 							boxWrapXBR = ImVec2(boxXSize, boxYSize),
 							boxWrapYBR = ImVec2(boxXSize, boxYSize);
 
-						if (gb->mem.SCX >= 96) {
+						if (gb->ppu.SCX >= 96) {
 							//wrap the box on the x axis
 							boxTR = ImVec2(boxXSize, scy);
 
@@ -85,7 +81,7 @@ namespace ui {
 							boxWrapXBR = ImVec2(bottomright.x, boxYSize);
 						}
 
-						if (gb->mem.SCY >= 112) {
+						if (gb->ppu.SCY >= 112) {
 							//wrap the box on the y axis
 							boxBL = ImVec2(scx, boxYSize);
 

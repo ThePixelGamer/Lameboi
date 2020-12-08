@@ -1,22 +1,21 @@
 #pragma once
+
+//need to clean up these includes
 #include <string>
 #include <string_view>
-#include <stdio.h>
-#include <stdarg.h>
+#include <cstdio>
+#include <cstdarg>
 
-#include "Memory.h"
+#include "Util/Types.h"
 
-struct Gameboy;
+class Memory;
+class Scheduler;
+class Interrupt;
 
 #define Carry			0x10
 #define HalfCarry		0x20
 #define Negative		0x40
 #define Zero			0x80
-
-struct Instruction {
-	std::string_view name;
-	int arg;
-};
 
 struct Flags {
 	u8 : 4;
@@ -27,7 +26,9 @@ struct Flags {
 };
 
 struct CPU {
-	Gameboy& gb;
+	Memory& mem;
+	Scheduler& scheduler;
+	Interrupt& interrupt;
 
 	union {
 		struct {
@@ -58,7 +59,7 @@ struct CPU {
 	u8 opcode;
 	bool IME = false;
 
-	CPU(Gameboy&);
+	CPU(Memory&, Scheduler&, Interrupt&);
 	void handlePrint();
 	bool handleInterrupts();
 	void clean();
@@ -69,8 +70,7 @@ private:
 	bool lowPower = false;
 	bool handler = false;
 
-	void interrupt(u8 interrupt);
-	bool interruptPending();
+	void fireInterrupt(u8 interrupt);
 
 	void write(u16 loc, u8 value);
 	void write(u16 loc, u16 value);

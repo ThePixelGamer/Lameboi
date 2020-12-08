@@ -29,7 +29,6 @@ private:
 	SDL_AudioDeviceID audio_device;
 	std::array<float, samples * 2> sampleBuffer;
 
-	friend Memory;
 	friend SoundControl;
 	SoundControl soundControl;
 

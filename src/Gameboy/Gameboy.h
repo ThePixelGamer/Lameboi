@@ -1,24 +1,28 @@
 #pragma once
 
 #include "Memory.h"
+#include "MBC.h"
 #include "CPU.h"
 #include "PPU.h"
 #include "APU.h"
-#include "Joypad.h"
+#include "Interrupt.h"
 #include "Scheduler.h"
-#include "MBC.h"
 #include "Debugger.h"
-#include "fmt/printf.h"
+
+#include "IO.h"
+#include "io/Joypad.h"
+#include "io/Timer.h"
+#include "io/SerialPort.h"
 
 #include <algorithm> //std::fill
+#include <chrono>
+#include <cmath>
 #include <iterator> //std::end
 #include <fstream> //std::istream
 #include <memory>
 #include <set>
 #include <string>
-
-#include <chrono>
-#include <cmath>
+#include <fmt/printf.h>
 
 struct Gameboy {
 	Memory mem;
@@ -26,12 +30,13 @@ struct Gameboy {
 	std::unique_ptr<IMBC> mbc;
 
 	CPU cpu;
-
 	PPU ppu;
-
 	APU apu;
-
-	Joypad pad;
+	Interrupt interrupt;
+	IO io;
+	Joypad joypad;
+	Timer timer;
+	SerialPort serial;
 
 	Scheduler scheduler;
 
@@ -44,14 +49,18 @@ struct Gameboy {
 	std::condition_variable emustart;
 	std::mutex emustart_m;
 
-	Gameboy() : 
+	Gameboy() :
 		mem(*this),
-		cpu(*this),
-		ppu(mem),
+		scheduler(*this),
+		interrupt(),
+		cpu(mem, scheduler, interrupt),
+		ppu(interrupt),
 		apu(),
-		pad(mem),
-		debug(mem),
-		scheduler(*this) {
+		io(*this),
+		joypad(interrupt),
+		timer(interrupt),
+		serial(),
+		debug(mem) {
 		bios.fill(0xFF);
 		mbc = nullptr;
 	}
@@ -117,6 +126,6 @@ struct Gameboy {
 		ppu.clean();
 		apu.clean();
 		log.close();
-		scheduler.clean();
+		timer.clean();
 	}
 };

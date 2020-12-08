@@ -63,10 +63,10 @@ namespace ui {
 		void handleInput(int keycode, Button button) {
 			const int key = glfwGetKey(window, keycode);
 			if (key == GLFW_PRESS) {
-				gb->pad.pressButton(button);
+				gb->joypad.pressButton(button);
 			}
 			else {
-				gb->pad.releaseButton(button);
+				gb->joypad.releaseButton(button);
 			}
 		}
 	};

@@ -54,16 +54,12 @@ void Wave::lengthControl() {
 }
 
 u8 Wave::read(u8 reg) {
-	if (reg & 0x30) {
-		return wavePattern[reg & 0xF];
-	}
-
 	switch (reg) {
-		case 0x0: return (playSound << 7) | 0x7F;
-		case 0x1: return 0xFF;
-		case 0x2: return (volumeCode << 5) | 0x9F;
-		case 0x3: return 0xFF;
-		case 0x4: return 0x80 | (lengthEnable << 6) | 0x7;
+		case 0x1A: return (playSound << 7) | 0x7F;
+		case 0x1B: return 0xFF;
+		case 0x1C: return (volumeCode << 5) | 0x9F;
+		case 0x1D: return 0xFF;
+		case 0x1E: return 0x80 | (lengthEnable << 6) | 0x7;
 
 		default:
 			std::cout << "Reading from unknown Wave register: NRx" << +reg << std::endl;
@@ -72,30 +68,25 @@ u8 Wave::read(u8 reg) {
 }
 
 void Wave::write(u8 reg, u8 value) {
-	if (reg & 0x30) {
-		wavePattern[reg & 0xF] = value;
-		return;
-	}
-
 	switch (reg) {
-		case 0x0:
+		case 0x1A:
 			playSound = (value & 0x80);
 			break;
 
-		case 0x1:
+		case 0x1B:
 			lengthCounter = 256 - value;
 			break;
 
-		case 0x2:
+		case 0x1C:
 			volumeCode = (value & 0x60) >> 5;
 			break;
 
-		case 0x3:
+		case 0x1D:
 			frequency &= 0x700;
 			frequency |= value;
 			break;
 
-		case 0x4:
+		case 0x1E:
 			frequency &= 0xFF;
 			frequency |= (value & 0x7) << 8;
 			lengthEnable = (value & 0x40);
@@ -109,4 +100,12 @@ void Wave::write(u8 reg, u8 value) {
 			std::cout << "Writing to unknown Wave register: NRx" << +reg << std::endl;
 			break;
 	}
+}
+
+u8 Wave::readPattern(u8 offset) {
+	return wavePattern[offset & 0xF];
+}
+
+void Wave::writePattern(u8 offset, u8 value) {
+	wavePattern[offset & 0xF] = value;
 }
