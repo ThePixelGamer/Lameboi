@@ -18,13 +18,13 @@ public:
 	constexpr static float amplitude = 0.15f;
 
 private:
-	constexpr static int maxSampleCycles = (clock * 4) / frequency;
+	constexpr static int maxSampleCycles = (clock * 2) / frequency; //pushing samples every 2 T-Cycles
 	constexpr static int maxSequencerCycles = clock / 512;
 
-	u8 sequencer = 0;
-	u16 sequencerCycles = maxSequencerCycles;
-	u8 sampleCycles = maxSampleCycles;
-	u16 bufferOffset = 0;
+	u8 sequencer;
+	u16 sequencerCycles;
+	u8 sampleCycles;
+	u16 bufferOffset;
 
 	SDL_AudioDeviceID audio_device;
 	std::array<float, samples * 2> sampleBuffer;

@@ -8,6 +8,7 @@ protected:
 	SoundControl& control;
 	bool& soundOn;
 
+	// internal
 	u16 frequencyTimer = 0;
 	u8 sequence = 0;
 	u8 lengthCounter = 0;
@@ -29,7 +30,9 @@ protected:
 	Square(SoundControl& control, bool& soundOn) : control(control), soundOn(soundOn) {}
 
 public:
-	Square(SoundControl& control) : Square(control, control.sound2On) {}
+	Square(SoundControl& control) : Square(control, control.sound2On) {
+		reset();
+	}
 
 	void update();
 	virtual void trigger();
@@ -51,7 +54,7 @@ public:
 
 private:
 	void reloadFrequency() {
-		frequencyTimer = (2048 - frequency) * 4;
+		frequencyTimer = (2048 - frequency) * 2;
 	}
 
 	void reloadEnvTimer() {

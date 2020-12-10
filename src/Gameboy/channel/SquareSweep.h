@@ -5,10 +5,11 @@
 #include "Util/Types.h"
 
 class SquareSweep : public Square {
+	// internal
 	u16 shadowFrequency = 0;
 	int sweepTimer = 0;
 
-
+	// registers
 	u8 sweepShifts = 0;
 	bool sweepDecrease = false;
 	u8 sweepTime = 0; // n/128hz

@@ -28,9 +28,8 @@ void SquareSweep::sweep() {
 
 	reloadSweepTimer();
 
-	if (sweepTimer != 8 && sweepShifts != 0) {
+	if (sweepTime != 0) {
 		u16 adjustedFrequency = calcFrequency();
-
 		if (overflowCheck(adjustedFrequency) && sweepShifts != 0) {
 			frequency = shadowFrequency = adjustedFrequency;
 			overflowCheck(calcFrequency());
@@ -39,7 +38,7 @@ void SquareSweep::sweep() {
 }
 
 u16 SquareSweep::calcFrequency() {
-	u16 adjustedFrequency = shadowFrequency >> sweepShifts;
+	s16 adjustedFrequency = shadowFrequency >> sweepShifts;
 
 	if (sweepDecrease) {
 		adjustedFrequency = -adjustedFrequency;
@@ -49,11 +48,12 @@ u16 SquareSweep::calcFrequency() {
 }
 
 bool SquareSweep::overflowCheck(u16 freq) {
-	if (freq <= 2047)
-		return true;
+	if (freq > 2047) {
+		soundOn = false;
+		return false;
+	}
 
-	soundOn = false;
-	return false;
+	return true;
 }
 
 u8 SquareSweep::read(u8 reg) {
@@ -73,7 +73,7 @@ void SquareSweep::write(u8 reg, u8 value) {
 	if (reg == 0x10) {
 		sweepShifts = (value & 0x7);
 		sweepDecrease = (value & 0x8);
-		sweepTime = (value & 70) >> 4;
+		sweepTime = (value & 0x70) >> 4;
 	}
 	else {
 		Square::write(reg, value);

@@ -27,6 +27,10 @@ APU::~APU() {
 }
 
 void APU::clean() {
+	sequencer = 0;
+	sequencerCycles = maxSequencerCycles;
+	sampleCycles = maxSampleCycles;
+	bufferOffset = 0;
 	sampleBuffer.fill(0);
 
 	soundControl.reset();
@@ -40,19 +44,19 @@ void APU::update() {
 	if (--sequencerCycles == 0) {
 		sequencerCycles = maxSequencerCycles;
 
-		//Length Control
 		if ((sequencer & 1) == 0) {
+			// Sweep 2/6
+			if (sequencer & 2) {
+				squareSweep.sweep();
+			}
+
+			// Length Control 0/2/4/6
 			squareSweep.lengthControl();
 			square.lengthControl();
 			wave.lengthControl();
 		}
 
-		//Sweep
-		if (sequencer == 2 || sequencer == 6) {
-			squareSweep.sweep();
-		}
-
-		//Volume Envelope
+		// Volume Envelope
 		if (sequencer == 7) {
 			squareSweep.envelope();
 			square.envelope();
@@ -63,7 +67,7 @@ void APU::update() {
 		}
 	}
 
-	for (u8 cycles = 4; cycles != 0; --cycles) {
+	for (u8 cycles = 0; cycles != 2; ++cycles) {
 		squareSweep.update();
 		square.update();
 		wave.update();
@@ -75,7 +79,7 @@ void APU::update() {
 			size_t offset = bufferOffset * 2ll;
 
 			float output = 0.0f;
-			int volume = (128 * soundControl.NR50.SO2Volume) / 7;
+			int volume = 0;
 
 			auto outputChannel = [&](bool canOutput, float sample) {
 				if (canOutput) {
@@ -85,6 +89,8 @@ void APU::update() {
 			};
 
 			//left
+			volume = (128 * soundControl.NR50.SO2Volume) / 7;
+
 			outputChannel(soundControl.NR51.sound1ToSO2, squareSweep.sample());
 			outputChannel(soundControl.NR51.sound2ToSO2, square.sample());
 			outputChannel(soundControl.NR51.sound3ToSO2, wave.sample());
@@ -107,11 +113,15 @@ void APU::update() {
 			bufferOffset = 0;
 
 			uint32_t len = samples * 2 * sizeof(float);
-			while (SDL_GetQueuedAudioSize(audio_device) > len) {
-				SDL_Delay(1);
+			if (true) { //audio sync
+				SDL_QueueAudio(audio_device, sampleBuffer.data(), len);
+				while (SDL_GetQueuedAudioSize(audio_device) > len) {}
 			}
-
-			SDL_QueueAudio(audio_device, sampleBuffer.data(), len);
+			else {
+				if (SDL_GetQueuedAudioSize(audio_device) <= len) {
+					SDL_QueueAudio(audio_device, sampleBuffer.data(), len);
+				}
+			}
 		}
 	}
 }

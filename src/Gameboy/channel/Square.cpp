@@ -17,7 +17,7 @@ void Square::update() {
 			sequence = 0;
 	}
 
-	if (soundOn) {
+	if (soundOn && (volume & 0xF)) {
 		output = dutyTable[waveDuty][sequence] * (volume & 0xF);
 	}
 	else {
@@ -59,7 +59,7 @@ void Square::envelope() {
 	
 	reloadEnvTimer();
 
-	if (runEnvelope && envelopeTimer != 8) {
+	if (runEnvelope && envelopeSweep != 0) {
 		volume += (envelopeIncrease) ? 1 : -1;
 
 		volume = std::clamp(volume, 0, 15);
@@ -92,7 +92,7 @@ u8 Square::read(u8 reg) {
 }
 
 void Square::write(u8 reg, u8 value) {
-	if (!control.soundOn && (reg != 0x11 && reg != 0x16)) {
+	if (!control.soundOn && reg != 0x11 && reg != 0x16) {
 		return;
 	}
 

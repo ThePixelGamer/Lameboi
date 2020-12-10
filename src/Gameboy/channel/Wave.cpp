@@ -68,6 +68,10 @@ u8 Wave::read(u8 reg) {
 }
 
 void Wave::write(u8 reg, u8 value) {
+	if (!control.soundOn && reg != 0x1B) {
+		return;
+	}
+
 	switch (reg) {
 		case 0x1A:
 			playSound = (value & 0x80);

@@ -57,7 +57,7 @@ void SoundControl::write(u8 reg, u8 value) {
 			break;
 
 		case 0x26: // NR52
-			soundOn = (value >> 7);
+			soundOn = (value & 0x80);
 			if (soundOn) {
 				apu.sequencer = 0;
 				apu.squareSweep.resetWaveDuty();
