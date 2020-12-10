@@ -39,8 +39,10 @@ protected:
 	}
 
 	//change this to use the size of the rom?
+	//https://gbdev.io/pandocs/#_0148-rom-size
 	u16 _getMaxRomBanks(u8 type) {
 		switch (type) {
+			case 0x0: return 2;
 			case 0x1: return 4;
 			case 0x4: return 32;
 			case 0x5: return 64;
@@ -52,6 +54,7 @@ protected:
 		}
 	}
 
+	//https://gbdev.io/pandocs/#_0149-ram-size
 	u16 _getMaxRamBanks(u8 type) {
 		switch (type) {
 			case 0x1: return 1; //not sure what to do in this case

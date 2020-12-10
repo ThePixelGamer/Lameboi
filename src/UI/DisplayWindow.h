@@ -40,12 +40,7 @@ namespace ui {
 			//Display
 			std::unique_lock lock(gb->ppu.vblank_m);
 
-			if (gb->ppu.presenting) {
-				tex.mData = gb->ppu.displayPresent.data();
-			}
-			else {
-				tex.mData = gb->ppu.display.data();
-			}
+			tex.mData = (gb->ppu.presenting) ? gb->ppu.displayPresent.data() : gb->ppu.display.data();
 
 			tex.update();
 			tex.display(zoom, grid);

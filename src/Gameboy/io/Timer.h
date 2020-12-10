@@ -38,19 +38,18 @@ public:
 	}
 
 	void update() {
-		++divCycles;
-
-		if ((divCycles % cyclesDivNeeds) == 0) {
+		if (++divCycles == cyclesDivNeeds) {
 			++DIV;
+			divCycles = 0;
 		}
+
+		constexpr std::array<u16, 4> timer{ 1024 / 4, 16 / 4, 64 / 4, 256 / 4 };
 
 		// todo implement the timer glitch mentioned in pandocs
 		if (TAC.timerOn) {
 			++currentCycleCount;
 
-			constexpr std::array<u16, 4> timer{ 1024 / 4, 16 / 4, 64 / 4, 256 / 4 };
-
-			if ((currentCycleCount % timer[TAC.clockSelect]) == 0) {
+			if ((currentCycleCount & (timer[TAC.clockSelect] - 1)) == 0) {
 				if (++TIMA == 0) { // overflow
 					TIMA = TMA;
 					interrupt.requestTimer = true;
@@ -63,10 +62,6 @@ public:
 		}
 		else {
 			currentCycleCount = 0;
-		}
-
-		if (divCycles == cyclesDivNeeds) {
-			divCycles = 0;
 		}
 	}
 

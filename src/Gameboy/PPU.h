@@ -68,7 +68,7 @@ public:
 	std::array<u32, 160 * 144> display;
 	std::array<u32, 160 * 144> displayPresent;
 	bool presenting = false;
-	int vblankCount;
+	size_t framesPresented;
 
 	bool isVblank;
 	std::condition_variable vblank_cv;

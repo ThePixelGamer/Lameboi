@@ -53,7 +53,7 @@ void PPU::clean() {
 
 	vblankHelper = false;
 
-	vblankCount = 0;
+	framesPresented = 0;
 	isVblank = false;
 }
 
@@ -240,17 +240,17 @@ void PPU::scanline() {
 					y -= 256;
 				}
 
-				if ((SCX % 8) == 0) {
-					u8 offset = map[(adjustedX / 8ll) + ((y / 8ll) * 32)];
-					line = _fetchTileLine(LCDC.tileSet, y % 8, offset);
+				u8 xShift = SCX % 8;
+				u16 offset = (adjustedX / 8ll) + ((y / 8ll) * 32);
+				u8 yOffset = y % 8;
+				if (xShift == 0) {
+					line = _fetchTileLine(LCDC.tileSet, yOffset, map[offset]);
 				}
 				else {
-					u8 xShift = SCX % 8;
-					u16 offset = (adjustedX / 8ll) + ((y / 8ll) * 32);
-					auto tlineL = _fetchTileLine(LCDC.tileSet, y % 8, map[offset]);
+					auto tlineL = _fetchTileLine(LCDC.tileSet, yOffset, map[offset]);
 
 					offset = (adjustedX >= 248) ? offset - 31 : offset + 1;
-					auto tlineR = _fetchTileLine(LCDC.tileSet, y % 8, map[offset]);
+					auto tlineR = _fetchTileLine(LCDC.tileSet, yOffset, map[offset]);
 					line = {
 						u8((tlineL[0] << xShift) | (tlineR[0] >> (8 - xShift))),
 						u8((tlineL[1] << xShift) | (tlineR[1] >> (8 - xShift))),
@@ -287,7 +287,6 @@ void PPU::scanline() {
 					continue;
 				}
 
-				// yPos = 26, LY = 12, spriteSize = 8
 				u8 y = (LY + 16 - sprite.yPos) % 16;
 				if (sprite.yFlip) {
 					y = ((LCDC.objSize) ? 15 : 7) - y;
@@ -324,12 +323,7 @@ void PPU::scanline() {
 			}
 		}
 
-		if (presenting) {
-			pixelPusher(display, x, LY * 160ll, (c0 << 1) | c1, *palette);
-		}
-		else {
-			pixelPusher(displayPresent, x, LY * 160ll, (c0 << 1) | c1, *palette);
-		}
+		pixelPusher((presenting) ? display : displayPresent, x, LY * 160ll, (c0 << 1) | c1, *palette);
 	}
 
 	STAT.mode = Mode::HBlank;
@@ -402,6 +396,8 @@ void PPU::vblank() {
 		vblank.wait(lock, [this] { return isVblank; });
 		isVblank = false;
 		*/
+
+		++framesPresented;
 	}
 
 	if (_nextLine()) {
@@ -411,8 +407,6 @@ void PPU::vblank() {
 			STAT.mode = Mode::Searching;
 		}
 	}
-
-	++vblankCount;
 }
 
 void PPU::_updateLY(u8 y) {
