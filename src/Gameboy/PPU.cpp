@@ -60,10 +60,6 @@ void PPU::clean() {
 //called every mcycle
 void PPU::update() {
 	if (LCDC.lcdDisplay == 0) {
-		STAT.mode = Mode::Searching;
-		LY = 0;
-		cycles = 0;
-
 		return;
 	}
 
@@ -137,6 +133,12 @@ void PPU::write(u8 reg, u8 value) {
 			LCDC.windowDisplay = (value >> 5);
 			LCDC.windowMap = (value >> 6);
 			LCDC.lcdDisplay = (value >> 7);
+			
+			if (LCDC.lcdDisplay == 0) {
+				LY = 0;
+				STAT.mode = 0;
+				cycles = 0;
+			}
 			break;
 
 		case 0x41: //LCDC Status

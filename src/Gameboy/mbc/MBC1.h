@@ -1,10 +1,10 @@
 #pragma once
 
-#include "IMBC.h"
+#include "MBC.h"
 
 #include <array>
 
-class MBC1 : public IMBC {
+class MBC1 : public MBC {
 	bool ramEnabled = false;
 	bool altBankMode = false;
 	u8 romBank = 1; // 1h-7Fh
@@ -14,7 +14,7 @@ class MBC1 : public IMBC {
 	std::array<std::array<u8, 0x2000>, 0x4> ramBanks; // 00h-03h
 
 public:
-	MBC1(bool ram = false, bool battery = false) : IMBC(ram, battery) {
+	MBC1(bool ram = false, bool battery = false) : MBC(ram, battery) {
 		romBanks.fill({});
 		ramBanks.fill({});
 	}

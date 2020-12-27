@@ -52,6 +52,7 @@ public:
 	size_t amountToStep(u16 PC) {
 		if (!breakpoints.empty()) {
 			if (breakpoints.find(PC) != breakpoints.end()) {
+				continuing(false);
 				return 0;
 			}
 		}

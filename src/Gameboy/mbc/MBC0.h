@@ -1,16 +1,16 @@
 #pragma once
 
-#include "IMBC.h"
+#include "MBC.h"
 
 #include <array>
 
-class MBC0 : public IMBC {
+class MBC0 : public MBC {
 	std::array<u8, 0x4000> bank0; // 0x0000
 	std::array<u8, 0x4000> bank1; // 0x8000
 	std::array<u8, 0x2000> ERAM; // 0xA000
 
 public:
-	MBC0() : IMBC() {
+	MBC0() : MBC() {
 		bank0.fill(0);
 		bank1.fill(0);
 		ERAM.fill(0);

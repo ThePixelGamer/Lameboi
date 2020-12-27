@@ -35,7 +35,7 @@ namespace ui {
 
 					if (ImGui::Selectable(i_hex.c_str(), false, ImGuiSelectableFlags_AllowDoubleClick)
 						&& ImGui::IsMouseDoubleClicked(0)) {
-						//gb->debug.removeBreakpoint(i); todo fix the map/set iterator issue
+						i = gb->debug.removeBreakpoint(i);
 					}
 					else {
 						++i;

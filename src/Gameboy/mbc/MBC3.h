@@ -1,11 +1,11 @@
 #pragma once
 
-#include "IMBC.h"
+#include "MBC.h"
 #include "Util/Common.h"
 
 #include <iostream>
 
-class MBC3 : public IMBC {
+class MBC3 : public MBC {
 	bool timer = false; 
 	bool ramEnabled = false;
 	u8 romBank = 1; // 1h-7Fh
@@ -32,7 +32,7 @@ class MBC3 : public IMBC {
 	} rtcD;
 
 public:
-	MBC3(bool ram_ = false, bool battery_ = false, bool timer_ = false) : IMBC(ram_, battery_), timer(timer_) {
+	MBC3(bool ram_ = false, bool battery_ = false, bool timer_ = false) : MBC(ram_, battery_), timer(timer_) {
 		romBanks.fill({});
 		ramBanks.fill({});
 	}

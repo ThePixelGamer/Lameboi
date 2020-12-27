@@ -17,9 +17,8 @@ class Timer {
 	} TAC;
 
 	//internal
-	const u8 cyclesDivNeeds = 64; // amount of m-cycles to increment the div reg
-	u8 divCycles;
-	u16 currentCycleCount;
+	const u8 cyclesDivNeeds = 256 / 4; // amount of m-cycles to increment the div reg
+	u16 counter;
 
 public:
 	Timer(Interrupt& interrupt) : interrupt(interrupt) {
@@ -33,35 +32,18 @@ public:
 		TAC.clockSelect = 0;
 		TAC.timerOn = false;
 
-		divCycles = 0;
-		currentCycleCount = 0;
+		counter = 0;
 	}
 
 	void update() {
-		if (++divCycles == cyclesDivNeeds) {
+		updateCounter(counter + 1);
+
+		if ((counter & (cyclesDivNeeds - 1)) == 0) {
 			++DIV;
-			divCycles = 0;
 		}
 
-		constexpr std::array<u16, 4> timer{ 1024 / 4, 16 / 4, 64 / 4, 256 / 4 };
-
-		// todo implement the timer glitch mentioned in pandocs
-		if (TAC.timerOn) {
-			++currentCycleCount;
-
-			if ((currentCycleCount & (timer[TAC.clockSelect] - 1)) == 0) {
-				if (++TIMA == 0) { // overflow
-					TIMA = TMA;
-					interrupt.requestTimer = true;
-				}
-			}
-
-			if (currentCycleCount == timer[0]) { //1024 / 4
-				currentCycleCount = 0;
-			}
-		}
-		else {
-			currentCycleCount = 0;
+		if (counter == 0x100) { //1024 / 4
+			counter = 0;
 		}
 	}
 
@@ -82,7 +64,7 @@ public:
 		switch (reg) {
 			case 0x04: 
 				DIV = 0;
-				divCycles = 0;
+				updateCounter(0);
 				break;
 
 			case 0x05: TIMA = value; break;
@@ -96,5 +78,24 @@ public:
 				//log
 				break;
 		}
+	}
+
+private:
+	void updateCounter(u16 newVal) {
+		constexpr std::array<u16, 4> timerMask { 1024 / 4 / 2, 16 / 4 / 2, 64 / 4 / 2, 256 / 4 / 2 };
+
+		// todo implement the timer glitch
+		if (TAC.timerOn) {
+			u16 mask = timerMask[TAC.clockSelect];
+
+			if ((counter & mask) == mask && (newVal & mask) != mask) {
+				if (++TIMA == 0) { // overflow
+					TIMA = TMA;
+					interrupt.requestTimer = true;
+				}
+			}
+		}
+
+		counter = newVal;
 	}
 };

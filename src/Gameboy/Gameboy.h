@@ -1,7 +1,7 @@
 #pragma once
 
 #include "Memory.h"
-#include "MBC.h"
+#include "mbc/MBC.h"
 #include "CPU.h"
 #include "PPU.h"
 #include "APU.h"
@@ -27,7 +27,7 @@
 struct Gameboy {
 	Memory mem;
 	std::array<u8, 0x100> bios;
-	std::unique_ptr<IMBC> mbc;
+	std::unique_ptr<MBC> mbc;
 
 	CPU cpu;
 	PPU ppu;
@@ -74,7 +74,7 @@ struct Gameboy {
 		u8 type = file.seekg(0x147).get(); //get mbc type
 		file.seekg(0); //reset ifstream position
 		
-		mbc = loadMBCFromByte(type);
+		mbc = MBC::createInstance(type);
 		if (mbc == nullptr) {
 			bios.fill(0xFF);
 			return false;
@@ -106,7 +106,7 @@ struct Gameboy {
 			}
 		}
 
-		printf("----------------------------------------------------\n");
+		fmt::printf("----------------------------------------------------\n");
 		
 		{
 			std::unique_lock lock(emustart_m);
