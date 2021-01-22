@@ -67,7 +67,7 @@ void CPU::handlePrint() {
 	}
 
 	if (mem.BOOT) {
-		log << fmt::format("A: {:02X} F: {:02X} B: {:02X} C: {:02X} D: {:02X} E: {:02X} H: {:02X} L: {:02X} SP: {:04X} PC: 00:{:04X} ({:02X} {:02X} {:02X} {:02X})", A, (AF & 0xFF), B, C, D, E, H, L, SP, PC, mem.Read(PC), mem.Read(PC + 1), mem.Read(PC + 2), mem.Read(PC + 3));
+		log << fmt::format("A: {:02X} F: {:02X} B: {:02X} C: {:02X} D: {:02X} E: {:02X} H: {:02X} L: {:02X} SP: {:04X} PC: 00:{:04X} ({:02X} {:02X} {:02X} {:02X})", A, (AF & 0xFF), B, C, D, E, H, L, SP, PC, mem.read(PC), mem.read(PC + 1), mem.read(PC + 2), mem.read(PC + 3));
 		log << "\n";
 	}
 	*/
@@ -96,7 +96,7 @@ void CPU::clean() {
 
 template<typename T, typename... Args>
 u8 CPU::M_Write_Helper(T func, Args... args) {
-	u8 value = GetLEBytes<u8>(HL);
+	u8 value = readBytes<u8>(HL);
 	(this->*func)(value, args...);
 	return value;
 }
@@ -105,8 +105,10 @@ void CPU::fireInterrupt(u8 interrupt) {
 	//2 nops
 	scheduler.newMCycle();
 	scheduler.newMCycle();
-
-	Push(PC);
+	
+	//push
+	write(SP, PC);
+	SP -= 2;
 
 	PC = interrupt;
 	scheduler.newMCycle();
@@ -206,46 +208,46 @@ void CPU::ExecuteOpcode() {
 		case 0x35: write(HL, M_Write_Helper(static_cast<overloaded>(&CPU::Decrease))); break; //DEC (HL)		
 		case 0x3D: Decrease(A); break;
 			
-		case 0x01: Load(BC, GetLEBytes<u16>()); break; //LD BC,u16
-		case 0x11: Load(DE, GetLEBytes<u16>()); break; //LD DE,u16
-		case 0x21: Load(HL, GetLEBytes<u16>()); break; //LD HL,u16
-		case 0x31: Load(SP, GetLEBytes<u16>()); break; //LD SP,u16
-		case 0x08: write(GetLEBytes<u16>(), SP); break; //LD (u16),SP
+		case 0x01: Load(BC, nextBytes<u16>()); break; //LD BC,u16
+		case 0x11: Load(DE, nextBytes<u16>()); break; //LD DE,u16
+		case 0x21: Load(HL, nextBytes<u16>()); break; //LD HL,u16
+		case 0x31: Load(SP, nextBytes<u16>()); break; //LD SP,u16
+		case 0x08: write(nextBytes<u16>() + 2, SP); break; //LD (u16),SP
 			
 		case 0x02: write(BC, A); break; //LD (BC),A
 		case 0x12: write(DE, A); break; //LD (DE),A
 		case 0x22: write(HL++, A); break; //LD (HL+),A
 		case 0x32: write(HL--, A); break; //LD (HL-),A
 
-		case 0x06: Load(B, GetLEBytes<u8>()); break; //LD B,u8
-		case 0x0E: Load(C, GetLEBytes<u8>()); break; //LD C,u8
-		case 0x16: Load(D, GetLEBytes<u8>()); break; //LD D,u8
-		case 0x1E: Load(E, GetLEBytes<u8>()); break; //LD E,u8
-		case 0x26: Load(H, GetLEBytes<u8>()); break; //LD H,u8
-		case 0x2E: Load(L, GetLEBytes<u8>()); break; //LD L,u8
-		case 0x36: write(HL, GetLEBytes<u8>()); break; //LD (HL),u8
-		case 0x3E: Load(A, GetLEBytes<u8>()); break; //LD A,u8
+		case 0x06: Load(B, nextBytes<u8>()); break; //LD B,u8
+		case 0x0E: Load(C, nextBytes<u8>()); break; //LD C,u8
+		case 0x16: Load(D, nextBytes<u8>()); break; //LD D,u8
+		case 0x1E: Load(E, nextBytes<u8>()); break; //LD E,u8
+		case 0x26: Load(H, nextBytes<u8>()); break; //LD H,u8
+		case 0x2E: Load(L, nextBytes<u8>()); break; //LD L,u8
+		case 0x36: write(HL, nextBytes<u8>()); break; //LD (HL),u8
+		case 0x3E: Load(A, nextBytes<u8>()); break; //LD A,u8
 
-		case 0x0A: Load(A, GetLEBytes<u8>(BC)); break; //LD A,(BC)
-		case 0x1A: Load(A, GetLEBytes<u8>(DE)); break; //LD A,(DE)
-		case 0x2A: Load(A, GetLEBytes<u8>(HL++)); break; //LD A,(HL+)
-		case 0x3A: Load(A, GetLEBytes<u8>(HL--)); break; //LD A,(HL-)
+		case 0x0A: Load(A, readBytes<u8>(BC)); break; //LD A,(BC)
+		case 0x1A: Load(A, readBytes<u8>(DE)); break; //LD A,(DE)
+		case 0x2A: Load(A, readBytes<u8>(HL++)); break; //LD A,(HL+)
+		case 0x3A: Load(A, readBytes<u8>(HL--)); break; //LD A,(HL-)
 			
 		case 0x09: Add(BC); break; //ADD HL,BC
 		case 0x19: Add(DE); break; //ADD HL,DE
 		case 0x29: Add(HL); break; //ADD HL,HL
 		case 0x39: Add(SP); break; //ADD HL,SP
 			
-		case 0x07: RotateLeft(A); SetZero(false); break; //RLCA
-		case 0x0F: RotateRight(A); SetZero(false); break;  //RRCA
-		case 0x17: RotateLeft(A, true); SetZero(false); break; //RLA
-		case 0x1F: RotateRight(A, true); SetZero(false); break; //RRA
+		case 0x07: RotateLeft(A); setZero(false); break; //RLCA
+		case 0x0F: RotateRight(A); setZero(false); break;  //RRCA
+		case 0x17: RotateLeft(A, true); setZero(false); break; //RLA
+		case 0x1F: RotateRight(A, true); setZero(false); break; //RRA
 
-		case 0x18: JumpRelative(GetLEBytes<u8>()); break; //JR i8
-		case 0x20: JumpRelative(GetLEBytes<u8>(), !CheckZero()); break; //JR NZ,i8
-		case 0x30: JumpRelative(GetLEBytes<u8>(), !CheckCarry()); break; //JR NC,i8
-		case 0x28: JumpRelative(GetLEBytes<u8>(), CheckZero()); break; //JR Z,i8
-		case 0x38: JumpRelative(GetLEBytes<u8>(), CheckCarry()); break; //JR C,i8
+		case 0x18: JumpRelative(nextBytes<u8>()); break; //JR i8
+		case 0x20: JumpRelative(nextBytes<u8>(), !CheckZero()); break; //JR NZ,i8
+		case 0x30: JumpRelative(nextBytes<u8>(), !CheckCarry()); break; //JR NC,i8
+		case 0x28: JumpRelative(nextBytes<u8>(), CheckZero()); break; //JR Z,i8
+		case 0x38: JumpRelative(nextBytes<u8>(), CheckCarry()); break; //JR C,i8
 
 		case 0x00: break; //NOP
 		//case 0x10: /*throw "Stop called";*/ break; //STOP
@@ -255,7 +257,7 @@ void CPU::ExecuteOpcode() {
 			if (!CheckNegative()) {  // after an addition, adjust if (half-)carry occurred or if result is out of bounds
 				if (CheckCarry() || A > 0x99) { 
 					A += 0x60; 
-					SetCarry(true); 
+					setCarry(true); 
 				}
 				if (CheckHalfCarry() || (A & 0x0f) > 0x09) { 
 					A += 0x6; 
@@ -270,26 +272,26 @@ void CPU::ExecuteOpcode() {
 				}
 			}
 			// these flags are always updated
-			SetZero(A);
-			SetHalfCarry(false);
+			updateZero(A);
+			setHalfCarry(false);
 		} break;
 
 		case 0x2F: { //CPL
 			A = ~A;
-			SetNegative(true);
-			SetHalfCarry(true);
+			setNegative(true);
+			setHalfCarry(true);
 		} break;
 
 		case 0x37: { //SCF
-			SetCarry(true);
-			SetNegative(false);
-			SetHalfCarry(false);
+			setCarry(true);
+			setNegative(false);
+			setHalfCarry(false);
 		} break;
 			
 		case 0x3F: { //CCF
-			SetCarry(!CheckCarry());
-			SetNegative(false);
-			SetHalfCarry(false);
+			setCarry(!CheckCarry());
+			setNegative(false);
+			setHalfCarry(false);
 		} break;
 
 		case 0x40: Load(B, B); break;
@@ -298,7 +300,7 @@ void CPU::ExecuteOpcode() {
 		case 0x43: Load(B, E); break;
 		case 0x44: Load(B, H); break;
 		case 0x45: Load(B, L); break;
-		case 0x46: Load(B, GetLEBytes<u8>(HL)); break;
+		case 0x46: Load(B, readBytes<u8>(HL)); break;
 		case 0x47: Load(B, A); break;
 		case 0x48: Load(C, B); break;
 		case 0x49: Load(C, C); break;
@@ -306,7 +308,7 @@ void CPU::ExecuteOpcode() {
 		case 0x4B: Load(C, E); break;
 		case 0x4C: Load(C, H); break;
 		case 0x4D: Load(C, L); break;
-		case 0x4E: Load(C, GetLEBytes<u8>(HL)); break;
+		case 0x4E: Load(C, readBytes<u8>(HL)); break;
 		case 0x4F: Load(C, A); break;
 		case 0x50: Load(D, B); break;
 		case 0x51: Load(D, C); break;
@@ -314,7 +316,7 @@ void CPU::ExecuteOpcode() {
 		case 0x53: Load(D, E); break;
 		case 0x54: Load(D, H); break;
 		case 0x55: Load(D, L); break;
-		case 0x56: Load(D, GetLEBytes<u8>(HL)); break;
+		case 0x56: Load(D, readBytes<u8>(HL)); break;
 		case 0x57: Load(D, A); break;
 		case 0x58: Load(E, B); break;
 		case 0x59: Load(E, C); break;
@@ -322,7 +324,7 @@ void CPU::ExecuteOpcode() {
 		case 0x5B: Load(E, E); break;
 		case 0x5C: Load(E, H); break;
 		case 0x5D: Load(E, L); break;
-		case 0x5E: Load(E, GetLEBytes<u8>(HL)); break;
+		case 0x5E: Load(E, readBytes<u8>(HL)); break;
 		case 0x5F: Load(E, A); break;
 		case 0x60: Load(H, B); break;
 		case 0x61: Load(H, C); break;
@@ -330,7 +332,7 @@ void CPU::ExecuteOpcode() {
 		case 0x63: Load(H, E); break;
 		case 0x64: Load(H, H); break;
 		case 0x65: Load(H, L); break;
-		case 0x66: Load(H, GetLEBytes<u8>(HL)); break;
+		case 0x66: Load(H, readBytes<u8>(HL)); break;
 		case 0x67: Load(H, A); break;
 		case 0x68: Load(L, B); break;
 		case 0x69: Load(L, C); break;
@@ -338,7 +340,7 @@ void CPU::ExecuteOpcode() {
 		case 0x6B: Load(L, E); break;
 		case 0x6C: Load(L, H); break;
 		case 0x6D: Load(L, L); break;
-		case 0x6E: Load(L, GetLEBytes<u8>(HL)); break;
+		case 0x6E: Load(L, readBytes<u8>(HL)); break;
 		case 0x6F: Load(L, A); break;
 		case 0x70: write(HL, B); break;
 		case 0x71: write(HL, C); break;
@@ -347,8 +349,7 @@ void CPU::ExecuteOpcode() {
 		case 0x74: write(HL, H); break;
 		case 0x75: write(HL, L); break;
 		
-		case 0x76: 
-		{
+		case 0x76:
 			if (IME) {
 				handler = true;
 				lowPower = true;
@@ -359,7 +360,7 @@ void CPU::ExecuteOpcode() {
 			else {
 				lowPower = true;
 			}
-		} break;
+			break;
 
 		case 0x77: write(HL, A); break;
 		case 0x78: Load(A, B); break;
@@ -368,7 +369,7 @@ void CPU::ExecuteOpcode() {
 		case 0x7B: Load(A, E); break;
 		case 0x7C: Load(A, H); break;
 		case 0x7D: Load(A, L); break;
-		case 0x7E: Load(A, GetLEBytes<u8>(HL)); break;
+		case 0x7E: Load(A, readBytes<u8>(HL)); break;
 		case 0x7F: Load(A, A); break;
 
 		case 0x80: Add(B); break;
@@ -377,18 +378,18 @@ void CPU::ExecuteOpcode() {
 		case 0x83: Add(E); break;
 		case 0x84: Add(H); break;
 		case 0x85: Add(L); break;
-		case 0x86: Add(GetLEBytes<u8>(HL)); break;
+		case 0x86: Add(readBytes<u8>(HL)); break;
 		case 0x87: Add(A); break; //ADD A, A
-		case 0xC6: Add(GetLEBytes<u8>()); break; //ADD A,u8
+		case 0xC6: Add(nextBytes<u8>()); break; //ADD A,u8
 		case 0x88: Add(B, CheckCarry()); break;
 		case 0x89: Add(C, CheckCarry()); break;
 		case 0x8A: Add(D, CheckCarry()); break;
 		case 0x8B: Add(E, CheckCarry()); break;
 		case 0x8C: Add(H, CheckCarry()); break;
 		case 0x8D: Add(L, CheckCarry()); break;
-		case 0x8E: Add(GetLEBytes<u8>(HL), CheckCarry()); break;
+		case 0x8E: Add(readBytes<u8>(HL), CheckCarry()); break;
 		case 0x8F: Add(A, CheckCarry()); break; //ADC A, A
-		case 0xCE: Add(GetLEBytes<u8>(), CheckCarry()); break; //ADC A,u8
+		case 0xCE: Add(nextBytes<u8>(), CheckCarry()); break; //ADC A,u8
 
 		case 0x90: Sub(B); break;
 		case 0x91: Sub(C); break;
@@ -396,18 +397,18 @@ void CPU::ExecuteOpcode() {
 		case 0x93: Sub(E); break;
 		case 0x94: Sub(H); break;
 		case 0x95: Sub(L); break;
-		case 0x96: Sub(GetLEBytes<u8>(HL)); break;
+		case 0x96: Sub(readBytes<u8>(HL)); break;
 		case 0x97: Sub(A); break; //SUB A, A
-		case 0xD6: Sub(GetLEBytes<u8>()); break; //SUB A,u8
+		case 0xD6: Sub(nextBytes<u8>()); break; //SUB A,u8
 		case 0x98: Sub(B, CheckCarry()); break;
 		case 0x99: Sub(C, CheckCarry()); break;
 		case 0x9A: Sub(D, CheckCarry()); break;
 		case 0x9B: Sub(E, CheckCarry()); break;
 		case 0x9C: Sub(H, CheckCarry()); break;
 		case 0x9D: Sub(L, CheckCarry()); break;
-		case 0x9E: Sub(GetLEBytes<u8>(HL), CheckCarry()); break; //SBC A, (HL)
+		case 0x9E: Sub(readBytes<u8>(HL), CheckCarry()); break; //SBC A, (HL)
 		case 0x9F: Sub(A, CheckCarry()); break; //SBC A, A
-		case 0xDE: Sub(GetLEBytes<u8>(), CheckCarry()); break; //SBC A,u8
+		case 0xDE: Sub(nextBytes<u8>(), CheckCarry()); break; //SBC A,u8
 
 		case 0xA0: And(B); break;
 		case 0xA1: And(C); break;
@@ -415,9 +416,9 @@ void CPU::ExecuteOpcode() {
 		case 0xA3: And(E); break;
 		case 0xA4: And(H); break;
 		case 0xA5: And(L); break;
-		case 0xA6: And(GetLEBytes<u8>(HL)); break;
+		case 0xA6: And(readBytes<u8>(HL)); break;
 		case 0xA7: And(A); break; //AND A, A
-		case 0xE6: And(GetLEBytes<u8>()); break; //AND A,u8
+		case 0xE6: And(nextBytes<u8>()); break; //AND A,u8
 
 		case 0xA8: Xor(B); break;
 		case 0xA9: Xor(C); break;
@@ -425,9 +426,9 @@ void CPU::ExecuteOpcode() {
 		case 0xAB: Xor(E); break;
 		case 0xAC: Xor(H); break;
 		case 0xAD: Xor(L); break;
-		case 0xAE: Xor(GetLEBytes<u8>(HL)); break;
+		case 0xAE: Xor(readBytes<u8>(HL)); break;
 		case 0xAF: Xor(A); break; //XOR A, A
-		case 0xEE: Xor(GetLEBytes<u8>()); break; //XOR A,u8
+		case 0xEE: Xor(nextBytes<u8>()); break; //XOR A,u8
 
 		case 0xB0: Or(B); break;
 		case 0xB1: Or(C); break;
@@ -435,9 +436,9 @@ void CPU::ExecuteOpcode() {
 		case 0xB3: Or(E); break;
 		case 0xB4: Or(H); break;
 		case 0xB5: Or(L); break;
-		case 0xB6: Or(GetLEBytes<u8>(HL)); break;
+		case 0xB6: Or(readBytes<u8>(HL)); break;
 		case 0xB7: Or(A); break; //OR A, A
-		case 0xF6: Or(GetLEBytes<u8>()); break; //OR A,u8
+		case 0xF6: Or(nextBytes<u8>()); break; //OR A,u8
 
 		case 0xB8: Compare(B); break;
 		case 0xB9: Compare(C); break;
@@ -445,9 +446,9 @@ void CPU::ExecuteOpcode() {
 		case 0xBB: Compare(E); break;
 		case 0xBC: Compare(H); break;
 		case 0xBD: Compare(L); break;
-		case 0xBE: Compare(GetLEBytes<u8>(HL)); break;
+		case 0xBE: Compare(readBytes<u8>(HL)); break;
 		case 0xBF: Compare(A); break; //CP A, A
-		case 0xFE: Compare(GetLEBytes<u8>()); break; //CP A,u8
+		case 0xFE: Compare(nextBytes<u8>()); break; //CP A,u8
 			
 		case 0xC9: Ret(); break; //RET
 		case 0xC0: if(!CheckZero()) Ret(); break; //RET NZ
@@ -466,18 +467,18 @@ void CPU::ExecuteOpcode() {
 		case 0xE1: Pop(HL); break; //POP HL
 		case 0xF1: Pop(AF); AF &= 0xFFF0; break; //POP AF
 			
-		case 0xC3: Jump(GetLEBytes<u16>()); break; //JP u16
-		case 0xC2: Jump(GetLEBytes<u16>(), !CheckZero()); break; //JP NZ, u16
-		case 0xD2: Jump(GetLEBytes<u16>(), !CheckCarry()); break; //JP NC, u16
-		case 0xCA: Jump(GetLEBytes<u16>(), CheckZero()); break; //JP Z, u16
-		case 0xDA: Jump(GetLEBytes<u16>(), CheckCarry()); break; //JP C, u16
+		case 0xC3: Jump(nextBytes<u16>()); break; //JP u16
+		case 0xC2: Jump(nextBytes<u16>(), !CheckZero()); break; //JP NZ, u16
+		case 0xD2: Jump(nextBytes<u16>(), !CheckCarry()); break; //JP NC, u16
+		case 0xCA: Jump(nextBytes<u16>(), CheckZero()); break; //JP Z, u16
+		case 0xDA: Jump(nextBytes<u16>(), CheckCarry()); break; //JP C, u16
 		case 0xE9: Jump(HL); break; //JP HL
 			
-		case 0xCD: Call(GetLEBytes<u16>()); break; //CALL
-		case 0xC4: Call(GetLEBytes<u16>(), !CheckZero()); break; //CALL NZ,u16
-		case 0xD4: Call(GetLEBytes<u16>(), !CheckCarry()); break; //CALL NC,u16
-		case 0xCC: Call(GetLEBytes<u16>(), CheckZero()); break; //CALL Z,u16
-		case 0xDC: Call(GetLEBytes<u16>(), CheckCarry()); break; //CALL C,u16
+		case 0xCD: Call(nextBytes<u16>()); break; //CALL
+		case 0xC4: Call(nextBytes<u16>(), !CheckZero()); break; //CALL NZ,u16
+		case 0xD4: Call(nextBytes<u16>(), !CheckCarry()); break; //CALL NC,u16
+		case 0xCC: Call(nextBytes<u16>(), CheckZero()); break; //CALL Z,u16
+		case 0xDC: Call(nextBytes<u16>(), CheckCarry()); break; //CALL C,u16
 
 		case 0xC7: Rst(0x00); break; //RST 00h
 		case 0xCF: Rst(0x08); break; //RST 08h
@@ -489,28 +490,28 @@ void CPU::ExecuteOpcode() {
 		case 0xFF: Rst(0x38); break; //RST 38h
 
 		case 0xE8: { //ADD SP,i8
-			u8 offset = GetLEBytes<u8>();
-			SetFlags(HalfCarry | Carry, (SP & 0xff) + offset, u8(SP), offset);
-			SetNegative(false);
-			SetZero(false);
+			u8 offset = nextBytes<u8>();
+			updateFlags(HalfCarry | Carry, (SP & 0xff) + offset, u8(SP), offset);
+			setNegative(false);
+			setZero(false);
 			SP += s8(offset);
 		} break;
 
 		case 0xF8: { //LD HL,SP+i8
-			u8 offset = GetLEBytes<u8>();
-			SetFlags(HalfCarry | Carry, (SP & 0xff) + offset, u8(SP), offset);
-			SetNegative(false);
-			SetZero(false);
+			u8 offset = nextBytes<u8>();
+			updateFlags(HalfCarry | Carry, (SP & 0xff) + offset, u8(SP), offset);
+			setNegative(false);
+			setZero(false);
 			Load(HL, SP+s8(offset));
 		} break;
 
 		case 0xF9: Load(SP, HL); break; //LD SP,HL			
-		case 0xF0: Load(A, GetLEBytes<u8>(GetLEBytes<u8>() + 0xFF00)); break; //LD A,(FF00+u8)
-		case 0xF2: Load(A, GetLEBytes<u8>(0xFF00 + C)); break; //LD A,(FF00+C)
-		case 0xFA: Load(A, GetLEBytes<u8>(GetLEBytes<u16>())); break; //LD A,(u16)
-		case 0xE0: write(0xFF00 + GetLEBytes<u8>(), A); break; //LD (FF00+u8),A
+		case 0xF0: Load(A, readBytes<u8>(0xFF00 + nextBytes<u8>())); break; //LD A,(FF00+u8)
+		case 0xF2: Load(A, readBytes<u8>(0xFF00 + C)); break; //LD A,(FF00+C)
+		case 0xFA: Load(A, readBytes<u8>(nextBytes<u16>())); break; //LD A,(u16)
+		case 0xE0: write(0xFF00 + nextBytes<u8>(), A); break; //LD (FF00+u8),A
 		case 0xE2: write(0xFF00 + C, A); break; //LD (FF00+C),A
-		case 0xEA: write(GetLEBytes<u16>(), A); break; //LD (u16),A
+		case 0xEA: write(nextBytes<u16>(), A); break; //LD (u16),A
 
 		case 0xF3: IME = false; break; //DI
 		case 0xFB: IME = true; break; //EI
@@ -602,7 +603,7 @@ void CPU::handleCB() {
 		case 0x43: Bit(E, 0); break; //BIT 0,E
 		case 0x44: Bit(H, 0); break; //BIT 0,H
 		case 0x45: Bit(L, 0); break; //BIT 0,L
-		case 0x46: Bit(GetLEBytes<u8>(HL), 0); break; //BIT 0,(HL)
+		case 0x46: Bit(readBytes<u8>(HL), 0); break; //BIT 0,(HL)
 		case 0x47: Bit(A, 0); break; //BIT 0,A
 		case 0x48: Bit(B, 1); break; //BIT 1,B
 		case 0x49: Bit(C, 1); break; //BIT 1,C
@@ -610,7 +611,7 @@ void CPU::handleCB() {
 		case 0x4B: Bit(E, 1); break; //BIT 1,E
 		case 0x4C: Bit(H, 1); break; //BIT 1,H
 		case 0x4D: Bit(L, 1); break; //BIT 1,L
-		case 0x4E: Bit(GetLEBytes<u8>(HL), 1); break; //BIT 1,(HL)
+		case 0x4E: Bit(readBytes<u8>(HL), 1); break; //BIT 1,(HL)
 		case 0x4F: Bit(A, 1); break; //BIT 1,A
 		case 0x50: Bit(B, 2); break; //BIT 2,B
 		case 0x51: Bit(C, 2); break; //BIT 2,C
@@ -618,7 +619,7 @@ void CPU::handleCB() {
 		case 0x53: Bit(E, 2); break; //BIT 2,E
 		case 0x54: Bit(H, 2); break; //BIT 2,H
 		case 0x55: Bit(L, 2); break; //BIT 2,L
-		case 0x56: Bit(GetLEBytes<u8>(HL), 2); break; //BIT 2,(HL)
+		case 0x56: Bit(readBytes<u8>(HL), 2); break; //BIT 2,(HL)
 		case 0x57: Bit(A, 2); break; //BIT 2,A
 		case 0x58: Bit(B, 3); break; //BIT 3,B
 		case 0x59: Bit(C, 3); break; //BIT 3,C
@@ -626,7 +627,7 @@ void CPU::handleCB() {
 		case 0x5B: Bit(E, 3); break; //BIT 3,E
 		case 0x5C: Bit(H, 3); break; //BIT 3,H
 		case 0x5D: Bit(L, 3); break; //BIT 3,L
-		case 0x5E: Bit(GetLEBytes<u8>(HL), 3); break; //BIT 3,(HL)
+		case 0x5E: Bit(readBytes<u8>(HL), 3); break; //BIT 3,(HL)
 		case 0x5F: Bit(A, 3); break; //BIT 3,A
 		case 0x60: Bit(B, 4); break; //BIT 4,B
 		case 0x61: Bit(C, 4); break; //BIT 4,C
@@ -634,7 +635,7 @@ void CPU::handleCB() {
 		case 0x63: Bit(E, 4); break; //BIT 4,E
 		case 0x64: Bit(H, 4); break; //BIT 4,H
 		case 0x65: Bit(L, 4); break; //BIT 4,L
-		case 0x66: Bit(GetLEBytes<u8>(HL), 4); break; //BIT 4,(HL)
+		case 0x66: Bit(readBytes<u8>(HL), 4); break; //BIT 4,(HL)
 		case 0x67: Bit(A, 4); break; //BIT 4,A
 		case 0x68: Bit(B, 5); break; //BIT 5,B
 		case 0x69: Bit(C, 5); break; //BIT 5,C
@@ -642,7 +643,7 @@ void CPU::handleCB() {
 		case 0x6B: Bit(E, 5); break; //BIT 5,E
 		case 0x6C: Bit(H, 5); break; //BIT 5,H
 		case 0x6D: Bit(L, 5); break; //BIT 5,L
-		case 0x6E: Bit(GetLEBytes<u8>(HL), 5); break; //BIT 5,(HL)
+		case 0x6E: Bit(readBytes<u8>(HL), 5); break; //BIT 5,(HL)
 		case 0x6F: Bit(A, 5); break; //BIT 5,A
 		case 0x70: Bit(B, 6); break; //BIT 6,B
 		case 0x71: Bit(C, 6); break; //BIT 6,C
@@ -650,7 +651,7 @@ void CPU::handleCB() {
 		case 0x73: Bit(E, 6); break; //BIT 6,E
 		case 0x74: Bit(H, 6); break; //BIT 6,H
 		case 0x75: Bit(L, 6); break; //BIT 6,L
-		case 0x76: Bit(GetLEBytes<u8>(HL), 6); break; //BIT 6,(HL)
+		case 0x76: Bit(readBytes<u8>(HL), 6); break; //BIT 6,(HL)
 		case 0x77: Bit(A, 6); break; //BIT 6,A
 		case 0x78: Bit(B, 7); break; //BIT 7,B
 		case 0x79: Bit(C, 7); break; //BIT 7,C
@@ -658,7 +659,7 @@ void CPU::handleCB() {
 		case 0x7B: Bit(E, 7); break; //BIT 7,E
 		case 0x7C: Bit(H, 7); break; //BIT 7,H
 		case 0x7D: Bit(L, 7); break; //BIT 7,L
-		case 0x7E: Bit(GetLEBytes<u8>(HL), 7); break; //BIT 7,(HL)
+		case 0x7E: Bit(readBytes<u8>(HL), 7); break; //BIT 7,(HL)
 		case 0x7F: Bit(A, 7); break; //BIT 7,A
 
 		case 0x80: Reset(B, 0); break; //RES 0,B
@@ -796,9 +797,7 @@ void CPU::handleCB() {
 }
 
 u8 CPU::FetchOpcode(u16 counter) {
-	if(counter > 0xFFFF) throw "[CPU::FetchOpcode] counter is bigger than 0xFFFF";  //this should never happen
-
-	return GetLEBytes<u8>(counter);
+	return readBytes<u8>(counter);
 }
 
 bool CPU::CheckZero() {
@@ -817,148 +816,133 @@ bool CPU::CheckCarry() {
 	return F.C;
 }
 
-u8 CPU::SetFlags(u16 flags, u16 ans, u8 old, u8 diff) {
-	if(flags & Carry)		SetCarry(ans);
-	if(flags & HalfCarry)	SetHalfCarry(u8(ans), old, diff);
-	if(flags & Zero)		SetZero((ans & 0xff) == 0);
+u8 CPU::updateFlags(u16 flags, u16 ans, u8 old, u8 diff) {
+	if(flags & Carry)		updateCarry(ans);
+	if(flags & HalfCarry)	updateHalfCarry(u8(ans), old, diff);
+	if(flags & Zero)		updateZero(ans);
 
 	return u8(ans);
 }
 
-u8 CPU::SetCarry(u16 ans) {
+u8 CPU::updateCarry(u16 ans) {
 	F.C = (ans > 0xff);
 	return u8(ans);
 }
 
-u8 CPU::SetHalfCarry(u8 ans, u8 old, u8 diff) {
+u8 CPU::updateHalfCarry(u8 ans, u8 old, u8 diff) {
 	F.HC = ((old ^ diff ^ ans) & 0x10) != 0;
 	return ans;
 }
 
-u8 CPU::SetZero(int ans) {
+u8 CPU::updateZero(int ans) {
 	F.Z = (ans & 0xff) == 0;
 	return ans;
 }
 
-void CPU::SetCarry(bool val) {
+void CPU::setCarry(bool val) {
 	F.C = val;
 }
 
-void CPU::SetHalfCarry(bool val) {
+void CPU::setHalfCarry(bool val) {
 	F.HC = val;
 }
 
-void CPU::SetNegative(bool val) {
+void CPU::setNegative(bool val) {
 	F.N = val;
 }
 
-void CPU::SetZero(bool val) {
+void CPU::setZero(bool val) {
 	F.Z = val;
 }
 
 void CPU::write(u16 loc, u8 value) {
+	mem.write(loc, value);
 	scheduler.newMCycle();
-	mem.Write(loc, value);
 }
 
 void CPU::write(u16 loc, u16 value) {
-	write(loc, u8(value & 0xff));
-	write(++loc, u8(value >> 8));
+	write(--loc, u8(value >> 8));
+	write(--loc, u8(value & 0xff));
 }
 
 template <typename T>
-T CPU::GetLEBytes() {
-	return GetLEBytes<T>(PC, true);
-}
+T CPU::getLEBytes(u16& addr, bool increase) {
+	T value = 0;
+	for (u16 currentByte = 0; currentByte < sizeof(T); ++currentByte) {
+		u16 newAddr = (increase) ? addr++ : (addr + currentByte);
 
-template <typename T>
-T CPU::GetLEBytes(u16 addr) {
-	return GetLEBytes<T>(addr, false);
-}
+		value += mem.read(newAddr) << (currentByte * 8);
 
-template <typename T>
-T CPU::GetLEBytes(u16& addr, bool increase) {
-	for (size_t cycles = 0; cycles < sizeof(T); ++cycles) {
 		scheduler.newMCycle();
 	}
+	return value;
+}
 
-	T ret = 0, amount = sizeof(T);
-	//while(amount > 0) ret += u8(mem.Read((increase) ? addr++ : addr + (sizeof(T) - amount))) << ((sizeof(T) - amount--) * 8);
-	
-	while (amount > 0) {
-		u16 newAddr = 0;
-		u16 currentByte = (sizeof(T) - amount);
+template <typename T>
+T CPU::nextBytes() {
+	return getLEBytes<T>(PC, true);
+}
 
-		if (increase) {
-			newAddr = addr++;
-		}
-		else {
-			newAddr = addr + currentByte;
-		}
-	
-		ret += mem.Read(newAddr) << (currentByte * 8);
-		
-		--amount;
-	}
-
-	return ret;
+template <typename T>
+T CPU::readBytes(u16 addr) {
+	return getLEBytes<T>(addr, false);
 }
 
 void CPU::Add(u16 in) {
-	//u16 temp = setFlags(Negative_Unset | HalfCarry | Carry, L + (in & 0xff), L, (in & 0xff));
+	//u16 temp = updateFlags(Negative_Unset | HalfCarry | Carry, L + (in & 0xff), L, (in & 0xff));
 	u16 temp = L + (in & 0xff); 
 	L = u8(temp);
-	H = SetFlags(HalfCarry | Carry, H + (temp >> 8) + (in >> 8), H, (in >> 8));
-	SetNegative(false);
+	H = updateFlags(HalfCarry | Carry, H + (temp >> 8) + (in >> 8), H, (in >> 8));
+	setNegative(false);
 }
 
 void CPU::Add(u8 in, bool carry) {
-	A = SetFlags(Zero | HalfCarry | Carry, A + in + carry, A, in);
-	SetNegative(false);
+	A = updateFlags(Zero | HalfCarry | Carry, A + in + carry, A, in);
+	setNegative(false);
 }
 
 void CPU::Sub(u8 in, bool carry) {
 	u8 oldA = A;
-	A = SetFlags(Zero | HalfCarry | Carry, A - in - carry, A, in);
-	SetHalfCarry((oldA & 0xF) < (in & 0xF) + carry);
-	SetNegative(true);
+	A = updateFlags(Zero | HalfCarry | Carry, A - in - carry, A, in);
+	setHalfCarry((oldA & 0xF) < (in & 0xF) + carry);
+	setNegative(true);
 }
 
 void CPU::And(u8 in) {
-	A = SetFlags(Zero, A & in);
-	SetCarry(false);
-	SetHalfCarry(true);
-	SetNegative(false);
+	A = updateFlags(Zero, A & in);
+	setCarry(false);
+	setHalfCarry(true);
+	setNegative(false);
 }
 
 void CPU::Xor(u8 in) {
-	A = SetFlags(Zero, A ^ in);
-	SetCarry(false);
-	SetHalfCarry(false);
-	SetNegative(false);
+	A = updateFlags(Zero, A ^ in);
+	setCarry(false);
+	setHalfCarry(false);
+	setNegative(false);
 }
 
 void CPU::Or(u8 in) {
-	A = SetFlags(Zero, A | in);
-	SetCarry(false);
-	SetHalfCarry(false);
-	SetNegative(false);
+	A = updateFlags(Zero, A | in);
+	setCarry(false);
+	setHalfCarry(false);
+	setNegative(false);
 }
 
 void CPU::Compare(u8 in) {
-	SetFlags(Zero | HalfCarry | Carry, A - in, A, in);
-	SetHalfCarry((A & 0xF) < (in & 0xF));
-	SetNegative(true);
+	updateFlags(Zero | HalfCarry | Carry, A - in, A, in);
+	setHalfCarry((A & 0xF) < (in & 0xF));
+	setNegative(true);
 }
 
 void CPU::Increase(u8& reg) {
-	reg = SetFlags(Zero | HalfCarry, reg + 1, reg, 1);
-	SetNegative(false);
+	reg = updateFlags(Zero | HalfCarry, reg + 1, reg, 1);
+	setNegative(false);
 }
 
 void CPU::Decrease(u8& reg) {
-	reg = SetFlags(Zero | HalfCarry, reg - 1, reg, 1);
-	SetNegative(true);
+	reg = updateFlags(Zero | HalfCarry, reg - 1, reg, 1);
+	setNegative(true);
 }
 
 void CPU::Increase(u16& reg) {
@@ -971,52 +955,52 @@ void CPU::Decrease(u16& reg) {
 
 void CPU::RotateLeft(u8& reg, bool carry) {
 	bool bit0 = (reg & 0x80);
-	reg = SetFlags(Zero, u8(carry ? CheckCarry() : bit0) | (reg << 1));
-	SetCarry(bit0);
-	SetHalfCarry(false);
-	SetNegative(false);
+	reg = updateFlags(Zero, u8(carry ? CheckCarry() : bit0) | (reg << 1));
+	setCarry(bit0);
+	setHalfCarry(false);
+	setNegative(false);
 }
 
 void CPU::RotateRight(u8& reg, bool carry) {
 	bool bit0 = (reg & 0x1);
-	reg = SetZero(((carry ? CheckCarry() : bit0) << 7) | (reg >> 1));
-	SetCarry(bit0);
-	SetHalfCarry(false);
-	SetNegative(false);
+	reg = updateZero(((carry ? CheckCarry() : bit0) << 7) | (reg >> 1));
+	setCarry(bit0);
+	setHalfCarry(false);
+	setNegative(false);
 }
 
 void CPU::ShiftLeftArithmetic(u8& reg) {
-	SetCarry((reg & 0x80) == 0x80);
-	reg = SetZero(reg << 1);
-	SetHalfCarry(false);
-	SetNegative(false);
+	setCarry((reg & 0x80) == 0x80);
+	reg = updateZero(reg << 1);
+	setHalfCarry(false);
+	setNegative(false);
 }
 
 void CPU::ShiftRightArithmetic(u8& reg) {
-	SetCarry((reg & 0x1) == 0x1);
-	reg = SetZero((reg & 0x80) | (reg >> 1));
-	SetHalfCarry(false);
-	SetNegative(false);
+	setCarry((reg & 0x1) == 0x1);
+	reg = updateZero((reg & 0x80) | (reg >> 1));
+	setHalfCarry(false);
+	setNegative(false);
 }
 
 void CPU::Swap(u8& reg) {
-	reg = SetZero((reg << 4) | (reg >> 4));
-	SetCarry(false);
-	SetHalfCarry(false);
-	SetNegative(false);
+	reg = updateZero((reg << 4) | (reg >> 4));
+	setCarry(false);
+	setHalfCarry(false);
+	setNegative(false);
 }
 
 void CPU::ShiftRightLogical(u8& reg) {
-	SetCarry((reg & 0x1) == 0x1); // set carry before reg gets modified
-	reg = SetZero(reg >> 1);
-	SetHalfCarry(false);
-	SetNegative(false);
+	setCarry((reg & 0x1) == 0x1); // set carry before reg gets modified
+	reg = updateZero(reg >> 1);
+	setHalfCarry(false);
+	setNegative(false);
 }
 
 void CPU::Bit(u8 reg, u8 bit) {
-	SetZero((reg & (1 << bit)) == 0);
-	SetHalfCarry(true);
-	SetNegative(false);
+	setZero((reg & (1 << bit)) == 0);
+	setHalfCarry(true);
+	setNegative(false);
 }
 
 void CPU::Set(u8& reg, u8 bit) {
@@ -1035,14 +1019,14 @@ void CPU::Load(u16& loc, u16 val) {
 	loc = val;
 }
 
-void CPU::Push(u16& reg_pair) {
+void CPU::Push(u16 reg_pair) {
 	scheduler.newMCycle();
-	SP -= 2;
 	write(SP, reg_pair);
+	SP -= 2;
 }
 
 void CPU::Pop(u16& reg_pair) {
-	reg_pair = GetLEBytes<u16>(SP);
+	reg_pair = readBytes<u16>(SP);
 	SP += 2;
 }
 
@@ -1069,8 +1053,8 @@ void CPU::Call(u16 loc, bool cond) {
 }
 
 void CPU::Ret() {
-	Pop(PC);
 	scheduler.newMCycle();
+	Pop(PC);
 }
 
 void CPU::Rst(u8 loc) {

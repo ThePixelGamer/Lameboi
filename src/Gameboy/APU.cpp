@@ -113,7 +113,7 @@ void APU::update() {
 			bufferOffset = 0;
 
 			uint32_t len = samples * 2 * sizeof(float);
-			if (true) { //audio sync
+			if (false) { //audio sync
 				SDL_QueueAudio(audio_device, sampleBuffer.data(), len);
 				while (SDL_GetQueuedAudioSize(audio_device) > len) {}
 			}

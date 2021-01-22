@@ -42,24 +42,24 @@ public:
 			return;
 
 		// Decide GL+GLSL versions
-#if __APPLE__
-	// GL 3.2 + GLSL 150
+	#if __APPLE__
+		// GL 3.2 + GLSL 150
 		const char* glsl_version = "#version 150";
 		glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
 		glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 2);
 		glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);  // 3.2+ only
 		glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);            // Required on Mac
-#else
-	// GL 3.0 + GLSL 130
+	#else
+		// GL 3.0 + GLSL 130
 		const char* glsl_version = "#version 130";
 		glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
 		glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
 		//glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);  // 3.2+ only
 		//glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);            // 3.0+ only
-#endif
-	//glfwWindowHint(GLFW_DECORATED, 0); //I want to add my own custom title bar, and how it's styled
+	#endif
+		//glfwWindowHint(GLFW_DECORATED, 0); //I want to add my own custom title bar, and how it's styled
 
-	// Create window with graphics context
+		// Create window with graphics context
 		window = glfwCreateWindow(1280, 720, "lameboi", nullptr, nullptr);
 		if (window == nullptr)
 			return;
@@ -67,15 +67,16 @@ public:
 		glfwSwapInterval(1); // Enable vsync
 
 		// Initialize OpenGL loader
-#if defined(IMGUI_IMPL_OPENGL_LOADER_GL3W)
+	#if defined(IMGUI_IMPL_OPENGL_LOADER_GL3W)
 		error = gl3wInit() != 0;
-#elif defined(IMGUI_IMPL_OPENGL_LOADER_GLEW)
+	#elif defined(IMGUI_IMPL_OPENGL_LOADER_GLEW)
 		error = glewInit() != GLEW_OK;
-#elif defined(IMGUI_IMPL_OPENGL_LOADER_GLAD)
+	#elif defined(IMGUI_IMPL_OPENGL_LOADER_GLAD)
 		error = gladLoadGL() == 0;
-#else
+	#else
 		error = false; // If you use IMGUI_IMPL_OPENGL_LOADER_CUSTOM, your loader is likely to requires some form of initialization.
-#endif
+	#endif
+
 		if (error) {
 			fprintf(stderr, "Failed to initialize OpenGL loader!\n");
 			return;

@@ -75,43 +75,31 @@ private:
 	void write(u16 loc, u8 value);
 	void write(u16 loc, u16 value);
 
-	/*
-	template<typename T>
-	void write(u16 loc, T value) {
-		u8 amount = sizeof(T);
-
-		cycles += amount;
-
-		while (amount > 0) {
-			gb.mem.Write(loc++, (value >> (8 * (sizeof(T) - amount--))) & 0xFF);
-		}
-	}
-	*/
-
 	u8 FetchOpcode(u16);
 	bool CheckZero();
 	bool CheckNegative();
 	bool CheckHalfCarry();
 	bool CheckCarry();
 	
-	u8 SetFlags(u16 flags, u16 ans, u8 old = 0, u8 diff = 0);
-	u8 SetCarry(u16 ans);
-	u8 SetHalfCarry(u8 ans, u8 old, u8 diff);
-	//u16 SetNegative(u16 ans = 0); no real need for this /shrug
-	u8 SetZero(int ans);
-	inline void SetCarry(bool val);
-	inline void SetHalfCarry(bool val);
-	inline void SetNegative(bool val);
-	inline void SetZero(bool val);
+	u8 updateFlags(u16 flags, u16 ans, u8 old = 0, u8 diff = 0);
+	u8 updateCarry(u16 ans);
+	u8 updateHalfCarry(u8 ans, u8 old, u8 diff);
+	u8 updateZero(int ans);
+	void setCarry(bool val);
+	void setHalfCarry(bool val);
+	void setNegative(bool val);
+	void setZero(bool val);
 
 	template <typename T>
-	T GetLEBytes();
+	T getLEBytes(u16& addr, bool increase);
 
+	// get the next PC byte(s)
 	template <typename T>
-	T GetLEBytes(u16 addr);
+	T nextBytes();
 
+	// read byte(s) from bus[addr]
 	template <typename T>
-	T GetLEBytes(u16& addr, bool increase);
+	T readBytes(u16 addr);
 
 	//ALU
 	void Add(u16 in);
@@ -144,7 +132,7 @@ private:
 	//Misc
 	void Load(u8& loc, u8 val);
 	void Load(u16& loc, u16 val);
-	void Push(u16& reg_pair);
+	void Push(u16 reg_pair);
 	void Pop(u16& reg_pair);
 	void Jump(u16 loc, bool cond = true);
 	void JumpRelative(s8 offset, bool cond = true);

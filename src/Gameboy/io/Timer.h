@@ -19,6 +19,7 @@ class Timer {
 	//internal
 	const u8 cyclesDivNeeds = 256 / 4; // amount of m-cycles to increment the div reg
 	u16 counter;
+	bool timer_overflow;
 
 public:
 	Timer(Interrupt& interrupt) : interrupt(interrupt) {
@@ -33,6 +34,7 @@ public:
 		TAC.timerOn = false;
 
 		counter = 0;
+		timer_overflow = false;
 	}
 
 	void update() {
@@ -84,6 +86,11 @@ private:
 	void updateCounter(u16 newVal) {
 		constexpr std::array<u16, 4> timerMask { 1024 / 4 / 2, 16 / 4 / 2, 64 / 4 / 2, 256 / 4 / 2 };
 
+		if (timer_overflow) {
+			timer_overflow = false;
+			interrupt.requestTimer = true;
+		}
+
 		// todo implement the timer glitch
 		if (TAC.timerOn) {
 			u16 mask = timerMask[TAC.clockSelect];
@@ -91,7 +98,7 @@ private:
 			if ((counter & mask) == mask && (newVal & mask) != mask) {
 				if (++TIMA == 0) { // overflow
 					TIMA = TMA;
-					interrupt.requestTimer = true;
+					timer_overflow = true;
 				}
 			}
 		}

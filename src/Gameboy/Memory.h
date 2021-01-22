@@ -30,16 +30,17 @@ private:
 
 	//internal
 	bool memoryRead = false; //bit of a hack to use the read function during dma
-	bool inDMA = false;
-	u16 currentDMA = 0; //what address the dma is currently on
-	u8 DMAOffset = 0; //which byte we're currently copying
-	u8 DMAByte = 0; //what byte is on the bus for reads below hram
+	u16 dmaAddr = 0; //what address the dma is currently on
+	u8 dmaOffset = 0; //which byte we're currently copying
 
 public:
 	Memory(Gameboy&);
 	void clean();
 	void update(); //oam dma
 
-	void Write(u16 loc, u8 value);
-	u8 Read(u16 loc);
+	u8 read(u16 loc);
+	void write(u16 loc, u8 value);
+
+private:
+	u8 _read(u16 loc);
 };

@@ -8,12 +8,12 @@
 inline ImU8 MemEditorRead(const ImU8* mem_, size_t off) {
 	// maybe should make read const
 	auto* mem = reinterpret_cast<Memory*>(const_cast<ImU8*>(mem_));
-	return mem->Read(static_cast<u16>(off));
+	return mem->read(static_cast<u16>(off));
 }
 
 inline void MemEditorWrite(ImU8* mem_, size_t off, ImU8 data) {
 	auto* mem = reinterpret_cast<Memory*>(mem_);
-	mem->Write(static_cast<u16>(off), data);
+	mem->write(static_cast<u16>(off), data);
 }
 
 namespace ui {
