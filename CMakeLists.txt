@@ -1,59 +1,42 @@
 cmake_minimum_required(VERSION 3.6)
-project(lameboi)
 
+set(CMAKE_TOOLCHAIN_FILE D:/vcpkg/scripts/buildsystems/vcpkg.cmake
+  CACHE STRING "Vcpkg toolchain file")
+  
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-if(IMGUI_FOUND)
-    include_directories("${IMGUI_INCLUDE_DIRS}")
-else()
-    add_subdirectory("${PROJECT_SOURCE_DIR}/lib/imgui")
-    include_directories("${PROJECT_SOURCE_DIR}/lib/imgui")
-    set(IMGUI_LIBRARIES "imgui")
-endif()
+project(lameboi)
 
-if(FMT_FOUND)
-    include_directories("${FMT_INCLUDE_DIRS}")
-else()
-    add_subdirectory("${PROJECT_SOURCE_DIR}/lib/fmt")
-    include_directories("${PROJECT_SOURCE_DIR}/lib/fmt/fmt")
-    set(FMT_LIBRARIES "fmt")
-endif()
+include_directories(
+    "${PROJECT_SOURCE_DIR}/lib/PFD"
+    "${PROJECT_SOURCE_DIR}/lib/imgui"
+)
 
-if(GL3W_FOUND)
-    include_directories("${GL3W_INCLUDE_DIRS}")
-else()
-    add_subdirectory("${PROJECT_SOURCE_DIR}/lib/gl3w")
-    include_directories("${PROJECT_SOURCE_DIR}/lib/gl3w")
-    set(GL3W_LIBRARIES "gl3w")
-endif()
-
-include_directories("${PROJECT_SOURCE_DIR}/lib/PFD")
-include_directories("${PROJECT_SOURCE_DIR}/lib/glfw/include")
-include_directories("${PROJECT_SOURCE_DIR}/lib/SDL2/include")
-
-# change these to use the architecture configuration
-link_directories("${PROJECT_SOURCE_DIR}/lib/glfw/lib-vc2019-64")
-link_directories("${PROJECT_SOURCE_DIR}/lib/SDL2/lib/x64")
+find_package(imgui CONFIG REQUIRED)
+find_package(fmt CONFIG REQUIRED)
+find_package(gl3w CONFIG REQUIRED)
+find_package(glfw3 CONFIG REQUIRED)
+find_package(SDL2 CONFIG REQUIRED)
 
 file(GLOB_RECURSE SRC_LIST "src/*.cpp")
 file(GLOB_RECURSE INCLUDE_LIST "src/*.h")
+
 add_executable(lameboi 
     ${SRC_LIST} 
     ${INCLUDE_LIST}
-    src/lameboi.rc
+    "src/lameboi.rc"
 )
 
-target_include_directories(lameboi PUBLIC ./src)
+target_include_directories(lameboi PRIVATE ./src)
 
-target_link_libraries(lameboi 
-    ${IMGUI_LIBRARIES} 
-    ${FMT_LIBRARIES} 
-    ${GL3W_LIBRARIES} 
-    ${IMGUI_IMPL_LIBRARIES} 
-    glfw3 
+target_link_libraries(lameboi PRIVATE
+    imgui::imgui 
+    fmt::fmt-header-only
+    unofficial::gl3w::gl3w
+    glfw
     opengl32
-    SDL2 SDL2main
+    SDL2::SDL2main SDL2::SDL2-static
 )
 
 source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR}/src PREFIX "Source Files//" FILES ${SRC_LIST})

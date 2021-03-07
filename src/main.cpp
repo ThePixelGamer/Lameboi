@@ -38,6 +38,8 @@ int main(int, char**) {
 
 	// Main loop
 	while(context.NewFrame()) {
+
+
 		lameboi.render();
 		display.render();
 
