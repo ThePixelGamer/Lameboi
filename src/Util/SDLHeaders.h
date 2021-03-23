@@ -3,7 +3,7 @@
 #include <SDL.h>
 #include <SDL_audio.h>
 
-#include "Gameboy/APU.h"
+#include "core/APU.h"
 
 //may need a better name :P
 class SDLHandle {
