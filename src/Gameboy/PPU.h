@@ -120,6 +120,5 @@ private:
 	void _updateLY(u8 y);
 	bool _nextLine();
 
-	std::array<u8, 16> _fetchTile(u16 addr, u8 tileoffset = 0);
 	std::array<u8, 2> _fetchTileLine(bool method8000, u8 yoffset, u8 tileoffset = 0);
 };

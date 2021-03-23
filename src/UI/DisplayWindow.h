@@ -20,7 +20,9 @@ namespace ui {
 			gb(gb),
 			window(window),
 			tex(160, 144, gb->ppu.display.data())
-		{}
+		{
+			
+		}
 
 		void render() {
 			ImGui::Begin("Display", nullptr, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_AlwaysAutoResize);
@@ -44,11 +46,6 @@ namespace ui {
 
 			tex.update();
 			tex.display(zoom, grid);
-
-			/*
-			gb->ppu.isVblank = true;
-			gb->ppu.vblank.notify_one();
-			*/
 
 			ImGui::End();
 		}

@@ -243,7 +243,7 @@ void PPU::scanline() {
 				}
 
 				u8 xShift = SCX % 8;
-				u16 offset = (adjustedX / 8ll) + ((y / 8ll) * 32);
+				u16 offset = (adjustedX / 8) + ((y / 8) * 32);
 				u8 yOffset = y % 8;
 				if (xShift == 0) {
 					line = _fetchTileLine(LCDC.tileSet, yOffset, map[offset]);
@@ -253,10 +253,9 @@ void PPU::scanline() {
 
 					offset = (adjustedX >= 248) ? offset - 31 : offset + 1;
 					auto tlineR = _fetchTileLine(LCDC.tileSet, yOffset, map[offset]);
-					line = {
-						u8((tlineL[0] << xShift) | (tlineR[0] >> (8 - xShift))),
-						u8((tlineL[1] << xShift) | (tlineR[1] >> (8 - xShift))),
-					};
+
+					line[0] = (tlineL[0] << xShift) | (tlineR[0] >> (8 - xShift));
+					line[1] = (tlineL[1] << xShift) | (tlineR[1] >> (8 - xShift));
 				}
 			}
 
@@ -267,7 +266,7 @@ void PPU::scanline() {
 				s16 adjustedX = (WX - 7);
 				if (x >= adjustedX) {
 					if (LY >= WY) {
-						u8 offset = map[((x - adjustedX) / 8) + ((windowLines / 8ll) * 32)];
+						u8 offset = map[((x - adjustedX) / 8) + ((windowLines / 8) * 32)];
 						line = _fetchTileLine(LCDC.tileSet, windowLines % 8, offset);
 						windowYTrigger = true;
 					}
@@ -325,7 +324,7 @@ void PPU::scanline() {
 			}
 		}
 
-		pixelPusher((presenting) ? display : displayPresent, x, LY * 160ll, (c0 << 1) | c1, *palette);
+		pixelPusher((presenting) ? display : displayPresent, x, LY * 160, (c0 << 1) | c1, *palette);
 	}
 
 	STAT.mode = Mode::HBlank;
@@ -394,11 +393,6 @@ void PPU::vblank() {
 
 		presenting = !presenting;
 
-		/*
-		vblank.wait(lock, [this] { return isVblank; });
-		isVblank = false;
-		*/
-
 		++framesPresented;
 	}
 
@@ -448,28 +442,6 @@ std::array<u8, 2> PPU::_fetchTileLine(bool method8000, u8 yoffset, u8 tileoffset
 	};
 }
 
-std::array<u8, 16> PPU::_fetchTile(u16 addr, u8 tileoffset) {
-	size_t loc = (addr - 0x8000) + (tileoffset * 16);
-	return std::array<u8, 16>{
-		VRAM[loc],
-		VRAM[loc + 1], 
-		VRAM[loc + 2],
-		VRAM[loc + 3],
-		VRAM[loc + 4],
-		VRAM[loc + 5],
-		VRAM[loc + 6],
-		VRAM[loc + 7],
-		VRAM[loc + 8],
-		VRAM[loc + 9],
-		VRAM[loc + 10],
-		VRAM[loc + 11],
-		VRAM[loc + 12],
-		VRAM[loc + 13],
-		VRAM[loc + 14],
-		VRAM[loc + 15]
-	};
-}
-
 //maybe add support for an auto option?
 void PPU::dumpBGMap(std::array<u32, 256 * 256>& outData, bool bgMap, bool tileSet) {
 	auto map = VRAM.begin() + ((bgMap) ? 0x1C00 : 0x1800);
@@ -478,7 +450,7 @@ void PPU::dumpBGMap(std::array<u32, 256 * 256>& outData, bool bgMap, bool tileSe
 		for (int y = 0; y < 8; ++y) {
 			auto tile = _fetchTileLine(tileSet, y, map[t]);
 
-			size_t rgbIndex = ((t / 32ll) * 256 * 8) + ((t % 32ll) * 8ll) + (y * 256ll);
+			size_t rgbIndex = ((t / 32) * 256 * 8) + ((t % 32) * 8) + (y * 256);
 			rowHelper(outData, rgbIndex, tile[0], tile[1]);
 		}
 	}
@@ -490,7 +462,7 @@ void PPU::dumpTileMap(std::array<u32, 128 * 64 * 3>& outData) {
 			u8 top = VRAM[(t * 16ll) + (i * 2ll)];
 			u8 bottom = VRAM[(t * 16ll) + (i * 2ll) + 1];
 
-			size_t rgbIndex = ((t / 16ll) * 128 * 8) + ((t % 16ll) * 8ll) + (i * 128ll);
+			size_t rgbIndex = ((t / 16) * 128 * 8) + ((t % 16) * 8) + (i * 128);
 			rowHelper(outData, rgbIndex, top, bottom);
 		}
 	}
@@ -501,7 +473,7 @@ void PPU::dumpSprites(std::array<u32, 64 * 40>& outData) {
 		for (u8 y = 0; y < 8; ++y) {
 			auto tile = _fetchTileLine(true, y, sprites[obj].tile);
 
-			size_t rgbIndex = ((obj / 8ll) * 64 * 8) + ((obj % 8) * 8ll) + (y * 64ll);
+			size_t rgbIndex = ((obj / 8) * 64 * 8) + ((obj % 8) * 8) + (y * 64);
 			rowHelper(outData, rgbIndex, tile[0], tile[1], true, (sprites[obj].useOBP1) ? OBP1 : OBP0);
 		}
 	}
