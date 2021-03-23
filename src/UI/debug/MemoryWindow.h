@@ -1,19 +1,18 @@
 #pragma once
 
 #include "Gameboy/Gameboy.h"
-#include "Util/ImGuiHeaders.h"
 
 #include "imgui_mem_editor.h"
 
-inline ImU8 MemEditorRead(const ImU8* mem_, size_t off) {
+inline ImU8 MemEditorRead(const ImU8* mem_, size_t offset) {
 	// maybe should make read const
 	auto* mem = reinterpret_cast<Memory*>(const_cast<ImU8*>(mem_));
-	return mem->read(static_cast<u16>(off));
+	return mem->read(static_cast<u16>(offset & 0xFFFF));
 }
 
-inline void MemEditorWrite(ImU8* mem_, size_t off, ImU8 data) {
+inline void MemEditorWrite(ImU8* mem_, size_t offset, ImU8 data) {
 	auto* mem = reinterpret_cast<Memory*>(mem_);
-	mem->write(static_cast<u16>(off), data);
+	mem->write(static_cast<u16>(offset & 0xFFFF), data);
 }
 
 namespace ui {

@@ -8,7 +8,7 @@ class Timer {
 	Interrupt& interrupt;
 
 	//regs
-	u8 DIV; //0xFF04 Divider Register
+	u16 counter; //MSB: 0xFF04 Divider Register
 	u8 TIMA; //0xFF05 Timer Counter
 	u8 TMA; //0xFF06 Timer Modulo
 	struct {
@@ -16,10 +16,12 @@ class Timer {
 		bool timerOn;
 	} TAC;
 
+	
 	//internal
-	const u8 cyclesDivNeeds = 256 / 4; // amount of m-cycles to increment the div reg
-	u16 counter;
-	bool timer_overflow;
+	constexpr static std::array<u16, 4> timerMask{ 1024 / 2, 16 / 2, 64 / 2, 256 / 2 };
+
+	bool timerOverflow;
+	bool reloaded;
 
 public:
 	Timer(Interrupt& interrupt) : interrupt(interrupt) {
@@ -27,31 +29,41 @@ public:
 	}
 
 	void clean() {
-		DIV = 0;
+		counter = 0;
 		TIMA = 0;
 		TMA = 0;
 		TAC.clockSelect = 0;
 		TAC.timerOn = false;
 
-		counter = 0;
-		timer_overflow = false;
+		timerOverflow = false;
+		reloaded = false;
 	}
 
 	void update() {
-		updateCounter(counter + 1);
+		u16 oldCounter = counter;
+		counter += 4;
 
-		if ((counter & (cyclesDivNeeds - 1)) == 0) {
-			++DIV;
+		reloaded = false;
+
+		if (timerOverflow) {
+			timerOverflow = false;
+
+			TIMA = TMA;
+			reloaded = true;
+			interrupt.requestTimer = true;
 		}
+		else if (TAC.timerOn) {
+			u16 mask = timerMask[TAC.clockSelect];
 
-		if (counter == 0x100) { //1024 / 4
-			counter = 0;
+			if ((oldCounter & mask) && (counter & mask) == 0) {
+				increaseTIMA();
+			}
 		}
 	}
 
 	u8 read(u8 reg) {
 		switch (reg) {
-			case 0x04: return DIV;
+			case 0x04: return counter >> 8;
 			case 0x05: return TIMA;
 			case 0x06: return TMA;
 			case 0x07: return 0xF8 | (TAC.timerOn << 2) | (TAC.clockSelect);
@@ -64,17 +76,42 @@ public:
 
 	void write(u8 reg, u8 value) {
 		switch (reg) {
-			case 0x04: 
-				DIV = 0;
-				updateCounter(0);
+			case 0x04: // DIV
+				if (counter & timerMask[TAC.clockSelect]) {
+					increaseTIMA();
+				}
+
+				counter = 0;
 				break;
 
-			case 0x05: TIMA = value; break;
-			case 0x06: TMA = value; break;
-			case 0x07:
-				TAC.clockSelect = (value & 0x3);
-				TAC.timerOn = (value & 0x4);
+			case 0x05: // TIMA
+				if (!reloaded) {
+					timerOverflow = false;
+					TIMA = value;
+				}
 				break;
+
+			case 0x06: // TMA
+				if (reloaded) {
+					TIMA = value;
+				}
+				
+				TMA = value; 
+				break;
+
+			case 0x07: { // TAC
+				u8 clock = (value & 0x3);
+				bool on = (value & 0x4);
+				
+				bool oldBit = TAC.timerOn && (counter & timerMask[TAC.clockSelect]);
+				bool newBit = on && (counter & timerMask[clock]);
+				if (oldBit && !newBit) {
+					increaseTIMA();
+				}
+
+				TAC.clockSelect = clock;
+				TAC.timerOn = on;
+			} break;
 
 			default:
 				//log
@@ -83,26 +120,9 @@ public:
 	}
 
 private:
-	void updateCounter(u16 newVal) {
-		constexpr std::array<u16, 4> timerMask { 1024 / 4 / 2, 16 / 4 / 2, 64 / 4 / 2, 256 / 4 / 2 };
-
-		if (timer_overflow) {
-			timer_overflow = false;
-			interrupt.requestTimer = true;
+	void increaseTIMA() {
+		if (++TIMA == 0) { // overflow
+			timerOverflow = true;
 		}
-
-		// todo implement the timer glitch
-		if (TAC.timerOn) {
-			u16 mask = timerMask[TAC.clockSelect];
-
-			if ((counter & mask) == mask && (newVal & mask) != mask) {
-				if (++TIMA == 0) { // overflow
-					TIMA = TMA;
-					timer_overflow = true;
-				}
-			}
-		}
-
-		counter = newVal;
 	}
 };
