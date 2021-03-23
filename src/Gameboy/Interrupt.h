@@ -56,8 +56,8 @@ public:
 		return requestVblank || requestLcdStat || requestTimer || requestSerial || requestJoypad;
 	}
 
-	u8 read(u8 reg) {
-		if (reg == 0xFF) {
+	u8 read(bool enable) {
+		if (enable) {
 			return 0xE0 |
 				(enableJoypad << 4) |
 				(enableSerial << 3) |
@@ -65,7 +65,7 @@ public:
 				(enableLcdStat << 1) |
 				(enableVblank << 0);
 		}
-		else if (reg == 0x0F) {
+		else {
 			return 0xE0 |
 				(requestJoypad << 4) |
 				(requestSerial << 3) |
@@ -73,29 +73,22 @@ public:
 				(requestLcdStat << 1) |
 				(requestVblank << 0);
 		}
-		else {
-			//log
-			return 0xFF;
-		}
 	}
 
-	void write(u8 reg, u8 value) {
-		if (reg == 0xFF) {
+	void write(bool enable, u8 value) {
+		if (enable) {
 			enableVblank = (value & 0x01);
 			enableLcdStat = (value & 0x02);
 			enableTimer = (value & 0x04); 
 			enableSerial = (value & 0x08); 
 			enableJoypad = (value & 0x10);
 		}
-		else if (reg == 0x0F) {
+		else {
 			requestVblank = (value & 0x01);
 			requestLcdStat = (value & 0x02);
 			requestTimer = (value & 0x04);
 			requestSerial = (value & 0x08);
 			requestJoypad = (value & 0x10);
-		}
-		else {
-			//log
 		}
 	}
 };

@@ -3,7 +3,7 @@
 #include "MBC.h"
 #include "Util/Common.h"
 
-#include <iostream>
+#include <fmt/format.h>
 
 class MBC3 : public MBC {
 	bool timer = false; 
@@ -87,70 +87,90 @@ public:
 	}
 
 	virtual void write(u16 location, u8 data) {
-		if (location >= 0xA000) {
-			if (ramOrRtc) {
-				switch (rtcRegister) {
-					case 0x0: rtcS = data; break;
-					case 0x1: rtcM = data; break;
-					case 0x2: rtcH = data; break;
-					case 0x3: rtcD.counter = data; break;
-					case 0x4:
-						rtcD.counter = (data << 8) | (rtcD.counter & 0xFF);
-						rtcD.halt = (data >> 6);
-						rtcD.carry = (data >> 7);
-						break;
-					default: break;
+		u8 type = location >> 12;
+
+		switch (type) {
+			case 0x0: case 0x1:
+				ramEnabled = (data & 0xF) == 0xA;
+				break;
+
+			case 0x2: case 0x3:
+				romBank = (data & 0x7F);
+				if (romBank == 0) {
+					romBank = 1;
 				}
-			}
-			else if (ramEnabled && ram) {
-				ramBanks[ramBank][location - 0xA000] = data;
-			}
-		}
-		else if (location >= 0x6000) {
-			// update the RTC registers?
-		}
-		else if (location >= 0x4000) {
-			if (timer && (data & 0x8)) {
-				ramOrRtc = true;
-				rtcRegister = (data & 0xF) - 8;
-			}
-			else if (ram) {
-				ramOrRtc = false;
-				ramBank = (data & 0x3);
-			}
-		}
-		else if (location >= 0x2000) {
-			romBank = (data & 0x7F);
-			if (romBank == 0) {
-				romBank = 1;
-			}
-		}
-		else {
-			ramEnabled = (data & 0xF) == 0xA;
+				break;
+
+			case 0x4: case 0x5:
+				if (timer && (data & 0x8)) {
+					ramOrRtc = true;
+					rtcRegister = (data & 0xF) - 8;
+				}
+				else if (ram) {
+					ramOrRtc = false;
+					ramBank = (data & 0x3);
+				}
+				break;
+
+			case 0x6: case 0x7:
+				// update the RTC registers?
+				break;
+
+			case 0xA: case 0xB:
+				if (ramOrRtc) {
+					switch (rtcRegister) {
+						case 0x0: rtcS = data; break;
+						case 0x1: rtcM = data; break;
+						case 0x2: rtcH = data; break;
+						case 0x3: rtcD.counter = data; break;
+						case 0x4:
+							rtcD.counter = (data << 8) | (rtcD.counter & 0xFF);
+							rtcD.halt = (data >> 6);
+							rtcD.carry = (data >> 7);
+							break;
+						default: break;
+					}
+				}
+				else if (ramEnabled && ram) {
+					ramBanks[ramBank][location & 0x1FFF] = data;
+				}
+				break;
+
+			default:
+				fmt::print("ur dumb {:x}", location);
+				break;
 		}
 	}
 
 	virtual u8 read(u16 location) {
-		if (location >= 0xA000) {
-			if (ramOrRtc && timer) {
-				switch (rtcRegister) {
-					case 0x0: return rtcS;
-					case 0x1: return rtcM;
-					case 0x2: return rtcH;
-					case 0x3: return (rtcD.rawValue & 0xFF);
-					case 0x4: return (rtcD.rawValue >> 8);
-					default: break;
+		u8 type = location >> 12;
+
+		switch (type) {
+			case 0x0: case 0x1: case 0x2: case 0x3:
+				return romBanks[0][location];
+
+			case 0x4: case 0x5: case 0x6: case 0x7:
+				return romBanks[romBank][location & 0x3FFF];
+
+			case 0xA: case 0xB:
+				if (ramOrRtc && timer) {
+					switch (rtcRegister) {
+						case 0x0: return rtcS;
+						case 0x1: return rtcM;
+						case 0x2: return rtcH;
+						case 0x3: return (rtcD.rawValue & 0xFF);
+						case 0x4: return (rtcD.rawValue >> 8);
+						default: break;
+					}
 				}
-			}
-			else if (ramEnabled && ram) {
-				return ramBanks[ramBank][location - 0xA000];
-			}
-		}
-		else if (location >= 0x4000) {
-			return romBanks[romBank][location - 0x4000];
-		}
-		else {
-			return romBanks[0][location];
+				else if (ramEnabled && ram) {
+					return ramBanks[ramBank][location & 0x1FFF];
+				}
+				break;
+
+			default:
+				fmt::print("ur dumb {:x}", location);
+				break;
 		}
 
 		return 0xFF;

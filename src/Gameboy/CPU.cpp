@@ -181,14 +181,14 @@ void CPU::ExecuteOpcode() {
 	using overloaded = void (CPU::*)(u8&);
 
 	switch(opcode) {
-		case 0x03: Increase(BC); break; //INC BC
-		case 0x13: Increase(DE); break; //INC DE
-		case 0x23: Increase(HL); break; //INC HL
-		case 0x33: Increase(SP); break; //INC SP
-		case 0x0B: Decrease(BC); break; //DEC BC
-		case 0x1B: Decrease(DE); break; //DEC DE
-		case 0x2B: Decrease(HL); break; //DEC HL
-		case 0x3B: Decrease(SP); break; //DEC SP
+		case 0x03: BC++; break; //INC BC
+		case 0x13: DE++; break; //INC DE
+		case 0x23: HL++; break; //INC HL
+		case 0x33: SP++; break; //INC SP
+		case 0x0B: BC--; break; //DEC BC
+		case 0x1B: DE--; break; //DEC DE
+		case 0x2B: HL--; break; //DEC HL
+		case 0x3B: SP--; break; //DEC SP
 
 		case 0x04: Increase(B); break; //INC B
 		case 0x0C: Increase(C); break; //INC C
@@ -208,10 +208,10 @@ void CPU::ExecuteOpcode() {
 		case 0x35: write(HL, M_Write_Helper(static_cast<overloaded>(&CPU::Decrease))); break; //DEC (HL)		
 		case 0x3D: Decrease(A); break;
 			
-		case 0x01: Load(BC, nextBytes<u16>()); break; //LD BC,u16
-		case 0x11: Load(DE, nextBytes<u16>()); break; //LD DE,u16
-		case 0x21: Load(HL, nextBytes<u16>()); break; //LD HL,u16
-		case 0x31: Load(SP, nextBytes<u16>()); break; //LD SP,u16
+		case 0x01: BC = nextBytes<u16>(); break; //LD BC,u16
+		case 0x11: DE = nextBytes<u16>(); break; //LD DE,u16
+		case 0x21: HL = nextBytes<u16>(); break; //LD HL,u16
+		case 0x31: SP = nextBytes<u16>(); break; //LD SP,u16
 		case 0x08: write(nextBytes<u16>() + 2, SP); break; //LD (u16),SP
 			
 		case 0x02: write(BC, A); break; //LD (BC),A
@@ -354,7 +354,7 @@ void CPU::ExecuteOpcode() {
 				handler = true;
 				lowPower = true;
 			}
-			else if (interrupt.read(0xFF) & interrupt.read(0x0F) & 0x1F) {
+			else if (interrupt.read(true) & interrupt.read(false) & 0x1F) {
 				haltBug = true;
 			}
 			else {
@@ -502,16 +502,32 @@ void CPU::ExecuteOpcode() {
 			updateFlags(HalfCarry | Carry, (SP & 0xff) + offset, u8(SP), offset);
 			setNegative(false);
 			setZero(false);
-			Load(HL, SP+s8(offset));
+			HL = SP + s8(offset);
 		} break;
 
-		case 0xF9: Load(SP, HL); break; //LD SP,HL			
-		case 0xF0: Load(A, readBytes<u8>(0xFF00 + nextBytes<u8>())); break; //LD A,(FF00+u8)
-		case 0xF2: Load(A, readBytes<u8>(0xFF00 + C)); break; //LD A,(FF00+C)
+		case 0xF9: SP = HL; break; //LD SP,HL
 		case 0xFA: Load(A, readBytes<u8>(nextBytes<u16>())); break; //LD A,(u16)
-		case 0xE0: write(0xFF00 + nextBytes<u8>(), A); break; //LD (FF00+u8),A
-		case 0xE2: write(0xFF00 + C, A); break; //LD (FF00+C),A
 		case 0xEA: write(nextBytes<u16>(), A); break; //LD (u16),A
+
+		case 0xF0: //LD A,(FF00+u8)
+			Load(A, mem.read_high(nextBytes<u8>()));
+			scheduler.newMCycle();
+			break; 
+
+		case 0xF2: //LD A,(FF00+C)
+			Load(A, mem.read_high(C));
+			scheduler.newMCycle();
+			break; 
+		
+		case 0xE0: //LD (FF00+u8),A
+			mem.write_high(nextBytes<u8>(), A);
+			scheduler.newMCycle();
+			break;
+
+		case 0xE2: //LD (FF00+C),A
+			mem.write_high(C, A);
+			scheduler.newMCycle();
+			break;
 
 		case 0xF3: IME = false; break; //DI
 		case 0xFB: IME = true; break; //EI
@@ -945,14 +961,6 @@ void CPU::Decrease(u8& reg) {
 	setNegative(true);
 }
 
-void CPU::Increase(u16& reg) {
-	reg++;
-}
-
-void CPU::Decrease(u16& reg) {
-	reg--;
-}
-
 void CPU::RotateLeft(u8& reg, bool carry) {
 	bool bit0 = (reg & 0x80);
 	reg = updateFlags(Zero, u8(carry ? CheckCarry() : bit0) | (reg << 1));
@@ -1015,17 +1023,14 @@ void CPU::Load(u8& loc, u8 val) {
 	loc = val;
 }
 
-void CPU::Load(u16& loc, u16 val) {
-	loc = val;
-}
-
 void CPU::Push(u16 reg_pair) {
 	scheduler.newMCycle();
 	write(SP, reg_pair);
 	SP -= 2;
 }
 
-void CPU::Pop(u16& reg_pair) {
+template <typename R>
+void CPU::Pop(R& reg_pair) {
 	reg_pair = readBytes<u16>(SP);
 	SP += 2;
 }

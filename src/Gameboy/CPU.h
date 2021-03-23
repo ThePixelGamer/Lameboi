@@ -6,6 +6,7 @@
 #include <cstdio>
 #include <cstdarg>
 
+#include "Util/RegPair.h"
 #include "Util/Types.h"
 
 class Memory;
@@ -14,15 +15,24 @@ class Interrupt;
 
 #define Carry			0x10
 #define HalfCarry		0x20
-#define Negative		0x40
 #define Zero			0x80
 
 struct Flags {
-	u8 : 4;
-	u8 C : 1;
-	u8 HC : 1;
-	u8 N : 1;
-	u8 Z : 1;
+	bool Z = false;
+	bool N = false;
+	bool HC = false;
+	bool C = false;
+
+	operator u8() const {
+		return (Z << 7) | (N << 6) | (HC << 5) | (C << 4);
+	}
+
+	void operator=(u8 val) {
+		Z = val & 0x80;
+		N = val & 0x40;
+		HC = val & 0x20;
+		C = val & 0x10;
+	}
 };
 
 struct CPU {
@@ -30,30 +40,10 @@ struct CPU {
 	Scheduler& scheduler;
 	Interrupt& interrupt;
 
-	union {
-		struct {
-			u8 low;
-			u8 high;
-		};
-		struct {
-			u16 value;
-		};
-	} bc{}, de{}, hl{};
-
-	union {
-		struct {
-			Flags low;
-			u8 high;
-		};
-		struct {
-			u16 value;
-		};
-	} af{};
-
-	u16& AF = af.value; u8& A = af.high; Flags& F = af.low;
-	u16& BC = bc.value; u8& B = bc.high; u8& C = bc.low;
-	u16& DE = de.value; u8& D = de.high; u8& E = de.low;
-	u16& HL = hl.value; u8& H = hl.high; u8& L = hl.low;
+	RegPair<u8, Flags> AF; u8& A = AF.high; Flags& F = AF.low;
+	RegPair<u8, u8> BC;	   u8& B = BC.high; u8& C = BC.low;
+	RegPair<u8, u8> DE;	   u8& D = DE.high; u8& E = DE.low;
+	RegPair<u8, u8> HL;	   u8& H = HL.high; u8& L = HL.low;
 
 	u16 PC, SP;
 	u8 opcode;
@@ -111,8 +101,6 @@ private:
 	void Compare(u8 in);
 	void Increase(u8& reg);
 	void Decrease(u8& reg);
-	void Increase(u16& reg);
-	void Decrease(u16& reg);
 
 	//CB
 	template<typename T, typename... Args>
@@ -131,9 +119,11 @@ private:
 
 	//Misc
 	void Load(u8& loc, u8 val);
-	void Load(u16& loc, u16 val);
 	void Push(u16 reg_pair);
-	void Pop(u16& reg_pair);
+
+	template <typename R>
+	void Pop(R& reg_pair);
+
 	void Jump(u16 loc, bool cond = true);
 	void JumpRelative(s8 offset, bool cond = true);
 	void Call(u16 loc, bool cond = true);
