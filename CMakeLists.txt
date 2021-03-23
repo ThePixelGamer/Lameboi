@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.6)
+cmake_minimum_required(VERSION 3.8)
 
 set(CMAKE_TOOLCHAIN_FILE D:/vcpkg/scripts/buildsystems/vcpkg.cmake
   CACHE STRING "Vcpkg toolchain file")
@@ -27,6 +27,15 @@ add_executable(lameboi
     ${INCLUDE_LIST}
     "src/lameboi.rc"
 )
+
+# setup bin folder for debug purposes
+file(MAKE_DIRECTORY "${CMAKE_SOURCE_DIR}/bin")
+
+if(MSVC)
+    # vs uses build root folder by default
+    # set_target_properties(lameboi PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY "$<TARGET_FILE_DIR:lameboi>")
+    set_target_properties(lameboi PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/bin")
+endif()
 
 target_include_directories(lameboi PRIVATE ./src)
 
