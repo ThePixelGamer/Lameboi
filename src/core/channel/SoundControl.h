@@ -10,24 +10,23 @@ class SoundControl {
 	APU& apu;
 
 public:
-	struct { //FF24 Channel control / ON-OFF / Volume
-		u8 SO1Volume : 3; // right headphone
-		u8 vinToS01 : 1;
-		u8 SO2Volume : 3; // left headphone
-		u8 vinToS02 : 1;
-	} NR50;
+	// FF24 Channel control / ON-OFF / Volume
+	u8 rightVolume; // right headphone
+	bool vinRight;
+	u8 leftVolume; // left headphone
+	bool vinLeft;
 
-	struct { //FF25 Selection of Sound output terminal
-		u8 sound1ToSO1 : 1;
-		u8 sound2ToSO1 : 1;
-		u8 sound3ToSO1 : 1;
-		u8 sound4ToSO1 : 1;
-		u8 sound1ToSO2 : 1;
-		u8 sound2ToSO2 : 1;
-		u8 sound3ToSO2 : 1;
-		u8 sound4ToSO2 : 1;
-	} NR51;
+	// FF25 Selection of Sound output terminal
+	bool snd1Right;
+	bool snd2Right;
+	bool snd3Right;
+	bool snd4Right;
+	bool snd1Left;
+	bool snd2Left;
+	bool snd3Left;
+	bool snd4Left;
 
+	// FF26 Sound Enables
 	bool sound1On;
 	bool sound2On;
 	bool sound3On;
@@ -36,12 +35,6 @@ public:
 
 	SoundControl(APU& apu) : apu(apu) {
 		reset();
-
-		sound1On = 0;
-		sound2On = 0;
-		sound3On = 0;
-		sound4On = 0;
-		soundOn = 0;
 	}
 	
 	void reset();

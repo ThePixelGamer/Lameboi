@@ -17,22 +17,24 @@ void SquareSweep::trigger() {
 void SquareSweep::reset() {
 	Square::reset();
 
+	shadowFrequency = 0;
+	sweepTimer = 0;
+
 	sweepShifts = 0;
 	sweepDecrease = false;
 	sweepTime = 0;
 }
 
 void SquareSweep::sweep() {
-	if (--sweepTimer > 0)
-		return;
+	if (--sweepTimer <= 0) {
+		reloadSweepTimer();
 
-	reloadSweepTimer();
-
-	if (sweepTime != 0) {
-		u16 adjustedFrequency = calcFrequency();
-		if (overflowCheck(adjustedFrequency) && sweepShifts != 0) {
-			frequency = shadowFrequency = adjustedFrequency;
-			overflowCheck(calcFrequency());
+		if (sweepTime != 0) {
+			u16 adjustedFrequency = calcFrequency();
+			if (overflowCheck(adjustedFrequency) && sweepShifts != 0) {
+				frequency = shadowFrequency = adjustedFrequency;
+				overflowCheck(calcFrequency());
+			}
 		}
 	}
 }

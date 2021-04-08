@@ -6,18 +6,25 @@
 #include "channel/SquareSweep.h"
 #include "channel/Square.h"
 #include "channel/Wave.h"
+#include "channel/Noise.h"
 #include "util/Common.h"
 #include "util/SDLHeaders.h"
 #include "util/Types.h"
 
 class APU {
 public:
+	bool audioSync;
+
+private:
 	constexpr static int clock = 1048576;
 	constexpr static int frequency = 44100;
 	constexpr static int samples = 512;
-	constexpr static float amplitude = 0.15f;
+	constexpr static u8 channels = 2;
+	constexpr static float baseVolumeModifier = 0.5f; 
+	
+	// move this to settings?
+	constexpr static float emuVolume = 0.10f;
 
-private:
 	constexpr static int maxSampleCycles = (clock * 2) / frequency; //pushing samples every 2 T-Cycles
 	constexpr static int maxSequencerCycles = clock / 512;
 
@@ -35,6 +42,7 @@ private:
 	SquareSweep squareSweep;
 	Square square;
 	Wave wave;
+	Noise noise;
 
 public:
 	APU();

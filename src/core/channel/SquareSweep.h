@@ -6,13 +6,13 @@
 
 class SquareSweep : public Square {
 	// internal
-	u16 shadowFrequency = 0;
-	int sweepTimer = 0;
+	u16 shadowFrequency;
+	int sweepTimer;
 
 	// registers
-	u8 sweepShifts = 0;
-	bool sweepDecrease = false;
-	u8 sweepTime = 0; // n/128hz
+	u8 sweepShifts;
+	bool sweepDecrease;
+	u8 sweepTime;
 
 public:
 	SquareSweep(SoundControl& control) : Square(control, control.sound1On) {

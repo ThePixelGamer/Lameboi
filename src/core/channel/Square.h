@@ -1,52 +1,38 @@
 #pragma once
 
-#include "SoundControl.h"
+#include "Channel.h"
+#include "Envelope.h"
+#include "LengthCounter.h"
 #include "util/Types.h"
 
-class Square {
-protected:
-	SoundControl& control;
-	bool& soundOn;
+class Square : public Channel {
+public:
+	Envelope envelope;
 
 	// internal
-	u16 frequencyTimer = 0;
-	u8 sequence = 0;
-	u8 lengthCounter = 0;
-	bool runEnvelope = false;
-	int envelopeTimer = 0;
-	s32 volume = 0;
+	u16 frequencyTimer;
+	u8 sequence;
+	bool dacOn;
 
 	// registers
-	u8 soundLength = 0;
-	u8 waveDuty = 0;
-	u8 envelopeSweep = 0;
-	bool envelopeIncrease = false;
-	u8 initialVolume = 0;
-	u16 frequency = 0;
-	bool lengthEnable = false;
+	u8 waveDuty;
+	u8 initialVolume;
+	u16 frequency;
 
-	short output = 0;
-
-	Square(SoundControl& control, bool& soundOn) : control(control), soundOn(soundOn) {}
-
-public:
-	Square(SoundControl& control) : Square(control, control.sound2On) {
+protected:
+	Square(SoundControl& control, bool& soundOn) : Channel(control, soundOn) {
 		reset();
 	}
+
+public:
+	Square(SoundControl& control) : Square(control, control.sound2On) {}
 
 	void update();
 	virtual void trigger();
 	void reset();
 
-	void envelope();
-	void lengthControl();
-
 	u8 read(u8 reg);
 	void write(u8 reg, u8 value);
-
-	float sample() {
-		return static_cast<float>(output);
-	}
 
 	void resetWaveDuty() {
 		sequence = 0;
@@ -55,11 +41,5 @@ public:
 private:
 	void reloadFrequency() {
 		frequencyTimer = (2048 - frequency) * 2;
-	}
-
-	void reloadEnvTimer() {
-		envelopeTimer = envelopeSweep;
-		if (envelopeTimer == 0)
-			envelopeTimer = 8;
 	}
 };
