@@ -4,22 +4,22 @@
 #include <iostream>
 
 void Noise::update() {
-	if (frequencyTimer > 0 && --frequencyTimer == 0) {
+	if (frequencyTimer && --frequencyTimer == 0) {
 		reloadFrequency();
 
 		u8 xorBit = lfsr & 0x1;
 		lfsr >>= 1;
-		xorBit ^= (lfsr & 0x1) ^ 1;
+		xorBit ^= lfsr & 0x1;
 
 		lfsr |= (xorBit << 14);
 
 		if (lfsrWidth) {
-			lfsr &= 0xFFBF; // clear bit 6
+			lfsr &= 0x7FBF; // clear bit 6
 			lfsr |= (xorBit << 6);
 		}
-
-		output = (lfsr & 0x1) * (envelope.volume & 0xF);
 	}
+
+	output = (~lfsr & 0x1) * (envelope.volume & 0xF);
 }
 
 void Noise::trigger() {
@@ -29,19 +29,20 @@ void Noise::trigger() {
 
 	if (length.counter == 0) {
 		length.counter = 64;
+		length.enable = false;
 	}
 
 	envelope.reload();
 
 	reloadFrequency();
-	lfsr = 0;
+	lfsr = 0x7FFF;
 }
 
 void Noise::reset() {
 	Channel::reset();
 	envelope.reset();
 
-	lfsr = 0;
+	lfsr = 0x7FFF;
 	frequencyTimer = 0;
 	dacOn = false;
 
@@ -64,6 +65,10 @@ u8 Noise::read(u8 reg) {
 }
 
 void Noise::write(u8 reg, u8 value) {
+	if (!controlPower && reg != 0x20) {
+		return;
+	}
+
 	switch (reg) {
 		case 0x20:
 			length.counter = 64 - (value & 0x3F);
@@ -72,7 +77,7 @@ void Noise::write(u8 reg, u8 value) {
 		case 0x21:
 			envelope.write(value);
 
-			dacOn = (value & 0xF8);
+			dacOn = envelope.dacOn();
 			if (!dacOn) {
 				soundOn = false;
 			}

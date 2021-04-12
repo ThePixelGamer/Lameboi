@@ -1,7 +1,6 @@
 #pragma once
 
 #include "Square.h"
-#include "SoundControl.h"
 #include "util/Types.h"
 
 class SquareSweep : public Square {
@@ -15,7 +14,7 @@ class SquareSweep : public Square {
 	u8 sweepTime;
 
 public:
-	SquareSweep(SoundControl& control) : Square(control, control.sound1On) {
+	SquareSweep(bool& controlPower, const u8& sequencerStep) : Square(controlPower, sequencerStep) {
 		reset();
 	}
 

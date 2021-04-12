@@ -20,7 +20,7 @@ private:
 	u8 clockShift;
 
 public:
-	Noise(SoundControl& control) : Channel(control, control.sound4On) {
+	Noise(bool& controlPower, const u8& sequencerStep) : Channel(controlPower, sequencerStep) {
 		reset();
 	}
 
@@ -33,7 +33,8 @@ public:
 
 private:
 	void reloadFrequency() {
-		constexpr u16 divisors[] = { 8, 16, 32, 48, 64, 80, 96, 112 };
-		frequencyTimer = divisors[divisorCode] << clockShift;
+		u8 divisor = (divisorCode == 0) ? 8 : (divisorCode * 16);
+		frequencyTimer = divisor << clockShift;
+		frequencyTimer /= 2;
 	}
 };

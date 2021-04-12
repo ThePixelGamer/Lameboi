@@ -4,7 +4,7 @@
 #include <iostream>
 
 void Wave::update() {
-	if (--frequencyTimer <= 0) {
+	if (frequencyTimer && --frequencyTimer == 0) {
 		reloadFrequency();
 		if (++wavePosition == 32)
 			wavePosition = 0;
@@ -28,6 +28,7 @@ void Wave::trigger() {
 
 	if (length.counter == 0) {
 		length.counter = 256;
+		length.enable = false;
 	}
 
 	reloadFrequency();
@@ -57,7 +58,7 @@ u8 Wave::read(u8 reg) {
 }
 
 void Wave::write(u8 reg, u8 value) {
-	if (!control.soundOn && reg != 0x1B) {
+	if (!controlPower && reg != 0x1B) {
 		return;
 	}
 

@@ -17,7 +17,7 @@ class Wave : public Channel {
 	u16 frequency = 0;
 
 public:
-	Wave(SoundControl& control) : Channel(control, control.sound3On) {
+	Wave(bool& controlPower, const u8& sequencerStep) : Channel(controlPower, sequencerStep) {
 		reset();
 	}
 

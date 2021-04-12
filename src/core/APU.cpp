@@ -1,10 +1,14 @@
 #include "APU.h"
 
+#include "Config.h"
+
 #include <algorithm>
 
-APU::APU() : soundControl(*this), 
-	squareSweep(soundControl), square(soundControl), wave(soundControl), noise(soundControl) {
+APU::APU() {
 	clean();
+
+	noiseWav.setNumChannels(channels);
+	noiseWav.setNumSamplesPerChannel(samples);
 
 	SDL_AudioSpec spec;
 	SDL_zero(spec);
@@ -28,137 +32,97 @@ APU::~APU() {
 }
 
 void APU::clean() {
-	audioSync = true;
-
-	sequencer = 0;
 	sequencerCycles = maxSequencerCycles;
 	sampleCycles = maxSampleCycles;
 	bufferOffset = 0;
-	sampleBuffer.fill(0);
+	sampleBuffer.fill(0.0f);
 
-	soundControl.reset();
-	squareSweep.reset();
-	square.reset();
-	wave.reset();
-	noise.reset();
+	control.reset();
+
+	noiseWav.save("gb-ch4.wav");
+	wavePos = 0;
 }
 
-//todo: switch to SDL_mixer or something
+// called every 1mhz by the cpu
 void APU::update() {
 	if (--sequencerCycles == 0) {
 		sequencerCycles = maxSequencerCycles;
 
-		if (!(sequencer & 1)) {
-			// Sweep 2/6
-			if (sequencer & 2) {
-				squareSweep.sweep();
-			}
-
-			// Length Control 0/2/4/6
-			squareSweep.length.tick();
-			square.length.tick();
-			wave.length.tick();
-			noise.length.tick();
-		}
-
-		// Volume Envelope
-		if (sequencer == 7) {
-			squareSweep.envelope.tick();
-			square.envelope.tick();
-			noise.envelope.tick();
-		}
-
-		if (++sequencer == 8) {
-			sequencer = 0;
-		}
+		control.sequence();
 	}
 
-	noise.update();
+	// 2mhz
+	for (int i = 0; i < 2; i++) {
+		control.step();
+	}
 
-	for (u8 cycles = 0; cycles != 2; ++cycles) {
-		squareSweep.update();
-		square.update();
-		wave.update();
+	// mix samples and push it to the buffer
+	{
+		size_t offset = bufferOffset * channels;
+		size_t wavOffset = bufferOffset + (wavePos * samples);
 
-		if (--sampleCycles == 0) {
-			sampleCycles = maxSampleCycles;
+		float volume = 0.0f;
+		u8 activeChannelCount = control.channel1On + control.channel2On + control.channel3On + control.channel4On;
 
-			// mix samples and push it to the buffer
-			size_t offset = bufferOffset * channels;
+		auto adjustVolume = [&](float sample, u8 channelCount) {
+			return (sample / channelCount) * ((volume + 1.0f) / 8.0f) * volumeModifier * config.volume;
+		};
 
-			float output, volume;
+		// left
+		volume = control.leftVolume;
 
-			auto outputChannel = [&](bool canOutput, float sample) {
-				if (canOutput) {
-					output += sample;
-				}
-			};
+		if (control.noise.left)
+			noiseWav.samples[0][wavOffset] = adjustVolume(control.noise.sample(), 1);
 
-			auto adjustVolume = [&]() {
-				return (output / 4.0f) * (volume / 7.0f) * baseVolumeModifier * emuVolume;
-			};
-
-			// left
-			output = 0.0f;
-			volume = soundControl.leftVolume;
-
-			outputChannel(soundControl.snd1Left, squareSweep.sample());
-			outputChannel(soundControl.snd2Left, square.sample());
-			outputChannel(soundControl.snd3Left, wave.sample());
-			outputChannel(soundControl.snd4Left, noise.sample());
-			
-			sampleBuffer[offset] = adjustVolume();
+		sampleBuffer[offset] += adjustVolume(control.getOutput(false), activeChannelCount);
 
 
-			// right
-			output = 0.0f;
-			volume = soundControl.rightVolume;
+		// right
+		volume = control.rightVolume;
 
-			outputChannel(soundControl.snd1Right, squareSweep.sample());
-			outputChannel(soundControl.snd2Right, square.sample());
-			outputChannel(soundControl.snd3Right, wave.sample());
-			outputChannel(soundControl.snd4Right, noise.sample());
+		if (control.noise.right)
+			noiseWav.samples[1][wavOffset] = adjustVolume(control.noise.sample(), 1);
 
-			sampleBuffer[offset + 1] = adjustVolume();
+		sampleBuffer[offset + 1] += adjustVolume(control.getOutput(true), activeChannelCount);
+	}
 
-			++bufferOffset;
+	if (--sampleCycles == 0) {
+		sampleCycles = maxSampleCycles;
+
+		size_t offset = bufferOffset * channels;
+		sampleBuffer[offset] /= float(maxSampleCycles);
+		sampleBuffer[offset + 1] /= float(maxSampleCycles);
+
+		++bufferOffset;
+	}
+
+	if (bufferOffset >= samples) {
+		bufferOffset = 0;
+
+		++wavePos;
+		noiseWav.setNumSamplesPerChannel((wavePos + 1) * samples);
+
+		uint32_t len = samples * channels * sizeof(float);
+		if (config.audioSync) { 
+			SDL_QueueAudio(audio_device, sampleBuffer.data(), len);
+			sampleBuffer.fill(0.0f);
+			while (SDL_GetQueuedAudioSize(audio_device) > len) {}
 		}
-
-		if (bufferOffset >= samples) {
-			bufferOffset = 0;
-
-			uint32_t len = samples * channels * sizeof(float);
-			if (true) { // audio sync
+		else {
+			if (SDL_GetQueuedAudioSize(audio_device) <= len) {
 				SDL_QueueAudio(audio_device, sampleBuffer.data(), len);
-				while (SDL_GetQueuedAudioSize(audio_device) > len) {}
-			}
-			else {
-				if (SDL_GetQueuedAudioSize(audio_device) <= len) {
-					SDL_QueueAudio(audio_device, sampleBuffer.data(), len);
-				}
+				sampleBuffer.fill(0.0f);
 			}
 		}
 	}
 }
 
 u8 APU::read(u8 reg) {
-	if (inRange(reg, 0x10, 0x14)) {
-		return squareSweep.read(reg);
-	}
-	else if (inRange(reg, 0x16, 0x19)) {
-		return square.read(reg);
-	}
-	else if (inRange(reg, 0x1A, 0x1E)) {
-		return wave.read(reg);
-	}
-	else if (inRange(reg, 0x20, 0x23)) {
-		return noise.read(reg);
-	}
-	else if (inRange(reg, 0x24, 0x26)) {
-		return soundControl.read(reg);
+	if (inRange(reg, 0x10, 0x26)) {
+		return control.read(reg);
 	}
 	else if (inRange(reg, 0x30, 0x3F)) {
-		return wave.readPattern(reg);
+		return control.wave.readPattern(reg);
 	}
 	else {
 		//log
@@ -167,23 +131,11 @@ u8 APU::read(u8 reg) {
 }
 
 void APU::write(u8 reg, u8 value) {
-	if (inRange(reg, 0x10, 0x14)) {
-		squareSweep.write(reg, value);
-	}
-	else if (inRange(reg, 0x16, 0x19)) {
-		square.write(reg, value);
-	}
-	else if (inRange(reg, 0x1A, 0x1E)) {
-		wave.write(reg, value);
-	}
-	else if (inRange(reg, 0x20, 0x23)) {
-		noise.write(reg, value);
-	}
-	else if (inRange(reg, 0x24, 0x26)) {
-		soundControl.write(reg, value);
+	if (inRange(reg, 0x10, 0x26)) {
+		control.write(reg, value);
 	}
 	else if (inRange(reg, 0x30, 0x3F)) {
-		wave.writePattern(reg, value);
+		control.wave.writePattern(reg, value);
 	}
 	else {
 		//log

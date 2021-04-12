@@ -32,7 +32,7 @@ struct Envelope {
 			return;
 		}
 
-		if (--timer <= 0) {
+		if (timer && --timer == 0) {
 			reloadTimer();
 
 			if (sweep == 0) {
@@ -64,6 +64,10 @@ struct Envelope {
 			timer = 8;
 	}
 
+	bool dacOn() {
+		return initialVolume || increase;
+	}
+
 	void reload() {
 		reloadTimer();
 		run = true;
@@ -75,8 +79,27 @@ struct Envelope {
 	}
 
 	void write(u8 value) {
+		bool newIncrease = (value & 0x8);
+
+		// zombie mode 
+		// todo: verify this as sameboy seems to implement something completely different
+		// https://gbdev.gg8.se/wiki/articles/Gameboy_sound_hardware#Obscure_Behavior
+		if (sweep == 0 && run) {
+			volume++;
+		}
+		else if (!increase) {
+			volume += 2;
+		}
+
+		if (increase != newIncrease) {
+			volume = 16 - volume;
+		}
+
+		volume &= 0xF;
+
+		// regs write
 		sweep = (value & 0x7);
-		increase = (value & 0x8);
+		increase = newIncrease;
 		initialVolume = (value >> 4);
 	}
 };

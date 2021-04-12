@@ -19,13 +19,10 @@ public:
 	u8 initialVolume;
 	u16 frequency;
 
-protected:
-	Square(SoundControl& control, bool& soundOn) : Channel(control, soundOn) {
+public:
+	Square(bool& controlPower, const u8& sequencerStep) : Channel(controlPower, sequencerStep) {
 		reset();
 	}
-
-public:
-	Square(SoundControl& control) : Square(control, control.sound2On) {}
 
 	void update();
 	virtual void trigger();
@@ -37,6 +34,9 @@ public:
 	void resetWaveDuty() {
 		sequence = 0;
 	}
+
+protected:
+	void _write(u8 reg, u8 value);
 
 private:
 	void reloadFrequency() {

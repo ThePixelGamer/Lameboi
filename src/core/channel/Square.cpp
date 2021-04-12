@@ -3,7 +3,7 @@
 #include <algorithm>
 #include <iostream>
 
-constexpr short dutyTable[4][8] = {
+constexpr u8 dutyTable[4][8] = {
 	{ 0, 0, 0, 0, 0, 0, 0, 1 },
 	{ 1, 0, 0, 0, 0, 0, 0, 1 },
 	{ 1, 0, 0, 0, 0, 1, 1, 1 },
@@ -11,7 +11,7 @@ constexpr short dutyTable[4][8] = {
 };
 
 void Square::update() {
-	if (frequencyTimer > 0 && --frequencyTimer == 0) {
+	if (frequencyTimer && --frequencyTimer == 0) {
 		reloadFrequency();
 		if (++sequence == 8)
 			sequence = 0;
@@ -27,6 +27,7 @@ void Square::trigger() {
 
 	if (length.counter == 0) {
 		length.counter = 64;
+		length.enable = false;
 	}
 
 	reloadFrequency();
@@ -60,14 +61,20 @@ u8 Square::read(u8 reg) {
 }
 
 void Square::write(u8 reg, u8 value) {
-	if (!control.soundOn && reg != 0x11 && reg != 0x16) {
+	if (!controlPower && reg != 0x16) {
 		return;
 	}
 
+	_write(reg, value);
+}
+
+void Square::_write(u8 reg, u8 value) {
 	switch (reg) {
 		case 0x11: case 0x16:
 			length.counter = 64 - (value & 0x3F);
-			waveDuty = (value >> 6);
+			
+			if (controlPower)
+				waveDuty = (value >> 6);
 			break;
 
 		case 0x12: case 0x17:

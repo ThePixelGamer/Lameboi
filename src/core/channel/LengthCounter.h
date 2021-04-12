@@ -22,8 +22,8 @@ public:
 	}
 
 	void tick() {
-		if (enable && counter > 0) {
-			if (--counter == 0) {
+		if (enable) {
+			if (counter && --counter == 0) {
 				soundOn = false;
 			}
 		}

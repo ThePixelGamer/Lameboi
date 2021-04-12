@@ -26,7 +26,7 @@ void SquareSweep::reset() {
 }
 
 void SquareSweep::sweep() {
-	if (--sweepTimer <= 0) {
+	if (sweepTimer && --sweepTimer <= 0) {
 		reloadSweepTimer();
 
 		if (sweepTime != 0) {
@@ -68,7 +68,7 @@ u8 SquareSweep::read(u8 reg) {
 }
 
 void SquareSweep::write(u8 reg, u8 value) {
-	if (!control.soundOn && reg != 0x16) {
+	if (!controlPower && reg != 0x11) {
 		return;
 	}
 
@@ -78,6 +78,6 @@ void SquareSweep::write(u8 reg, u8 value) {
 		sweepTime = (value & 0x70) >> 4;
 	}
 	else {
-		Square::write(reg, value);
+		_write(reg, value);
 	}
 }
