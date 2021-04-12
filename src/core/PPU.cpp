@@ -4,6 +4,7 @@
 #include <iterator> //std::size
 #include <iostream>
 
+#include "Config.h"
 #include "util/Common.h"
 
 PPU::PPU(Interrupt& interrupt) : interrupt(interrupt) {
@@ -38,8 +39,8 @@ void PPU::clean() {
 	WX = WY = 0;
 
 	//internal
-	display.fill(ColorPalette[0]); //white
-	displayPresent.fill(ColorPalette[0]); //white
+	display.fill(paletteColors[0]); //white
+	displayPresent.fill(paletteColors[0]); //white
 	renderSprites.fill(0);
 
 	cycles = 0;
@@ -194,7 +195,7 @@ void PPU::writeOAM(u8 offset, u8 value, bool force) {
 }
 
 template<size_t N>
-void rowHelper(std::array<u32, N>& outData, size_t index, u8 bottom, u8 top, bool color0Invis = false, Palette& pallete = Palette(0, 1, 2, 3)) {
+void rowHelper(std::array<u32, N>& outData, size_t index, u8 bottom, u8 top, bool color0Invis = false, PaletteData& pallete = PaletteData(0, 1, 2, 3)) {
 	for (int x = 0; x < 8; ++x) {
 		u8 bit = 7 - x;
 		u8 color = (getBit(top, bit) << 1) | getBit(bottom, bit);
@@ -203,14 +204,14 @@ void rowHelper(std::array<u32, N>& outData, size_t index, u8 bottom, u8 top, boo
 			outData[index + x] = PPU::invisPixel;
 		}
 		else {
-			outData[index + x] = PPU::ColorPalette[pallete[color]];
+			outData[index + x] = PPU::paletteColors[pallete[color]];
 		}
 	}
 }
 
 template<size_t N>
-void pixelPusher(std::array<u32, N>& outData, u8 x, u64 y, u8 pixel /* 00, 01, 10, 11 */, Palette& pallete) {
-	outData[x + y] = PPU::ColorPalette[pallete[pixel]];
+void pixelPusher(std::array<u32, N>& outData, u8 x, u64 y, u8 pixel /* 00, 01, 10, 11 */, PaletteData& pallete) {
+	outData[x + y] = PPU::paletteColors[pallete[pixel]];
 }
 
 void PPU::fifo() {
@@ -226,7 +227,7 @@ void PPU::scanline() {
 	std::array<u8, 2> currentSprite = { 0, 0 };
 
 	for (u8 x = 0; x < 160; ++x) {
-		Palette* palette = &BGP;
+		PaletteData* palette = &BGP;
 		u8 tileX = x % 8;
 
 		if (tileX == 0) {

@@ -7,6 +7,7 @@
 #include "Interrupt.h"
 #include "ppu/Palette.h"
 #include "ppu/Sprite.h"
+#include "util/Color.h"
 #include "util/Types.h"
 
 namespace ui {
@@ -45,9 +46,9 @@ class PPU {
 	u8 SCX; //0xFF43 Scroll X
 	u8 LY; //0xFF44 LCDC Y-Coord
 	u8 LYC; //0xFF45 LY Compare
-	Palette BGP; //0xFF47 BG Palette Data
-	Palette OBP0; //0xFF48 Object Palette 0 Data
-	Palette OBP1; //0xFF49 Object Palette 1 Data
+	PaletteData BGP; //0xFF47 BG Palette Data
+	PaletteData OBP0; //0xFF48 Object Palette 0 Data
+	PaletteData OBP1; //0xFF49 Object Palette 1 Data
 	u8 WY; //0xFF4A Window Y Position
 	u8 WX; //0xFF4B Window X Position
 
@@ -65,6 +66,14 @@ class PPU {
 	bool vblankHelper;
 
 public:
+	// Display Palette
+	static inline std::array<Color, 4> paletteColors = {
+		0x9bbc0fff,
+		0x8bac0fff,
+		0x306230ff,
+		0x0f380fff
+	};
+
 	std::array<u32, 160 * 144> display;
 	std::array<u32, 160 * 144> displayPresent;
 	bool presenting = false;
@@ -73,13 +82,6 @@ public:
 	bool isVblank;
 	std::condition_variable vblank_cv;
 	std::mutex vblank_m;
-
-	inline static std::array<u32, 4> ColorPalette {
-		0x9BBC0FFF,
-		0x8BAC0FFF,
-		0x306230FF,
-		0x0F380FFF
-	};
 
 	//helper for dumpSprites
 	inline static u32 invisPixel = 0;
