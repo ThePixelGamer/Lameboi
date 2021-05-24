@@ -3,6 +3,7 @@
 #include <functional>
 
 #include "ImGuiHeaders.h"
+#include "GLFWLoader.h"
 #include "Types.h"
 
 class Texture {
