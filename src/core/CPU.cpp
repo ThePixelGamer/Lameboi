@@ -491,7 +491,7 @@ void CPU::ExecuteOpcode() {
 
 		case 0xE8: { //ADD SP,i8
 			u8 offset = nextBytes<u8>();
-			updateFlags(HalfCarry | Carry, (SP & 0xff) + offset, u8(SP), offset);
+			updateFlags(GB_HalfCarry | GB_Carry, (SP & 0xff) + offset, u8(SP), offset);
 			setNegative(false);
 			setZero(false);
 			SP += s8(offset);
@@ -499,7 +499,7 @@ void CPU::ExecuteOpcode() {
 
 		case 0xF8: { //LD HL,SP+i8
 			u8 offset = nextBytes<u8>();
-			updateFlags(HalfCarry | Carry, (SP & 0xff) + offset, u8(SP), offset);
+			updateFlags(GB_HalfCarry | GB_Carry, (SP & 0xff) + offset, u8(SP), offset);
 			setNegative(false);
 			setZero(false);
 			HL = SP + s8(offset);
@@ -833,9 +833,9 @@ bool CPU::CheckCarry() {
 }
 
 u8 CPU::updateFlags(u16 flags, u16 ans, u8 old, u8 diff) {
-	if(flags & Carry)		updateCarry(ans);
-	if(flags & HalfCarry)	updateHalfCarry(u8(ans), old, diff);
-	if(flags & Zero)		updateZero(ans);
+	if(flags & GB_Carry)		updateCarry(ans);
+	if(flags & GB_HalfCarry)	updateHalfCarry(u8(ans), old, diff);
+	if(flags & GB_Zero)		updateZero(ans);
 
 	return u8(ans);
 }
@@ -908,62 +908,62 @@ void CPU::Add(u16 in) {
 	//u16 temp = updateFlags(Negative_Unset | HalfCarry | Carry, L + (in & 0xff), L, (in & 0xff));
 	u16 temp = L + (in & 0xff); 
 	L = u8(temp);
-	H = updateFlags(HalfCarry | Carry, H + (temp >> 8) + (in >> 8), H, (in >> 8));
+	H = updateFlags(GB_HalfCarry | GB_Carry, H + (temp >> 8) + (in >> 8), H, (in >> 8));
 	setNegative(false);
 }
 
 void CPU::Add(u8 in, bool carry) {
-	A = updateFlags(Zero | HalfCarry | Carry, A + in + carry, A, in);
+	A = updateFlags(GB_Zero | GB_HalfCarry | GB_Carry, A + in + carry, A, in);
 	setNegative(false);
 }
 
 void CPU::Sub(u8 in, bool carry) {
 	u8 oldA = A;
-	A = updateFlags(Zero | HalfCarry | Carry, A - in - carry, A, in);
+	A = updateFlags(GB_Zero | GB_HalfCarry | GB_Carry, A - in - carry, A, in);
 	setHalfCarry((oldA & 0xF) < (in & 0xF) + carry);
 	setNegative(true);
 }
 
 void CPU::And(u8 in) {
-	A = updateFlags(Zero, A & in);
+	A = updateFlags(GB_Zero, A & in);
 	setCarry(false);
 	setHalfCarry(true);
 	setNegative(false);
 }
 
 void CPU::Xor(u8 in) {
-	A = updateFlags(Zero, A ^ in);
+	A = updateFlags(GB_Zero, A ^ in);
 	setCarry(false);
 	setHalfCarry(false);
 	setNegative(false);
 }
 
 void CPU::Or(u8 in) {
-	A = updateFlags(Zero, A | in);
+	A = updateFlags(GB_Zero, A | in);
 	setCarry(false);
 	setHalfCarry(false);
 	setNegative(false);
 }
 
 void CPU::Compare(u8 in) {
-	updateFlags(Zero | HalfCarry | Carry, A - in, A, in);
+	updateFlags(GB_Zero | GB_HalfCarry | GB_Carry, A - in, A, in);
 	setHalfCarry((A & 0xF) < (in & 0xF));
 	setNegative(true);
 }
 
 void CPU::Increase(u8& reg) {
-	reg = updateFlags(Zero | HalfCarry, reg + 1, reg, 1);
+	reg = updateFlags(GB_Zero | GB_HalfCarry, reg + 1, reg, 1);
 	setNegative(false);
 }
 
 void CPU::Decrease(u8& reg) {
-	reg = updateFlags(Zero | HalfCarry, reg - 1, reg, 1);
+	reg = updateFlags(GB_Zero | GB_HalfCarry, reg - 1, reg, 1);
 	setNegative(true);
 }
 
 void CPU::RotateLeft(u8& reg, bool carry) {
 	bool bit0 = (reg & 0x80);
-	reg = updateFlags(Zero, u8(carry ? CheckCarry() : bit0) | (reg << 1));
+	reg = updateFlags(GB_Zero, u8(carry ? CheckCarry() : bit0) | (reg << 1));
 	setCarry(bit0);
 	setHalfCarry(false);
 	setNegative(false);

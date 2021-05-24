@@ -67,11 +67,11 @@ class PPU {
 
 public:
 	// Display Palette
-	static inline std::array<Color, 4> paletteColors = {
-		0x9bbc0fff,
-		0x8bac0fff,
-		0x306230ff,
-		0x0f380fff
+	static inline Palette paletteColors = {
+		0x9bbc0f,
+		0x8bac0f,
+		0x306230,
+		0x0f380f
 	};
 
 	std::array<u32, 160 * 144> display;

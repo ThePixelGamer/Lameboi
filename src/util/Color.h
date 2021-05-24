@@ -1,39 +1,43 @@
 #pragma once
 
 #include <array>
+
 #include "util/Types.h"
 
+// Color3/RGB implementation
 struct Color {
-	// for compliance with imgui color editor
-	float r, g, b, a;
+	float r, g, b;
 
-	Color() : Color(0xffffffff) {}
+	Color() : Color(0xff, 0xff, 0xff) {}
 
-	Color(u8 _r, u8 _g, u8 _b, u8 _a = 0xff) {
-		setRGB(_r, _g, _b, _a);
+	Color(u8 _r, u8 _g, u8 _b) {
+		setRGB(_r, _g, _b);
 	}
 
 	// todo: add some & 0xFF, implicit *should* take care of it
-	Color(u32 rgba) : Color(rgba >> 24, rgba >> 16, rgba >> 8, rgba) {}
+	Color(u32 rgb) : Color(rgb >> 16, rgb >> 8, rgb) {}
 
-	Color& operator=(u32 rgba) {
-		setRGB(rgba >> 24, rgba >> 16, rgba >> 8, rgba);
+	Color& operator=(u32 rgb) {
+		setRGB(rgb >> 16, rgb >> 8, rgb);
 		return *this;
 	}
 
-	void setRGB(u8 _r, u8 _g, u8 _b, u8 _a = 0xff) {
+	// returns RGBA for opengl textures
+	operator u32() const {
+		return (getRGB() << 8) | 0xFF;
+	}
+
+	void setRGB(u8 _r, u8 _g, u8 _b) {
 		r = _r / 255.0f;
 		g = _g / 255.0f;
 		b = _b / 255.0f;
-		a = _a / 255.0f;
 	}
 
-	operator u32() const {
+	u32 getRGB() const {
 		u32 out = 0;
-		out = static_cast<u8>(r * 255.0f) << 24;
-		out |= static_cast<u8>(g * 255.0f) << 16;
-		out |= static_cast<u8>(b * 255.0f) << 8;
-		out |= static_cast<u8>(a * 255.0f);
+		out = static_cast<u8>(r * 255.0f) << 16;
+		out |= static_cast<u8>(g * 255.0f) << 8;
+		out |= static_cast<u8>(b * 255.0f);
 		return out;
 	}
 

@@ -13,9 +13,9 @@ class Memory;
 class Scheduler;
 class Interrupt;
 
-#define Carry			0x10
-#define HalfCarry		0x20
-#define Zero			0x80
+#define GB_Carry		0x10
+#define GB_HalfCarry	0x20
+#define GB_Zero			0x80
 
 struct Flags {
 	bool Z = false;

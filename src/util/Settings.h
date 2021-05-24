@@ -15,13 +15,17 @@ class Setting {
 public:
 	Setting(T val) : value(val), defaultValue(val) {}
 
-	operator T() const {
-		return value;
-	}
-
 	Setting& operator=(const T& v) {
 		value = v;
 		return *this;
+	}
+
+	operator T& () {
+		return value;
+	}
+
+	T& get() {
+		return value;
 	}
 
 	json serialize() const { 
@@ -30,6 +34,12 @@ public:
 
 	void deserialize(const json& j) { 
 		value = j.get<T>();
+	}
+
+	void deserialize(const json& j, const char* label) {
+		// switch this around to allow for exceptions and handle it in SettingsWindow.h?
+		if (j.contains(label))
+			deserialize(j[label]);
 	}
 
 	void reset() {
