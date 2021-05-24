@@ -39,7 +39,7 @@ void APU::clean() {
 
 	control.reset();
 
-	noiseWav.save("gb-ch4.wav");
+	//noiseWav.save("gb-ch4.wav");
 	wavePos = 0;
 }
 
@@ -71,8 +71,10 @@ void APU::update() {
 		// left
 		volume = control.leftVolume;
 
+		/*
 		if (control.noise.left)
 			noiseWav.samples[0][wavOffset] = adjustVolume(control.noise.sample(), 1);
+		*/
 
 		sampleBuffer[offset] += adjustVolume(control.getOutput(false), activeChannelCount);
 
@@ -80,8 +82,10 @@ void APU::update() {
 		// right
 		volume = control.rightVolume;
 
+		/*
 		if (control.noise.right)
 			noiseWav.samples[1][wavOffset] = adjustVolume(control.noise.sample(), 1);
+		*/
 
 		sampleBuffer[offset + 1] += adjustVolume(control.getOutput(true), activeChannelCount);
 	}
@@ -100,7 +104,7 @@ void APU::update() {
 		bufferOffset = 0;
 
 		++wavePos;
-		noiseWav.setNumSamplesPerChannel((wavePos + 1) * samples);
+		//noiseWav.setNumSamplesPerChannel((wavePos + 1) * samples);
 
 		uint32_t len = samples * channels * sizeof(float);
 		if (config.audioSync) { 

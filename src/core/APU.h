@@ -1,12 +1,12 @@
 #pragma once
 
 #include <queue>
+#include <SDL_audio.h>
 
 #include "Memory.h"
 #include "channel/SoundControl.h"
 #include "util/Common.h"
 #include "util/AudioFile.h"
-#include "util/SDLHeaders.h"
 #include "util/Types.h"
 
 class APU {

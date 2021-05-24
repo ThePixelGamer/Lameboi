@@ -84,6 +84,7 @@ struct Envelope {
 		// zombie mode 
 		// todo: verify this as sameboy seems to implement something completely different
 		// https://gbdev.gg8.se/wiki/articles/Gameboy_sound_hardware#Obscure_Behavior
+		/*
 		if (sweep == 0 && run) {
 			volume++;
 		}
@@ -96,6 +97,7 @@ struct Envelope {
 		}
 
 		volume &= 0xF;
+		*/
 
 		// regs write
 		sweep = (value & 0x7);
