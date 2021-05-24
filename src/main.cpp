@@ -5,20 +5,19 @@
 #include <sstream>
 #include <vector>
 
-#include "Gameboy/Gameboy.h"
+#include "core/Gameboy.h"
 
-#include "UI/DisplayWindow.h"
-#include "UI/DebugWindow.h"
-#include "UI/InputWindow.h"
-#include "UI/MainWindow.h"
-#include "UI/MainMenu.h"
+#include "frontend/DisplayWindow.h"
+#include "frontend/DebugWindow.h"
+#include "frontend/MainWindow.h"
+#include "frontend/MainMenu.h"
 
-#include "Util/ImGuiHeaders.h"
-#include "Util/SDLHeaders.h"
+#include "util/GLFWLoader.h"
+#include "util/SDLHeaders.h"
 
 int main(int, char**) {
-	GLFWImGui context;
-	if (context.error || context.window == nullptr) {
+	GLFWLoader loader;
+	if (!loader.init()) {
 		return 1;
 	}
 
@@ -26,18 +25,20 @@ int main(int, char**) {
 
 	auto gb = std::make_shared<Gameboy>();
 
-	ui::DisplayWindow display(gb, context.window);
+	ui::DisplayWindow display(gb, loader.window);
 	ui::DebugWindow debug(gb);
 	ui::InputWindow input(gb);
 	ui::MainWindow lameboi(gb);
 	ui::MainMenu menubar(gb, debug.show, input.show);
 
+	// create basic files/folders
 	if (!std::filesystem::exists("saves")) {
 		std::filesystem::create_directories("saves");
 	}
 
 	// Main loop
-	while(context.NewFrame()) {
+	while(loader.run()) {
+		loader.newFrame();
 
 
 		lameboi.render();
@@ -51,7 +52,7 @@ int main(int, char**) {
 		menubar.render();
 
 		//render imgui and push it the screen
-		context.Render();
+		loader.render();
 	}
 
 	if (gb->running && gb->mbc) {
