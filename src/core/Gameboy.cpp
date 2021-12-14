@@ -8,10 +8,15 @@ namespace fs = std::filesystem;
 
 // todo: verify the file provided is 0xFF bytes?
 bool Gameboy::loadBios(const std::string& biosPath) {
+	if (!fs::exists(biosPath)) {
+		LB_WARN(Frontend, "{} file does not exist", biosPath);
+		return false;
+	}
+
 	std::ifstream biosFile(biosPath, std::ifstream::binary);
 
 	if (!biosFile) {
-		LB_WARN(Frontend, "{} file does not exist", biosPath);
+		LB_WARN(Frontend, "{} file failed to open", biosPath);
 		return false;
 	}
 
@@ -21,10 +26,15 @@ bool Gameboy::loadBios(const std::string& biosPath) {
 }
 
 bool Gameboy::loadRom(const std::string& romPath) {
+	if (!fs::exists(romPath)) {
+		LB_WARN(Frontend, "{} file does not exist", romPath);
+		return false;
+	}
+
 	std::ifstream romFile(romPath, std::ifstream::binary);
 
 	if (!romFile) {
-		LB_WARN(Frontend, "{} file does not exist", romPath);
+		LB_WARN(Frontend, "{} file failed to open", romPath);
 		return false;
 	}
 

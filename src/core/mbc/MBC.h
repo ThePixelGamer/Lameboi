@@ -46,7 +46,7 @@ public:
 
 protected:
 	MBC(const std::string& romPath_, bool ram_ = false, bool battery_ = false) :
-		romPath(romPath_),
+		romPath("saves/" + romPath + ".sav"),
 		ram(ram_),
 		battery(battery_) 
 	{}
@@ -67,7 +67,7 @@ protected:
 		return "saves/" + std::string(name) + ".lbs";
 		*/
 
-		return "saves/" + romPath + ".sav";
+		return romPath;
 	}
 
 	u16 _getMaxRomBanks(u8 type);
