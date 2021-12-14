@@ -1,11 +1,14 @@
 #pragma once
 
-#include "../Interrupt.h"
+#include <array>
 #include "util/Types.h"
 
-class Memory;
+class Interrupt;
 
-enum class Button : u8 {
+// todo: move to file?
+namespace GB {
+
+enum Button : u8 {
 	Up,
 	Down,
 	Left,
@@ -13,15 +16,17 @@ enum class Button : u8 {
 	Start,
 	Select,
 	B,
-	A
+	A,
+	NumButtons
+};
+
 };
 
 class Joypad {
 	Interrupt& interrupt;
 
 	//button states
-	bool down, up, left, right;
-	bool start, select, b, a;
+	std::array<bool, GB::NumButtons> buttonStates;
 
 	//registers
 	bool selectDirect; 
@@ -29,20 +34,20 @@ class Joypad {
 	bool b1, b2, b3, b4;
 
 public:
-	Joypad(Interrupt& interrupt) : interrupt(interrupt) {
-		clean();
-	}
+	Joypad(Interrupt& interrupt);
 
 	void clean();
 
-	void pressButton(Button button);
-	void releaseButton(Button button);
-
-	bool getButtonState(Button button);
+	void pressButton(GB::Button button);
+	void releaseButton(GB::Button button);
+	bool getButtonState(GB::Button button);
 
 	u8 read();
 	void write(u8);
 
 private:
-	bool& _mapToButton(Button button);
+	bool& _mapToButton(GB::Button button);
+
+	template<GB::Button Button>
+	void updateButton(bool down);
 };

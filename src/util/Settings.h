@@ -5,6 +5,7 @@
 
 #include "nlohmann/json.hpp"
 
+// todo: add overloads for indexed containers
 template <typename T>
 class Setting {
 	using json = nlohmann::json;
@@ -24,8 +25,17 @@ public:
 		return value;
 	}
 
-	T& get() {
+	// I shouldn't have this, this shouldn't be a smart pointer like class
+	T& operator*() {
 		return value;
+	}
+
+	T* operator->() {
+		return &value;
+	}
+
+	T* get() {
+		return &value;
 	}
 
 	json serialize() const { 

@@ -3,48 +3,56 @@
 #include <memory>
 
 #include "FileMenu.h"
-#include "PPUMenu.h"
+#include "DebugMenu.h"
 
 #include "core/Gameboy.h"
 #include "util/ImGuiHeaders.h"
 
+class SDLInterface;
+
 namespace ui {
-	class MainMenu {
-		std::shared_ptr<Gameboy> gb;
 
-		bool& show_debug_window;
-		bool& show_inputs_window;
+// provides access to other ui stuff to provide functionality to menu items
+// todo: better name
+struct MainMenuContext {
+	bool& showDisplay;
+	bool& showViewport;
+	bool& showDebug;
+	bool& showSettings;
+	SDLInterface& loader;
+};
 
-		std::unique_ptr<FileMenu> fileMenu;
-		std::unique_ptr<PPUMenu> ppuMenu;
+class MainMenu {
+	ImGuiIO& io = ImGui::GetIO();
 
-	public:
-		MainMenu(std::shared_ptr<Gameboy> gb, bool& debug, bool& inputs) :
-			gb(gb),
-			show_debug_window(debug),
-			show_inputs_window(inputs) {
-			
-			fileMenu = std::make_unique<FileMenu>(gb, debug);
-			ppuMenu = std::make_unique<PPUMenu>(gb);
-		}
+	std::unique_ptr<FileMenu> fileMenu;
+	std::unique_ptr<DebugMenu> debugMenu;
 
-		void render() {
-			if (ImGui::BeginMainMenuBar()) {
-				fileMenu->render();
+	Gameboy& gb;
 
-				if (ImGui::BeginMenu("Gameboy")) {
-					if (ImGui::MenuItem("Show Debugger", nullptr, &show_debug_window)) {
-						gb->debug.continuing((show_debug_window) ? false : gb->debug.isContinuing());
-					}
+	MainMenuContext context;
+	bool paused = false;
 
-					ImGui::MenuItem("Show Inputs", nullptr, &show_inputs_window);
-					ImGui::EndMenu();
-				}
+	// todo: streamline?
+	using second = std::chrono::duration<int>;
+	using clock = std::chrono::high_resolution_clock;
+	std::chrono::time_point<clock> perfTimer;
+	second perf;
+	u64 fps = 0;
 
-				ppuMenu->render();
+public:
+	MainMenu(Gameboy& gb, const MainMenuContext& context) :
+		gb(gb),
+		context(context) {
+		
+		fileMenu = std::make_unique<FileMenu>(gb, context.showDebug, context.loader);
+		debugMenu = std::make_unique<DebugMenu>(gb, context.showDebug);
+	}
 
-				ImGui::EndMainMenuBar();
-			}
-		}
-	};
-}
+	void render();
+
+private:
+	void updateFPS();
+};
+
+} // namespace ui

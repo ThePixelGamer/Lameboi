@@ -16,25 +16,27 @@ inline void MemEditorWrite(ImU8* mem_, size_t offset, ImU8 data) {
 }
 
 namespace ui {
-	class MemoryWindow {
-		std::shared_ptr<Gameboy> gb;
 
-		MemoryEditor mem_edit;
-		bool& show;
+class MemoryWindow {
+	Gameboy& gb;
+
+	MemoryEditor mem_edit;
+	bool& show;
 	
-	public:
-		MemoryWindow(std::shared_ptr<Gameboy> gb, bool& show) :
-			gb(gb),
-			show(show)
-		{
-			mem_edit.ReadFn = &MemEditorRead;
-			mem_edit.WriteFn = &MemEditorWrite;
-		}
+public:
+	MemoryWindow(Gameboy& gb, bool& show) :
+		gb(gb),
+		show(show)
+	{
+		mem_edit.ReadFn = &MemEditorRead;
+		mem_edit.WriteFn = &MemEditorWrite;
+	}
 
-		void render() {
-			if (show) {
-				mem_edit.DrawWindow("Memory", &gb->mem, 0x10000);
-			}
+	void render() {
+		if (show) {
+			mem_edit.DrawWindow("Memory", &gb.mem, 0x10000);
 		}
-	};
-}
+	}
+};
+
+} // namespace ui 

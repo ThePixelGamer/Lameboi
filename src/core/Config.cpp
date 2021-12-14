@@ -56,6 +56,7 @@ void Config::load() {
 	// General/Input
 	inputOverlay.deserialize(j, "inputOverlay");
 	biosPath.deserialize(j, "biosPath");
+	recentRoms.deserialize(j, "recentRoms");
 	oppositeDir.deserialize(j, "oppositeDir");
 
 	// Video
@@ -63,7 +64,7 @@ void Config::load() {
 
 	if (j.contains("selectedPalette")) {
 		currentPalette.deserialize(j["selectedPalette"]);
-		PPU::paletteColors = paletteProfiles.get().at(currentPalette);
+		PPU::paletteColors = paletteProfiles->at(currentPalette);
 	}
 
 	// Audio
@@ -77,10 +78,10 @@ void Config::save() {
 	std::ofstream cfg(configPath);
 	json j;
 
-	// General/Input
+	// General
 	j["inputOverlay"] = inputOverlay.serialize();
 	j["biosPath"] = biosPath.serialize();
-	j["oppositeDir"] = oppositeDir.serialize();
+	j["recentRoms"] = recentRoms.serialize();
 
 	// Video
 	j["selectedPalette"] = currentPalette.serialize();
@@ -89,6 +90,9 @@ void Config::save() {
 	// Audio
 	j["volume"] = volume.serialize();
 	j["audioSync"] = audioSync.serialize();
+
+	// Input
+	j["oppositeDir"] = oppositeDir.serialize();
 
 	cfg << std::setw(4) << j << std::endl;
 }

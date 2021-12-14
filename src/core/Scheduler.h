@@ -2,7 +2,7 @@
 
 #include "util/Types.h"
 
-struct Gameboy;
+class Gameboy;
 
 //relies on the cpu calling for every m-cycle
 class Scheduler {

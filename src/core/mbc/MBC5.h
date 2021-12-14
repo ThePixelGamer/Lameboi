@@ -16,7 +16,7 @@ class MBC5 : public MBC {
 	std::array<std::array<u8, 0x2000>, 0x10> ramBanks; // 00h-0Fh
 
 public:
-	MBC5(bool ram_ = false, bool battery_ = false, bool rumble_ = false) : MBC(ram_, battery_), rumble(rumble_) {
+	MBC5(const std::string& romPath_, bool ram_ = false, bool battery_ = false, bool rumble_ = false) : MBC(romPath_, ram_, battery_), rumble(rumble_) {
 		romBanks.fill({});
 		ramBanks.fill({});
 	}

@@ -7,6 +7,7 @@
 class Memory;
 
 class Debugger {
+	// todo: figure out what I wanted this for
 	Memory& mem;
 
 	bool canContinue = true;
@@ -19,54 +20,14 @@ class Debugger {
 public:
 	Debugger(Memory& mem) : mem(mem) {}
 
-	void addBreakpoint(u16 PC) {
-		breakpoints.insert(PC);
-	}
+	void addBreakpoint(u16 PC);
+	BreakpointIter removeBreakpoint(BreakpointIter PC);
+	void removeBreakpoint(u16 PC);
+	std::set<u16>& getBreakpoints();
 
-	BreakpointIter removeBreakpoint(BreakpointIter PC) {
-		return breakpoints.erase(PC);
-	}
+	void continuing(bool cont);
+	bool isContinuing();
 
-	void removeBreakpoint(u16 PC) {
-		breakpoints.erase(PC);
-	}
-
-	std::set<u16>& getBreakpoints() {
-		return breakpoints;
-	}
-
-	void continuing(bool cont) {
-		canContinue = cont;
-	}
-
-	// to prevent the Show Debugger button from stopping the continue after hiding
-	bool isContinuing() {
-		return canContinue;
-	}
-
-	void step(size_t steps_) {
-		isStepping = true;
-		steps = steps_;
-	}
-
-	size_t amountToStep(u16 PC) {
-		if (!breakpoints.empty()) {
-			if (breakpoints.find(PC) != breakpoints.end()) {
-				continuing(false);
-				return 0;
-			}
-		}
-
-		if (isStepping) {
-			canContinue = false; //don't continue after stepping
-			isStepping = false;
-			return steps;
-		}
-
-		if (canContinue) {
-			return 1;
-		}
-
-		return 0;
-	}
+	void step(size_t steps_);
+	size_t amountToStep(u16 PC);
 };

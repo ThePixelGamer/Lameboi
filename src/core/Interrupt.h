@@ -24,6 +24,10 @@ public:
 	bool requestSerial;
 	bool requestJoypad;
 
+	Interrupt() {
+		clean();
+	}
+
 	void clean() {
 		enableVblank = false;
 		enableLcdStat = false;

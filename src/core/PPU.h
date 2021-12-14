@@ -3,8 +3,8 @@
 #include <array> // std::array
 #include <condition_variable>
 #include <mutex>
+#include <vector>
 
-#include "Interrupt.h"
 #include "ppu/Palette.h"
 #include "ppu/Sprite.h"
 #include "util/Color.h"
@@ -14,9 +14,32 @@ namespace ui {
 	class BGMapWindow;
 }
 
+class SpriteManager;
+class Interrupt;
+
 class PPU {
+public:
+	static constexpr u64 INVALID_ID = static_cast<u64>(-1);
+
+	struct Pixel {
+		u8 data = 0; // 2-bit
+		//u16 id; // 2-bytes
+		u64 hash = INVALID_ID; // 8-bytes
+		u8 x = 0; // 4-bit
+		u8 y = 0; // 4-bit
+	};
+
+	struct Framebuffer {
+		std::vector<u64> hashes;
+		std::array<Pixel, 160 * 144> pixels;
+	};
+
+	SpriteManager& spriteManager;
+
+private:
 	//SCX and SCY
 	friend ui::BGMapWindow;
+	friend SpriteManager;
 
 	Interrupt& interrupt;
 
@@ -54,7 +77,9 @@ class PPU {
 
 	//internal
 	int cycles;
+	int frameCycles;
 	int lastTile;
+	bool last_stat;
 
 	u8 spritesScanned;
 	u8 loadedSprites;
@@ -62,6 +87,11 @@ class PPU {
 	
 	bool windowYTrigger;
 	u16 windowLines;
+
+	// 2-bit pixel display
+	std::array<Framebuffer, 2> buffers;
+	Framebuffer* currentBuffer;
+	Framebuffer* nextBuffer;
 
 	bool vblankHelper;
 
@@ -74,13 +104,11 @@ public:
 		0x0f380f
 	};
 
-	std::array<u32, 160 * 144> display;
-	std::array<u32, 160 * 144> displayPresent;
-	bool presenting = false;
+	static inline bool windowEnabled = true;
+	static inline bool spritesEnabled = true;
+
 	size_t framesPresented;
 
-	bool isVblank;
-	std::condition_variable vblank_cv;
 	std::mutex vblank_m;
 
 	//helper for dumpSprites
@@ -93,10 +121,12 @@ public:
 		Drawing
 	};
 
-	PPU(Interrupt& interrupt);
+	PPU(Interrupt& interrupt, SpriteManager& tileData);
 
 	void clean();
 	void update();
+
+	const Framebuffer& getBuffer();
 	
 	u8 read(u8 reg);
 	void write(u8 reg, u8 value);
@@ -112,15 +142,14 @@ public:
 	void dumpSprites(std::array<u32, 64 * 40>& sprites);
 
 private:
-	void fifo();
 	void scanline();
 
 	void oamScan();
 	void hblank();
 	void vblank();
 
-	void _updateLY(u8 y);
 	bool _nextLine();
 
-	std::array<u8, 2> _fetchTileLine(bool method8000, u8 yoffset, u8 tileoffset = 0);
+	u16 _fetchTileAddr(bool method8000, u8 tileoffset);
+	std::array<u8, 2> _fetchTileLine(bool method8000, u8 yoffset, u8 tileoffset);
 };

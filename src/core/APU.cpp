@@ -65,7 +65,7 @@ void APU::update() {
 		u8 activeChannelCount = control.channel1On + control.channel2On + control.channel3On + control.channel4On;
 
 		auto adjustVolume = [&](float sample, u8 channelCount) {
-			return (sample / channelCount) * ((volume + 1.0f) / 8.0f) * volumeModifier * config.volume;
+			return (sample / channelCount) * ((volume + 1.0f) / 8.0f) * volumeModifier * (config.volume / 100.0f);
 		};
 
 		// left

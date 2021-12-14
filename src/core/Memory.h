@@ -10,7 +10,7 @@
 #include "ppu/Palette.h"
 #include "ppu/Sprite.h"
 
-struct Gameboy;
+class Gameboy;
 
 class Memory {
 	Gameboy& gb;

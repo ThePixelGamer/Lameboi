@@ -32,7 +32,7 @@ class MBC3 : public MBC {
 	} rtcD;
 
 public:
-	MBC3(bool ram_ = false, bool battery_ = false, bool timer_ = false) : MBC(ram_, battery_), timer(timer_) {
+	MBC3(const std::string& romPath_, bool ram_ = false, bool battery_ = false, bool timer_ = false) : MBC(romPath_, ram_, battery_), timer(timer_) {
 		romBanks.fill({});
 		ramBanks.fill({});
 	}

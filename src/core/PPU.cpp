@@ -2,17 +2,26 @@
 
 #include <algorithm> //std::fill
 #include <iterator> //std::size
-#include <iostream>
 
 #include "Config.h"
+#include "Interrupt.h"
+#include "SpriteManager.h"
 #include "util/Common.h"
+#include "util/Log.h"
 
-PPU::PPU(Interrupt& interrupt) : interrupt(interrupt) {
+PPU::PPU(Interrupt& interrupt, SpriteManager& spriteManager) :
+	interrupt(interrupt), 
+	spriteManager(spriteManager),
+	currentBuffer(&buffers[0]),
+	nextBuffer(&buffers[1]) {
 	clean();
 }
 
 void PPU::clean() {
-	//regs
+	// prevent DisplayWindow::render from using framebuffer when clearing
+	std::unique_lock lock(vblank_m);
+
+	// GB Registers
 	VRAM.fill(0);
 	sprites.fill({});
 
@@ -38,13 +47,18 @@ void PPU::clean() {
 	BGP = OBP0 = OBP1 = { 0, 0, 0, 0 };
 	WX = WY = 0;
 
-	//internal
-	display.fill(paletteColors[0]); //white
-	displayPresent.fill(paletteColors[0]); //white
+	// Internal
+	for (auto& displayBuf : buffers) {
+		displayBuf.hashes.resize(((160 / 8) + 2) * ((144 / 8) + 2)); // reserve enough space for a full screen of multiple tiles
+		displayBuf.pixels.fill({ 0b00, INVALID_ID, 0, 0 }); // white
+	}
+
 	renderSprites.fill(0);
 
 	cycles = 0;
+	frameCycles = 0;
 	lastTile = 0;
+	last_stat = false;
 
 	spritesScanned = 0;
 	loadedSprites = 0;
@@ -55,26 +69,32 @@ void PPU::clean() {
 	vblankHelper = false;
 
 	framesPresented = 0;
-	isVblank = false;
 }
 
-//called every mcycle
+// Called every CPU m-cycle
 void PPU::update() {
 	if (LCDC.lcdDisplay == 0) {
 		return;
 	}
 
-	// v-blank helper to return the mode back to searching
+	// hack to return the mode back to searching from vblank
 	if (cycles == 0 && LY == 0) {
 		STAT.mode = Mode::Searching;
 		vblankHelper = false;
 	}
 
 	++cycles;
+	++frameCycles;
+
+	bool stat_state = false;
 
 	switch (STAT.mode) {
 		case Mode::Searching:
 			oamScan();
+
+			if (STAT.oamInterrupt) {
+				stat_state = true;
+			}
 			break;
 
 		case Mode::Drawing:
@@ -83,10 +103,18 @@ void PPU::update() {
 
 		case Mode::HBlank:
 			hblank();
+
+			if (STAT.hblankInterrupt) {
+				stat_state = true;
+			}
 			break;
 
 		case Mode::VBlank:
 			vblank();
+
+			if (STAT.vblankInterrupt) {
+				stat_state = true;
+			}
 			break;
 
 		default: {
@@ -95,6 +123,19 @@ void PPU::update() {
 	}
 
 	STAT.coincidence = LY == LYC;
+	if (STAT.coincidence && STAT.lycInterrupt) {
+		stat_state = true;
+	}
+
+	if (!last_stat && stat_state) {
+		interrupt.requestLcdStat = true;
+	}
+
+	last_stat = stat_state;
+}
+
+const PPU::Framebuffer& PPU::getBuffer() {
+	return *currentBuffer;
 }
 
 u8 PPU::read(u8 reg) {
@@ -164,34 +205,52 @@ void PPU::write(u8 reg, u8 value) {
 	}
 }
 
-u8 PPU::readVRAM(u16 offset) {
-	if (STAT.mode != PPU::Drawing) {
-		return VRAM[offset];
-	}
+#define VRAM_BLOCKING
 
-	return 0xFF;
+u8 PPU::readVRAM(u16 offset) {
+#ifdef VRAM_BLOCKING
+	if (STAT.mode == PPU::Drawing) {
+		return 0xFF;
+	}
+#endif // VRAM_BLOCKING
+
+	return VRAM[offset];
 }
 
 void PPU::writeVRAM(u16 offset, u8 value) {
-	if (STAT.mode != PPU::Drawing) {
-		VRAM[offset] = value;
-
-		//fprintf(log, "Write to VRAM $%04X: $%02X\n", loc, value); //PSI's Logger
+#ifdef VRAM_BLOCKING
+	if (STAT.mode == PPU::Drawing) {
+		return;
 	}
+#endif // VRAM_BLOCKING
+
+	VRAM[offset] = value;
+
+	spriteManager.dump(offset >> 4);
+
+	//fprintf(log, "Write to VRAM $%04X: $%02X\n", loc, value); //PSI's Logger
 }
 
 u8 PPU::readOAM(u8 offset) {
-	if (STAT.mode < 2) {
-		return sprites[offset >> 2].read(offset & 0x3);
+#ifdef VRAM_BLOCKING
+	// only allow reads during hblank and vblank 
+	if (STAT.mode > 1) {
+		return 0xFF;
 	}
+#endif // VRAM_BLOCKING
 
-	return 0xFF;
+	return sprites[offset >> 2].read(offset & 0x3);
 }
 
 void PPU::writeOAM(u8 offset, u8 value, bool force) {
-	if (STAT.mode < 2 || force) { // only allow writes during hblank and vblank 
-		sprites[offset >> 2].write(offset & 0x3, value);
+#ifdef VRAM_BLOCKING
+	// only allow writes during hblank and vblank 
+	if (STAT.mode > 1 && !force) { 
+		return;
 	}
+#endif // VRAM_BLOCKING
+	
+	sprites[offset >> 2].write(offset & 0x3, value);
 }
 
 template<size_t N>
@@ -209,22 +268,156 @@ void rowHelper(std::array<u32, N>& outData, size_t index, u8 bottom, u8 top, boo
 	}
 }
 
-template<size_t N>
-void pixelPusher(std::array<u32, N>& outData, u8 x, u64 y, u8 pixel /* 00, 01, 10, 11 */, PaletteData& pallete) {
-	outData[x + y] = PPU::paletteColors[pallete[pixel]];
-}
-
-void PPU::fifo() {
-
-}
-
 void PPU::scanline() {
 	if (cycles < 63) {
 		return;
 	}
+	
+	std::array<u8, 2> rawLine = { 0, 0 };
 
+	std::array<Pixel, 8> line = {};
+	const auto map0 = VRAM.begin() + 0x1800;
+	const auto map1 = VRAM.begin() + 0x1C00;
+	const u8 tileMaxX = (256 / 8);
+
+	for (u8 tileX = 0; tileX < (160 / 8); ++tileX) {
+		// nullptr = bgp
+		std::array<PaletteData*, 8> palettes = {};
+
+		if (LCDC.displayPriority) {
+			// Background
+			u8 x = ((tileX * 8) + SCX) & 0xFF;
+			u8 y = (LY + SCY) & 0xFF;
+
+			auto map = (LCDC.bgMap) ? map1 : map0;
+			u16 tileOffset = (x / 8) + ((y / 8) * tileMaxX);
+			u8 yOffset = y % 8;
+			u8 xShift = SCX % 8;
+
+			rawLine = _fetchTileLine(LCDC.tileSet, yOffset, map[tileOffset]);
+			rawLine[0] <<= xShift;
+			rawLine[1] <<= xShift;
+			
+			size_t hash = spriteManager.getTileHash(_fetchTileAddr(LCDC.tileSet, map[tileOffset]));
+
+			for (u8 lineX = 0; lineX < 8; ++lineX) {
+				auto& pixel = line[lineX];
+				pixel.hash = hash;
+				pixel.x = lineX;
+				pixel.y = yOffset;
+			}
+			
+			if (xShift != 0) {
+				if (x >= 248) {
+					tileOffset -= 31;
+				}
+				else {
+					tileOffset += 1;
+				}
+
+				auto nextLine = _fetchTileLine(LCDC.tileSet, yOffset, map[tileOffset]);
+				rawLine[0] |= (nextLine[0] >> (8 - xShift));
+				rawLine[1] |= (nextLine[1] >> (8 - xShift));
+			}
+
+
+			// Window
+			if (windowEnabled && LCDC.windowDisplay) {
+				s16 adjustedX = (WX - 7) / 8;
+				if (tileX >= adjustedX && LY >= WY) {
+					auto map = (LCDC.windowMap) ? map1 : map0;
+					u16 tileOffset = (tileX - adjustedX) + ((windowLines / 8) * tileMaxX);
+
+					rawLine = _fetchTileLine(LCDC.tileSet, windowLines % 8, map[tileOffset]);
+
+					windowYTrigger = true;
+				}
+			}
+		}
+
+		if (spritesEnabled && LCDC.objDisplay) {
+			std::array<u8, 8> bottomSpriteLine;
+			bottomSpriteLine.fill(u8(-1));
+
+			for (u8 i = 0; i < loadedSprites; ++i) {
+				Sprite sprite = sprites[renderSprites[i]];
+
+ 				u8 x = tileX * 8;
+				if (!inRange(sprite.xPos - 8, x, x + 7) && !inRange(sprite.xPos - 1, x, x + 7)) {
+					continue;
+				}
+
+				u8 y = (LY + 16 - sprite.yPos) % 16;
+				if (sprite.yFlip) {
+					y = ((LCDC.objSize) ? 15 : 7) - y;
+				}
+
+				u8 tileOffset = 0;
+				if (LCDC.objSize) { // 8x16
+					tileOffset = (y < 8) ? (sprite.tile & 0xFE) : (sprite.tile | 0x1);
+				}
+				else { // 8x8
+					tileOffset = sprite.tile;
+				}
+				std::array<u8, 2> spriteLine = _fetchTileLine(true, y % 8, tileOffset);
+
+				u8 spX, itX, endX;
+				if (x <= (sprite.xPos - 8)) {
+					spX = 0;
+					itX = sprite.xPos % 8;
+					endX = 8;
+				}
+				else {
+					itX = 0;
+					endX = sprite.xPos % 8;
+					spX = 8 - endX;
+				}
+
+				for (; itX < endX; ++itX, ++spX) {
+					u8 bitX = spX;
+					if (sprite.xFlip) {
+						bitX = 7 - bitX;
+					}
+
+					u8 s_c0 = getBit(spriteLine[1], 7 - bitX);
+					u8 s_c1 = getBit(spriteLine[0], 7 - bitX);
+
+					if (sprite.behindBG) {
+						// check if bg/window color is not 0
+						if (getBit(rawLine[1], 7 - itX) || getBit(rawLine[0], 7 - itX)) {
+							continue;
+						}
+					}
+
+					if ((bottomSpriteLine[itX] > sprite.xPos) && (s_c0 || s_c1)) {
+						palettes[itX] = &((sprite.useOBP1) ? OBP1 : OBP0);
+						bottomSpriteLine[itX] = sprite.xPos;
+						setBit(rawLine[1], 7 - itX, s_c0);
+						setBit(rawLine[0], 7 - itX, s_c1);
+
+						// invalidate the pixel till we support sprites
+						line[itX].hash = PPU::INVALID_ID;
+					}
+				}
+			}
+		}
+
+
+		for (u8 x = 0; x < 8; ++x) {
+			u8 color = (getBit(rawLine[1], 7 - x) << 1) | getBit(rawLine[0], 7 - x);
+
+			auto& pixel = nextBuffer->pixels[(LY * 160) + (tileX * 8) + x]; 
+			pixel = line[x];
+			pixel.data = (palettes[x]) ? (*palettes[x])[color] : BGP[color];
+		}
+	}
+
+	/*
 	std::array<u8, 2> line = { 0, 0 };
 	std::array<u8, 2> currentSprite = { 0, 0 };
+
+	const auto map0 = VRAM.begin() + 0x1800;
+	const auto map1 = VRAM.begin() + 0x1C00;
 
 	for (u8 x = 0; x < 160; ++x) {
 		PaletteData* palette = &BGP;
@@ -233,16 +426,10 @@ void PPU::scanline() {
 		if (tileX == 0) {
 			//background
 			if (LCDC.displayPriority) {
-				auto map = VRAM.begin() + ((LCDC.bgMap) ? 0x1C00 : 0x1800);
+				u16 adjustedX = (x + SCX) & 0xFF;
+				u16 y = (LY + SCY) & 0xFF;
 
-				u16 adjustedX = x + SCX;
-				adjustedX = (adjustedX > 255) ? adjustedX - 256 : adjustedX;
-
-				u16 y = LY + SCY;
-				if (y > 255) {
-					y -= 256;
-				}
-
+				auto map = (LCDC.bgMap) ? map1 : map0;
 				u8 xShift = SCX % 8;
 				u16 offset = (adjustedX / 8) + ((y / 8) * 32);
 				u8 yOffset = y % 8;
@@ -262,11 +449,10 @@ void PPU::scanline() {
 
 			//window
 			if (LCDC.displayPriority && LCDC.windowDisplay) {
-				auto map = VRAM.begin() + ((LCDC.windowMap) ? 0x1C00 : 0x1800);
-
 				s16 adjustedX = (WX - 7);
 				if (x >= adjustedX) {
 					if (LY >= WY) {
+						auto map = (LCDC.windowMap) ? map1 : map0;
 						u8 offset = map[((x - adjustedX) / 8) + ((windowLines / 8) * 32)];
 						line = _fetchTileLine(LCDC.tileSet, windowLines % 8, offset);
 						windowYTrigger = true;
@@ -325,8 +511,9 @@ void PPU::scanline() {
 			}
 		}
 
-		pixelPusher((presenting) ? display : displayPresent, x, LY * 160, (c0 << 1) | c1, *palette);
+		(*nextBuffer)[x + (LY * 160)] = (*palette)[(c0 << 1) | c1];
 	}
+	*/
 
 	STAT.mode = Mode::HBlank;
 }
@@ -334,10 +521,6 @@ void PPU::scanline() {
 void PPU::oamScan() {
 	//scan 2 sprites for every cycle
 	while (spritesScanned < (cycles * 2) && spritesScanned != 40 && loadedSprites != 10) {
-		if (STAT.oamInterrupt) {
-			interrupt.requestLcdStat = true;
-		}
-
 		Sprite sprite = sprites[spritesScanned];
 
 		if (sprite.xPos != 0 &&
@@ -351,7 +534,7 @@ void PPU::oamScan() {
 		++spritesScanned;
 	}
 
-	if (cycles > 20) {
+	if (cycles == 20) {
 		STAT.mode = Mode::Drawing;
 		spritesScanned = 0;
 	}
@@ -368,12 +551,8 @@ void PPU::hblank() {
 
 		loadedSprites = 0;
 
-		if (STAT.hblankInterrupt) {
-			interrupt.requestLcdStat = true;
-		}
-
 		if (LY == 144) {
-			STAT.mode = Mode::VBlank;
+			STAT.mode = Mode::VBlank; 
 		}
 		else {
 			STAT.mode = Mode::Searching;
@@ -386,47 +565,36 @@ void PPU::vblank() {
 		vblankHelper = true;
 
 		interrupt.requestVblank = true;
-		if (STAT.vblankInterrupt) {
-			interrupt.requestLcdStat = true;
-		}
 
 		std::unique_lock lock(vblank_m);
 
-		presenting = !presenting;
+		std::swap(currentBuffer, nextBuffer);
 
 		++framesPresented;
 	}
 
-	if (_nextLine()) {
-		if (LY >= 154) {
-			windowLines = 0;
-			_updateLY(0);
-			STAT.mode = Mode::Searching;
-		}
+	if (_nextLine() && LY == 154) {
+		// reset after the 10 "lines" of vblank
+		frameCycles = 0;
+		windowLines = 0;
+		LY = 0;
+		STAT.mode = Mode::Searching;
 	}
 }
 
-void PPU::_updateLY(u8 y) {
-	LY = y;
-	STAT.coincidence = y == LYC;
-	if (STAT.coincidence && STAT.lycInterrupt) {
-		interrupt.requestLcdStat = true;
-	}
-}
-
-//name is a bit ambigious but checks if we're going to the next line with the amount of cycles
+// name is a bit ambigious but checks if we're going to the next line with the amount of cycles
 bool PPU::_nextLine() {
 	if (cycles >= 114) {
 		cycles -= 114;
 
-		_updateLY(LY + 1);
+		LY++;
 		return true;
 	}
 
 	return false;
 }
 
-std::array<u8, 2> PPU::_fetchTileLine(bool method8000, u8 yoffset, u8 tileoffset) {
+u16 PPU::_fetchTileAddr(bool method8000, u8 tileoffset) {
 	u16 addr = 0;
 
 	if (tileoffset & 0x80) {
@@ -436,7 +604,12 @@ std::array<u8, 2> PPU::_fetchTileLine(bool method8000, u8 yoffset, u8 tileoffset
 		addr = 0x1000;
 	}
 
-	size_t loc = addr + ((tileoffset & 0x7F) * 16) + (yoffset * 2);
+	return addr + ((tileoffset & 0x7F) * 16);
+}
+
+std::array<u8, 2> PPU::_fetchTileLine(bool method8000, u8 yoffset, u8 tileoffset) {
+	size_t loc = _fetchTileAddr(method8000, tileoffset) + (yoffset * 2);
+
 	return std::array<u8, 2>{
 		VRAM[loc],
 		VRAM[loc + 1],

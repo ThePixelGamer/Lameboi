@@ -48,6 +48,7 @@ struct CPU {
 	u16 PC, SP;
 	u8 opcode;
 	bool IME = false;
+	size_t opcodeCycleCount = 0;
 
 	CPU(Memory&, Scheduler&, Interrupt&);
 	void handlePrint();
@@ -65,6 +66,9 @@ private:
 	void write(u16 loc, u8 value);
 	void write(u16 loc, u16 value);
 
+	u8 readHigh(u8 loc);
+	void writeHigh(u8 loc, u8 value);
+
 	u8 FetchOpcode(u16);
 	bool CheckZero();
 	bool CheckNegative();
@@ -80,8 +84,8 @@ private:
 	void setNegative(bool val);
 	void setZero(bool val);
 
-	template <typename T>
-	T getLEBytes(u16& addr, bool increase);
+	template <typename T, bool increase>
+	T getLEBytes(u16& addr);
 
 	// get the next PC byte(s)
 	template <typename T>

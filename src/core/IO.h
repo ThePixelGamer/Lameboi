@@ -3,7 +3,7 @@
 #include "util/Common.h"
 #include "util/Types.h"
 
-struct Gameboy;
+class Gameboy;
 
 class IO {
 	Gameboy& gb;

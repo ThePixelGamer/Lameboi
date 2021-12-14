@@ -45,6 +45,10 @@ struct Color {
 	float* data() {
 		return &r;
 	}
+
+	static u32 toInt(u8 _r, u8 _g, u8 _b) {
+		return (_r << 24) | (_g << 16) | (_b << 8);
+	}
 };
 
 using Palette = std::array<Color, 4>;

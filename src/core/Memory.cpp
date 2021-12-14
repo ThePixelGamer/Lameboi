@@ -37,6 +37,7 @@ void Memory::update() {
 	--dmaOffset;
 }
 
+// todo: template for debugger?
 u8 Memory::read(u16 loc) {
 	if (dmaOffset != 0 && loc < 0xFF00) {
 		if (dmaOffset <= 0xA0 && loc >= 0xFE00) {
@@ -71,10 +72,10 @@ u8 Memory::_read(u16 loc) {
 	u8 type = loc >> 12; //get top 4 bits
 
 	switch (type) {
-		case 0x0: 
+		case 0x0:
 			if (boot && (loc < 0x100)) { // loc < 0x100
 				return gb.bios[loc];
-			} 
+			}
 			[[fallthrough]];
 		
 		case 0x1: case 0x2: case 0x3:

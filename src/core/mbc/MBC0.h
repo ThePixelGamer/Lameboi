@@ -10,7 +10,7 @@ class MBC0 : public MBC {
 	std::array<u8, 0x2000> ERAM; // 0xA000
 
 public:
-	MBC0() : MBC() {
+	MBC0(const std::string& romPath_) : MBC(romPath_) {
 		bank0.fill(0);
 		bank1.fill(0);
 		ERAM.fill(0);

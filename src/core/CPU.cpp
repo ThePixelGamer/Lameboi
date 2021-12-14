@@ -91,7 +91,8 @@ void CPU::clean() {
 
 	haltBug = false;
 	lowPower = false;
-	handler = false;
+	handler = false; 
+	opcodeCycleCount = 0;
 }
 
 template<typename T, typename... Args>
@@ -167,6 +168,8 @@ void CPU::ExecuteOpcode() {
 	else {
 		handleInterrupts();
 	}
+
+	opcodeCycleCount = 0;
 
 	handlePrint();
 
@@ -510,23 +513,19 @@ void CPU::ExecuteOpcode() {
 		case 0xEA: write(nextBytes<u16>(), A); break; //LD (u16),A
 
 		case 0xF0: //LD A,(FF00+u8)
-			Load(A, mem.read_high(nextBytes<u8>()));
-			scheduler.newMCycle();
+			Load(A, readHigh(nextBytes<u8>()));
 			break; 
 
 		case 0xF2: //LD A,(FF00+C)
-			Load(A, mem.read_high(C));
-			scheduler.newMCycle();
+			Load(A, readHigh(C));
 			break; 
 		
 		case 0xE0: //LD (FF00+u8),A
-			mem.write_high(nextBytes<u8>(), A);
-			scheduler.newMCycle();
+			writeHigh(nextBytes<u8>(), A);
 			break;
 
 		case 0xE2: //LD (FF00+C),A
-			mem.write_high(C, A);
-			scheduler.newMCycle();
+			writeHigh(C, A);
 			break;
 
 		case 0xF3: IME = false; break; //DI
@@ -881,11 +880,29 @@ void CPU::write(u16 loc, u16 value) {
 	write(--loc, u8(value & 0xff));
 }
 
-template <typename T>
-T CPU::getLEBytes(u16& addr, bool increase) {
+u8 CPU::readHigh(u8 loc) {
+	u8 value = mem.read_high(loc);
+	scheduler.newMCycle();
+	return value;
+}
+
+void CPU::writeHigh(u8 loc, u8 value) {
+	mem.write_high(loc, value);
+	scheduler.newMCycle();
+}
+
+template <typename T, bool increase>
+T CPU::getLEBytes(u16& addr) {
 	T value = 0;
 	for (u16 currentByte = 0; currentByte < sizeof(T); ++currentByte) {
-		u16 newAddr = (increase) ? addr++ : (addr + currentByte);
+		// u16 newAddr = (increase) ? addr++ : (addr + currentByte);
+		u16 newAddr;
+		if constexpr (increase) {
+			newAddr = addr++;
+		}
+		else {
+			newAddr = addr + currentByte;
+		}
 
 		value += mem.read(newAddr) << (currentByte * 8);
 
@@ -896,12 +913,12 @@ T CPU::getLEBytes(u16& addr, bool increase) {
 
 template <typename T>
 T CPU::nextBytes() {
-	return getLEBytes<T>(PC, true);
+	return getLEBytes<T, true>(PC);
 }
 
 template <typename T>
 T CPU::readBytes(u16 addr) {
-	return getLEBytes<T>(addr, false);
+	return getLEBytes<T, false>(addr);
 }
 
 void CPU::Add(u16 in) {

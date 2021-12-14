@@ -1,5 +1,13 @@
 #pragma once
 
+#include <algorithm> //std::fill
+#include <chrono>
+#include <cmath>
+#include <fstream> //std::istream
+#include <memory>
+#include <set>
+#include <string>
+
 #include "Memory.h"
 #include "mbc/MBC.h"
 #include "CPU.h"
@@ -7,6 +15,7 @@
 #include "APU.h"
 #include "Interrupt.h"
 #include "Scheduler.h"
+#include "SpriteManager.h"
 #include "Debugger.h"
 
 #include "IO.h"
@@ -14,47 +23,55 @@
 #include "io/Timer.h"
 #include "io/SerialPort.h"
 
-#include <algorithm> //std::fill
-#include <chrono>
-#include <cmath>
-#include <iterator> //std::end
-#include <fstream> //std::istream
-#include <memory>
-#include <set>
-#include <string>
-#include <fmt/printf.h>
+#include "util/Log.h"
 
-struct Gameboy {
+// todo: add more context?
+struct RomContext {
+	std::string fileName;
+	std::string title; // 0x134 - 0x143, assuming not a cgb cartridge
+	CartridgeType cartType; // 0x147
+	u8 romSize; // 0x148, just uses the code
+	u8 ramSize; // 0x149, just uses the code
+	u16 checksum; // 0x14E-0x14F
+};
+
+class Gameboy {
+public:
+	// Internal
 	Memory mem;
 	std::array<u8, 0x100> bios;
 	std::unique_ptr<MBC> mbc;
 
+	Scheduler scheduler;
+	Interrupt interrupt;
+	SpriteManager spriteManager;
+
 	CPU cpu;
 	PPU ppu;
 	APU apu;
-	Interrupt interrupt;
 	IO io;
 	Joypad joypad;
 	Timer timer;
 	SerialPort serial;
 
-	Scheduler scheduler;
-
+	RomContext romContext;
 	Debugger debug;
 	std::ofstream log;
 
-	//Local Variables
-	bool running = false;
-	bool finished = true;
-	std::condition_variable emustart;
-	std::mutex emustart_m;
+	// Threading
+	std::mutex emuM;
+	std::condition_variable emuCV;
+	std::atomic_bool threadRun = true;
+	std::atomic_bool emuRun = false;
+	bool emuDone = true;
 
 	Gameboy() :
 		mem(*this),
 		scheduler(*this),
 		interrupt(),
+		spriteManager(ppu, romContext, mem.boot),
 		cpu(mem, scheduler, interrupt),
-		ppu(interrupt),
+		ppu(interrupt, spriteManager),
 		apu(),
 		io(*this),
 		joypad(interrupt),
@@ -65,67 +82,23 @@ struct Gameboy {
 		mbc = nullptr;
 	}
 
-	bool LoadRom(std::istream& file) {
-		// doing this because it looks better in mem editor /shrug
-		std::ifstream f_bios("D:/dmg_boot.bin", std::ifstream::binary);
-		f_bios.read(reinterpret_cast<char*>(bios.data()), 0x100);
-		f_bios.close();
+	bool loadBios(const std::string& biosPath);
+	bool loadRom(const std::string& romPath);
 
-		u8 type = file.seekg(0x147).get(); //get mbc type
-		file.seekg(0); //reset ifstream position
-		
-		mbc = MBC::createInstance(type);
-		if (mbc == nullptr) {
-			bios.fill(0xFF);
-			return false;
-		}
+	// todo: better comments :/
 
-		mbc->setup(file);
-		log.open("log.txt");
-		return true;
-	}
+	// rom is loaded, continue running in thread
+	void start();
 
-	void Start() {
-		finished = false;
-		running = true;
+	// check to see if thread is running, "close" if so
+	void stop();
 
-		while(running) {
-			for (size_t steps = debug.amountToStep(cpu.PC); steps > 0; --steps) {
-				if (!running) {
-					break;
-				}
-				
-				cpu.ExecuteOpcode();
-				
-				/*
-				if (mem.serialControl.transferStart) {
-					std::cout << mem.serialData;
-					mem.serialControl.transferStart = 0;
-				}
-				*/
-			}
-		}
+	// ignore the check, "close" the thread
+	void close();
 
-		fmt::printf("----------------------------------------------------\n");
-		
-		{
-			std::unique_lock lock(emustart_m);
-			finished = true;
-			emustart.notify_one();
-		}
+	// the main thread function
+	void run();
 
-		// write any ram to a file if the mbc needs to
-		if (mbc) {
-			mbc->close();
-		}
-
-		bios.fill(0xFF);
-
-		mem.clean();
-		cpu.clean();
-		ppu.clean();
-		apu.clean();
-		log.close();
-		timer.clean();
-	}
+private:
+	void clean();
 };

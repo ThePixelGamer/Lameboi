@@ -1,8 +1,8 @@
 #pragma once
 
-#include <array>
 #include <map>
 #include <string>
+#include <vector>
 
 #include "util/Color.h"
 #include "util/Settings.h"
@@ -11,9 +11,12 @@
 using PaletteProfile = std::map<std::string, Palette>;
 
 struct Config {
+	static constexpr size_t maxRecentSize = 10;
+
 	// General
 	Setting<bool> inputOverlay{ true };
 	Setting<std::string> biosPath{ "dmg_boot.bin" }; // should resolve to a full directory when saving
+	Setting<std::vector<std::string>> recentRoms{ {} };
 
 	// Video
 	Setting<std::string> currentPalette{ "default" };
@@ -23,7 +26,7 @@ struct Config {
 	} };
 
 	// Audio
-	Setting<float> volume{ 0.1f };
+	Setting<int> volume{ 10 };
 	Setting<bool> audioSync{ true };
 
 	// Input

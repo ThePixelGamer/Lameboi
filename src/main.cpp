@@ -6,59 +6,75 @@
 #include <vector>
 
 #include "core/Gameboy.h"
+#include "core/Input.h"
 
-#include "frontend/DisplayWindow.h"
 #include "frontend/DebugWindow.h"
-#include "frontend/MainWindow.h"
+#include "frontend/DisplayWindow.h"
+#include "frontend/SettingsWindow.h"
+#include "frontend/ViewportWindow.h"
 #include "frontend/MainMenu.h"
 
-#include "util/GLFWLoader.h"
-#include "util/SDLHeaders.h"
+#include "util/SDLInterface.h"
+
+void createDirectory(std::string folder) {
+	if (!std::filesystem::exists(folder)) {
+		std::filesystem::create_directories(folder);
+	}
+}
 
 int main(int, char**) {
-	GLFWLoader loader;
+	SDLInterface loader;
 	if (!loader.init()) {
 		return 1;
 	}
 
-	SDLHandle sdl;
+	Gameboy* gb = new Gameboy;
 
-	auto gb = std::make_shared<Gameboy>();
-
-	ui::DisplayWindow display(gb, loader.window);
-	ui::DebugWindow debug(gb);
-	ui::InputWindow input(gb);
-	ui::MainWindow lameboi(gb);
-	ui::MainMenu menubar(gb, debug.show, input.show);
+	ui::DisplayWindow display(*gb);
+	ui::DebugWindow debug(*gb);
+	ui::SettingsWindow settings(*gb);
+	ui::ViewportWindow viewport;
+	ui::MainMenu menubar(*gb, { display.show, viewport.show, debug.show, settings.show, loader });
 
 	// create basic files/folders
-	if (!std::filesystem::exists("saves")) {
-		std::filesystem::create_directories("saves");
-	}
+	createDirectory("saves");
+	createDirectory("profiles");
+	createDirectory("profiles/bios");
+	createDirectory("profiles/game");
+
+	LB_INFO(Frontend, "Working directory is {}", std::filesystem::current_path().string());
 
 	// Main loop
 	while(loader.run()) {
 		loader.newFrame();
 
+		ImGui::ShowDemoWindow();
 
-		lameboi.render();
+		// Display Formats (2D screen or voxel rendering)
+		viewport.render();
 		display.render();
 
 		// Gameboy Debug Stuff
 		debug.render();
-
-		input.render();
-
+		settings.render();
+		
 		menubar.render();
 
-		//render imgui and push it the screen
+		// render imgui
 		loader.render();
 	}
 
-	if (gb->running && gb->mbc) {
-		gb->running = false;
-		gb->mbc->close();
+	gb->threadRun = false;
+	// is this the best place for this?
+	if (!gb->emuRun) {
+		std::lock_guard lk(gb->emuM);
+		gb->emuDone = false;
+		gb->emuCV.notify_one();
 	}
-	
+	gb->stop();
+	delete gb;
+
+	inputManager.close();
+
 	return 0;
 }
