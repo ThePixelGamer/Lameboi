@@ -7,8 +7,8 @@
 APU::APU() {
 	clean();
 
-	noiseWav.setNumChannels(channels);
-	noiseWav.setNumSamplesPerChannel(samples);
+	//noiseWav.setNumChannels(channels);
+	//noiseWav.setNumSamplesPerChannel(samples);
 
 	SDL_AudioSpec spec;
 	SDL_zero(spec);
@@ -40,7 +40,7 @@ void APU::clean() {
 	control.reset();
 
 	//noiseWav.save("gb-ch4.wav");
-	wavePos = 0;
+	//wavePos = 0;
 }
 
 // called every 1mhz by the cpu
@@ -59,7 +59,7 @@ void APU::update() {
 	// mix samples and push it to the buffer
 	{
 		size_t offset = bufferOffset * channels;
-		size_t wavOffset = bufferOffset + (wavePos * samples);
+		//size_t wavOffset = bufferOffset + (wavePos * samples);
 
 		float volume = 0.0f;
 		u8 activeChannelCount = control.channel1On + control.channel2On + control.channel3On + control.channel4On;
@@ -103,7 +103,7 @@ void APU::update() {
 	if (bufferOffset >= samples) {
 		bufferOffset = 0;
 
-		++wavePos;
+		//++wavePos;
 		//noiseWav.setNumSamplesPerChannel((wavePos + 1) * samples);
 
 		uint32_t len = samples * channels * sizeof(float);

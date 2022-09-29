@@ -14,23 +14,33 @@ namespace ui {
 	class BGMapWindow;
 }
 
+class Gameboy;
+class Memory;
+class Debugger;
 class SpriteManager;
 class Interrupt;
 
-class PPU {
-public:
+struct Pixel {
 	static constexpr u64 INVALID_ID = static_cast<u64>(-1);
 
-	struct Pixel {
-		u8 data = 0; // 2-bit
-		//u16 id; // 2-bytes
-		u64 hash = INVALID_ID; // 8-bytes
-		u8 x = 0; // 4-bit
-		u8 y = 0; // 4-bit
-	};
+	// gb paletted color
+	u8 color = 0; // 2-bit
+
+	PaletteData palette;
+	u64 hash = INVALID_ID; // 8-bytes
+	u8 x = 0; // 4-bit
+	u8 y = 0; // 4-bit
+	bool inBios = false;
+};
+
+class PPU {
+public:
+	static Pixel DefaultPixel;
 
 	struct Framebuffer {
 		std::vector<u64> hashes;
+
+		// todo: separate cg and raw color displays
 		std::array<Pixel, 160 * 144> pixels;
 	};
 
@@ -41,6 +51,8 @@ private:
 	friend ui::BGMapWindow;
 	friend SpriteManager;
 
+	Memory& mem;
+	Debugger& debug;
 	Interrupt& interrupt;
 
 	//regs
@@ -121,7 +133,7 @@ public:
 		Drawing
 	};
 
-	PPU(Interrupt& interrupt, SpriteManager& tileData);
+	PPU(Gameboy& gb);
 
 	void clean();
 	void update();
@@ -137,8 +149,10 @@ public:
 	u8 readOAM(u8 offset);
 	void writeOAM(u8 offset, u8 value, bool force = false);
 
+	void render(std::array<u32, 160 * 144>& display);
 	void dumpBGMap(std::array<u32, 256 * 256>& bgmap, bool bgMap, bool tileSet);
 	void dumpTileMap(std::array<u32, 128 * 64 * 3>& tilemap);
+	void dumpTiles(std::array<u32, 32 * 8 * 32 * 8>& tiles, u32 x1, u32 y1, u32 x2, u32 y2, u32 w, u32 h);
 	void dumpSprites(std::array<u32, 64 * 40>& sprites);
 
 private:

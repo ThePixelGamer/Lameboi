@@ -2,18 +2,26 @@
 
 #include <algorithm>
 
-void RenderTexture::render(float zoom_mult, bool grid, DrawCallback extraCallback) {
+void RenderTexture::render(float zoom_mult) {
+	float adjWidth = width * v.x * zoom_mult;
+	float adjHeight = height * v.y * zoom_mult;
+
+	ImGui::Image(_getTextureId(), ImVec2(adjWidth, adjHeight), u, v);
+}
+
+std::tuple<bool, u32, u32> RenderTexture::render(float zoom_mult, bool grid, DrawCallback extraCallback) {
 	ImGuiIO& io = ImGui::GetIO();
 	float adjWidth = width * zoom_mult;
 	float adjHeight = height * zoom_mult;
 
-	if (!name.empty())
-		ImGui::Text("%s: %dx%d", name.c_str(), u32(adjWidth), u32(adjHeight));
-
-	ImGui::Image(_getTextureId(), ImVec2(adjWidth, adjHeight));
+	bool clicked = ImGui::ImageButton(_getTextureId(), ImVec2(adjWidth, adjHeight), u, v, 0);
 
 	ImVec2 topleft = ImGui::GetItemRectMin();
 	ImVec2 bottomright = ImGui::GetItemRectMax();
+
+	float region_sz = 8.0f * zoom_mult; //region = 8x8 area
+	u32 region_x = std::clamp((io.MousePos.x - topleft.x) / region_sz, 0.0f, adjWidth);
+	u32 region_y = std::clamp((io.MousePos.y - topleft.y) / region_sz, 0.0f, adjHeight);
 
 	if (grid) {
 		float line_dist = 8.0f * zoom_mult;
@@ -30,10 +38,7 @@ void RenderTexture::render(float zoom_mult, bool grid, DrawCallback extraCallbac
 			ImGui::BeginTooltip();
 
 			constexpr float zoom = 4.0f;
-			float region_sz = 8.0f * zoom_mult; //region = 8x8 area
 
-			u32 region_x = std::clamp((io.MousePos.x - topleft.x) / region_sz, 0.0f, adjWidth);
-			u32 region_y = std::clamp((io.MousePos.y - topleft.y) / region_sz, 0.0f, adjHeight);
 			ImVec2 uv0 = ImVec2((region_x * region_sz) / adjWidth, (region_y * region_sz) / adjHeight);
 			ImVec2 uv1 = ImVec2(((region_x + 1.0f) * region_sz) / adjWidth, ((region_y + 1.0f) * region_sz) / adjHeight);
 
@@ -47,4 +52,11 @@ void RenderTexture::render(float zoom_mult, bool grid, DrawCallback extraCallbac
 	if (extraCallback) {
 		extraCallback(topleft, bottomright, zoom_mult);
 	}
+
+	return { clicked, region_x, region_y };
+}
+
+void RenderTexture::setSize(float w, float h) {
+	v.x = w / width;
+	v.y = h / height;
 }

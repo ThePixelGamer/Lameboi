@@ -74,8 +74,8 @@ ViewportWindow::ViewportWindow() : shader("shaders/cube.vert", "shaders/cube.fra
 
 	stbi_set_flip_vertically_on_load(true); // tell stb_image.h to flip loaded texture's on the y-axis.
 
-	boxTexture = std::make_unique<ImageTexture>("C:/Users/Pixel/Pictures/Dev Stuff/container.jpg");
-	faceTexture = std::make_unique<ImageTexture>("C:/Users/Pixel/Pictures/Dev Stuff/awesomeface.png");
+	boxTexture = std::make_unique<ImageTexture>("D:/Pixel/Pictures/Dev Stuff/container.jpg");
+	faceTexture = std::make_unique<ImageTexture>("D:/Pixel/Pictures/Dev Stuff/awesomeface.png");
 
 	shader.use();
 	shader.setInt("boxTexture", 0);

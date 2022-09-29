@@ -69,9 +69,9 @@ public:
 		mem(*this),
 		scheduler(*this),
 		interrupt(),
-		spriteManager(ppu, romContext, mem.boot),
+		spriteManager(ppu, mem.boot),
 		cpu(mem, scheduler, interrupt),
-		ppu(interrupt, spriteManager),
+		ppu(*this),
 		apu(),
 		io(*this),
 		joypad(interrupt),
@@ -79,7 +79,7 @@ public:
 		serial(),
 		debug(mem) {
 		bios.fill(0xFF);
-		mbc = nullptr;
+		mbc.reset();
 	}
 
 	bool loadBios(const std::string& biosPath);

@@ -19,24 +19,36 @@ void DisplayWindow::render() {
 
 		// todo: open an issue for imgui to provide some sort of context for direction
 		if (g.NavInputSource == ImGuiInputSource_None) {
+			bool resized = true;
+			
 			// will break with ImGuiConfigFlags_NoMouseCursorChange
-			if (g.MouseCursor == ImGuiMouseCursor_ResizeEW) {
-				m = size.x;
-			}
-			else if (g.MouseCursor == ImGuiMouseCursor_ResizeNS) {
-				m = size.y;
+			switch (g.MouseCursor) {
+				case ImGuiMouseCursor_ResizeEW:
+					m = size.x;
+					break;
+
+				case ImGuiMouseCursor_ResizeNS:
+					m = size.y;
+					break;
+
+				case ImGuiMouseCursor_ResizeNWSE:
+				case ImGuiMouseCursor_ResizeNESW:
+					break;
+
+				default:
+					resized = false;
 			}
 
-			if (g.IO.KeyShift)
+			if (resized && g.IO.KeyShift)
 				m = std::round(m);
 		}
 		else {
 			ImVec2 nav_resize_delta;
 
 			if (g.NavInputSource == ImGuiInputSource_Keyboard && g.IO.KeyShift)
-				nav_resize_delta = ImGui::GetNavInputAmount2d(ImGuiNavDirSourceFlags_Keyboard, ImGuiInputReadMode_Down);
+				nav_resize_delta = ImGui::GetNavInputAmount2d(ImGuiNavDirSourceFlags_Keyboard, ImGuiNavReadMode_Down);
 			if (g.NavInputSource == ImGuiInputSource_Gamepad)
-				nav_resize_delta = ImGui::GetNavInputAmount2d(ImGuiNavDirSourceFlags_PadDPad, ImGuiInputReadMode_Down);
+				nav_resize_delta = ImGui::GetNavInputAmount2d(ImGuiNavDirSourceFlags_PadDPad, ImGuiNavReadMode_Down);
 
 			if (nav_resize_delta.x != 0.0f && nav_resize_delta.y != 0.0f) {
 				// m is already set
@@ -59,7 +71,7 @@ void DisplayWindow::render() {
 	ImGui::Begin("Lameboi", &show, ImGuiWindowFlags_NoScrollbar);
 
 	if (ImGui::Button("Stop")) {
-		gb.debug.continuing(false);
+		gb.debug.running = false;
 		gb.stop();
 	}
 
@@ -75,7 +87,7 @@ void DisplayWindow::render() {
 	display.update();
 
 	ImVec2 availSize = ImGui::GetContentRegionAvail();
-	display.render(std::max(std::min(availSize.x / displayWidth, availSize.y / displayHeight), 1.0f), false);
+	display.render(std::max(std::min(availSize.x / displayWidth, availSize.y / displayHeight), 1.0f));
 
 	// handle right click on image
 	ImGui::OpenPopupOnItemClick("display_context_popup", ImGuiMouseButton_Right);
@@ -92,27 +104,12 @@ void DisplayWindow::render() {
 
 void DisplayWindow::updateBuffer() {
 	std::unique_lock lock(ppu.vblank_m);
-	auto& ppuBuf = ppu.getBuffer();
 
-	for (size_t y = 0; y < 144; ++y) {
-		size_t arrY = y * 160;
-
-		for (size_t x = 0; x < 160; ++x) {
-			auto& pixel = ppuBuf.pixels[x + arrY];
-
-			if (!useCG || pixel.hash == PPU::INVALID_ID) {
-				displayBuf[x + arrY] = ppu.paletteColors[pixel.data];
-			}
-			else {
-				// todo: either clear the screen when bios -> game or use the bios as a fallback
-				auto& tile = ppu.spriteManager.getTile(pixel.hash);
-
-				size_t pixelIndex = (pixel.x + (pixel.y * 8)) * sizeof(u32);
-				u32 color = Color::toInt(tile.data[pixelIndex], tile.data[pixelIndex + 1], tile.data[pixelIndex + 2]) | tile.data[pixelIndex + 3];
-
-				displayBuf[x + arrY] = color;
-			}
-		}
+	if (useCG) {
+		ppu.spriteManager.render(displayBuf);
+	}
+	else {
+		ppu.render(displayBuf);
 	}
 }
 

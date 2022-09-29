@@ -4,14 +4,17 @@
 #include <iterator> //std::size
 
 #include "Config.h"
-#include "Interrupt.h"
-#include "SpriteManager.h"
+#include "Gameboy.h"
 #include "util/Common.h"
 #include "util/Log.h"
 
-PPU::PPU(Interrupt& interrupt, SpriteManager& spriteManager) :
-	interrupt(interrupt), 
-	spriteManager(spriteManager),
+Pixel PPU::DefaultPixel;
+
+PPU::PPU(Gameboy& gb) :
+	mem(gb.mem),
+	debug(gb.debug),
+	interrupt(gb.interrupt),
+	spriteManager(gb.spriteManager),
 	currentBuffer(&buffers[0]),
 	nextBuffer(&buffers[1]) {
 	clean();
@@ -50,7 +53,7 @@ void PPU::clean() {
 	// Internal
 	for (auto& displayBuf : buffers) {
 		displayBuf.hashes.resize(((160 / 8) + 2) * ((144 / 8) + 2)); // reserve enough space for a full screen of multiple tiles
-		displayBuf.pixels.fill({ 0b00, INVALID_ID, 0, 0 }); // white
+		displayBuf.pixels.fill(DefaultPixel); // white
 	}
 
 	renderSprites.fill(0);
@@ -226,7 +229,7 @@ void PPU::writeVRAM(u16 offset, u8 value) {
 
 	VRAM[offset] = value;
 
-	spriteManager.dump(offset >> 4);
+	spriteManager.writeIntercept(offset >> 4);
 
 	//fprintf(log, "Write to VRAM $%04X: $%02X\n", loc, value); //PSI's Logger
 }
@@ -305,6 +308,8 @@ void PPU::scanline() {
 				pixel.hash = hash;
 				pixel.x = lineX;
 				pixel.y = yOffset;
+				// this doesn't fix the issue, todo: track the writes in writeVRAM
+				pixel.inBios = mem.boot;
 			}
 			
 			if (xShift != 0) {
@@ -396,7 +401,7 @@ void PPU::scanline() {
 						setBit(rawLine[0], 7 - itX, s_c1);
 
 						// invalidate the pixel till we support sprites
-						line[itX].hash = PPU::INVALID_ID;
+						line[itX].hash = Pixel::INVALID_ID;
 					}
 				}
 			}
@@ -405,10 +410,14 @@ void PPU::scanline() {
 
 		for (u8 x = 0; x < 8; ++x) {
 			u8 color = (getBit(rawLine[1], 7 - x) << 1) | getBit(rawLine[0], 7 - x);
+			PaletteData& palette = (palettes[x]) ? *palettes[x] : BGP;
 
-			auto& pixel = nextBuffer->pixels[(LY * 160) + (tileX * 8) + x]; 
+			auto& pixel = nextBuffer->pixels[(LY * 160) + (tileX * 8) + x];
+			// custom graphics shenanigans
 			pixel = line[x];
-			pixel.data = (palettes[x]) ? (*palettes[x])[color] : BGP[color];
+			pixel.palette = palette;
+
+			pixel.color = palette[color];
 		}
 	}
 
@@ -563,6 +572,7 @@ void PPU::hblank() {
 void PPU::vblank() {
 	if (!vblankHelper) {
 		vblankHelper = true;
+		debug.inVblank = true;
 
 		interrupt.requestVblank = true;
 
@@ -616,6 +626,13 @@ std::array<u8, 2> PPU::_fetchTileLine(bool method8000, u8 yoffset, u8 tileoffset
 	};
 }
 
+void PPU::render(std::array<u32, 160 * 144>& display) {
+	for (size_t p = 0; p < 160 * 144; ++p) {
+		auto& pixel = currentBuffer->pixels[p];
+		display[p] = paletteColors[pixel.color];
+	}
+}
+
 //maybe add support for an auto option?
 void PPU::dumpBGMap(std::array<u32, 256 * 256>& outData, bool bgMap, bool tileSet) {
 	auto map = VRAM.begin() + ((bgMap) ? 0x1C00 : 0x1800);
@@ -638,6 +655,30 @@ void PPU::dumpTileMap(std::array<u32, 128 * 64 * 3>& outData) {
 
 			size_t rgbIndex = ((t / 16) * 128 * 8) + ((t % 16) * 8) + (i * 128);
 			rowHelper(outData, rgbIndex, top, bottom);
+		}
+	}
+}
+
+void PPU::dumpTiles(std::array<u32, 32 * 8 * 32 * 8>& outData, u32 x1, u32 y1, u32 x2, u32 y2, u32 w, u32 h) {
+	u32 tileOffset = 0;
+	u32 rowOffset = 0;
+
+	int tileEnd = x2 + 1 + (y2 * 16);
+	for (int t = x1 + (y1 * 16); t < tileEnd; ++t) {
+		size_t rgbTileIndex = (8 * tileOffset) + (32 * 8 * 8 * rowOffset);
+		for (int i = 0; i < 8; ++i) {
+			u8 top = VRAM[(t * 16ll) + (i * 2ll)];
+			u8 bottom = VRAM[(t * 16ll) + (i * 2ll) + 1];
+
+			size_t rgbIndex = rgbTileIndex + (32 * 8 * i);
+			rowHelper(outData, rgbIndex, top, bottom);
+		}
+
+		if (++tileOffset == w) {
+			tileOffset = 0;
+			if (++rowOffset == h) {
+				return;
+			}
 		}
 	}
 }

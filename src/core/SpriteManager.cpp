@@ -11,6 +11,7 @@
 #include "Gameboy.h"
 #include "PPU.h"
 #include "util/Common.h"
+#include "util/FileUtil.h"
 #include "util/Log.h"
 
 namespace fs = std::filesystem;
@@ -22,75 +23,15 @@ const std::array<u32, 4> indexColors = {
 	0x000000ff,
 };
 
-SpriteManager::SpriteManager(PPU& ppu, RomContext& romContext, bool& bios) : ppu(ppu), romContext(romContext), inBios(bios) {
+SpriteManager::SpriteManager(PPU& ppu, bool& bios) : ppu(ppu), inBios(bios) {
 	lastWrite = -1;
 
-	/*
-	for (auto& sprite : fs::directory_iterator("profiles/bios")) {
-		PixelData image;
-		u32 width, height;
-
-		unsigned error = lodepng::decode(image, width, height, sprite.path().string());
-		
-		// if there's an error, display it and skip
-		if (error) {
-			LB_ERROR(PPU, "decoder error {}: {}", error, lodepng_error_text(error));
-			continue;
-		}
-
-		// verify sprite is 8x8 (todo: remove this restriction?)
-		if ((width % 8) == 0 || (height % 8) == 0) {
-			continue;
-		}
-		
-		// todo: use transparency in custom sprite?
-		bool usesIndexColors = false;
-		for (int i = 0; i < (8 * 8); ++i) {
-			u32 color = Color::toInt(image[i * 4], image[(i * 4) + 1], image[(i * 4) + 2]) | 0xFF;
-
-			if (std::find(indexColors.begin(), indexColors.end(), color) == indexColors.end()) {
-				usesIndexColors = false;
-				break;
-			}
-		}
-
-		loadedBiosTiles[std::stoull(sprite.path().filename(), nullptr, 16)] = { image, usesIndexColors };
-	}
-	*/
-
 	loadProfile(loadedBiosTiles, "profiles/bios/");
-	loadProfile(loadedGameTiles, "profiles/Tetris (World) (Rev 1)/");
+}
 
-	for (auto& sprite : fs::directory_iterator("profiles/Tetris (World) (Rev 1)/raw/")) {
-		PixelData image;
-		u32 width, height;
-
-		unsigned error = lodepng::decode(image, width, height, sprite.path().string());
-
-		// if there's an error, display it and skip
-		if (error) {
-			LB_ERROR(PPU, "decoder error {}: {}", error, lodepng_error_text(error));
-			continue;
-		}
-
-		// verify sprite is 8x8 (todo: remove this restriction?)
-		if (width != 8 || height != 8) {
-			continue;
-		}
-
-		// todo: use transparency in custom sprite?
-		bool usesIndexColors = false;
-		for (int i = 0; i < (8 * 8); ++i) {
-			u32 color = Color::toInt(image[i * 4], image[(i * 4) + 1], image[(i * 4) + 2]) | 0xFF;
-
-			if (std::find(indexColors.begin(), indexColors.end(), color) == indexColors.end()) {
-				usesIndexColors = false;
-				break;
-			}
-		}
-
-		loadedGameTiles[std::stoull(sprite.path().filename(), nullptr, 16)] = { image, usesIndexColors };
-	}
+void SpriteManager::loadRom(RomContext& romContext) {
+	gameFolder = "profiles/" + romContext.fileName + "/";
+	loadProfile(loadedGameTiles, gameFolder);
 }
 
 /*
@@ -143,9 +84,39 @@ inline size_t hash_len_16(size_t __u, size_t __v) {
 	return __b;
 }
 
-// is this the best place to have this code?
 void SpriteManager::render(std::array<u32, 160 * 144>& display) {
+	for (size_t y = 0; y < 144; ++y) {
+		size_t arrY = y * 160;
 
+		for (size_t x = 0; x < 160; ++x) {
+			size_t p = x + arrY;
+			auto& pixel = ppu.getBuffer().pixels[p];
+
+			if (pixel.hash != Pixel::INVALID_ID) {
+				// todo: either clear the screen when bios -> game or use the bios as a fallback
+				auto& tile = ppu.spriteManager.getTile(pixel);
+				if (!tile.rawData) {
+					size_t pixelIndex = (pixel.x + (pixel.y * 8)) * sizeof(u32);
+					u32 color = Color::toInt(tile.data[pixelIndex], tile.data[pixelIndex + 1], tile.data[pixelIndex + 2]) | tile.data[pixelIndex + 3];
+
+					if (tile.usesIndexColors) {
+						for (u8 i = 0; i < indexColors.size(); ++i) {
+							if (indexColors[i] == color) {
+								color = ppu.paletteColors[pixel.palette[i]];
+								break;
+							}
+						}
+					}
+
+					display[p] = color;
+					continue;
+				}
+			}
+
+			// fallback if both the hash is invalid or the tile is raw
+			display[p] = ppu.paletteColors[pixel.color];
+		}
+	}
 }
 
 size_t SpriteManager::getTileHash(u16 tileOffset) {
@@ -161,6 +132,7 @@ SpriteManager::Tile SpriteManager::getTilePixels(u16 tileOffset) {
 	Tile tile;
 	tile.data.resize(8 * 8 * sizeof(u32));
 	tile.usesIndexColors = true;
+	tile.rawData = true;
 
 	for (int i = 0; i != 16; i += 2) {
 		u8 bottom = ppu.VRAM[tileOffset + i];
@@ -184,13 +156,12 @@ SpriteManager::Tile SpriteManager::getTilePixels(u16 tileOffset) {
 	return tile;
 }
 
-const SpriteManager::Tile& SpriteManager::getTile(u64 tileHash) {
-	
+const SpriteManager::Tile& SpriteManager::getTile(u64 hash, bool inBios) {
 	if (inBios) {
-		return loadedBiosTiles.at(tileHash);
+		return loadedBiosTiles.at(hash);
 	}
 	else {
-		auto tile = loadedGameTiles.find(tileHash);
+		auto tile = loadedGameTiles.find(hash);
 		if (tile != loadedGameTiles.end()) {
 			return tile->second;
 		}
@@ -200,44 +171,46 @@ const SpriteManager::Tile& SpriteManager::getTile(u64 tileHash) {
 	return fallbackTile;
 }
 
+const SpriteManager::Tile& SpriteManager::getTile(const Pixel& pixel) {
+	return getTile(pixel.hash, pixel.inBios);
+}
+
 // this function only "dumps" a tile when the game stops writing to that location 
 // (in our case we handle this through vram writes, hacky but fixes a lot of bugs from game optimizations)
-void SpriteManager::dump(u16 offsetIdx) {
-	// check to see if last write idx is in tile data
-	// todo: change this so that if the last vram write is a tile it won't be missed
-	// todo: use the source location for file structure
-	// todo: is there any situations where a game will purposely write to the same tile location twice?
-	if ((lastWrite != -1) && (offsetIdx != lastWrite) && (lastWrite < 0x180)) {
-		size_t tileHash = getTileHash(lastWrite << 4);
-		auto& loadedTiles = (inBios) ? loadedBiosTiles : loadedGameTiles;
+void SpriteManager::dump(size_t tileHash, TileMap& tileMap) {
+	if (tileMap.find(tileHash) == tileMap.end()) {
+		Tile tilePixels = getTilePixels(lastWrite << 4);
 
-		if (loadedTiles.find(tileHash) == loadedTiles.end()) {
-			Tile tilePixels = getTilePixels(lastWrite << 4);
+		std::stringstream ss;
+		ss << std::hex << tileHash;
+		std::string tileHashStr = ss.str();
 
-			std::stringstream ss;
-			ss << std::hex << tileHash;
-			std::string tileHashStr = ss.str();
+		LB_INFO(PPU, "[{}]: {}", lastWrite, tileHashStr);
+		tileMap.emplace(tileHash, tilePixels);
 
-			LB_INFO(PPU, "[{}]: {}", lastWrite, tileHashStr);
-			loadedTiles.emplace(tileHash, tilePixels);
+		// write vector to png
+		std::string folder = ((inBios) ? "profiles/bios" : gameFolder) + "/raw/";
+		unsigned error = lodepng::encode(folder + tileHashStr + ".png", tilePixels.data, 8, 8);
 
-			// write vector to png
-			std::string folder = ((inBios) ? "bios" : romContext.fileName) + "/raw/";
-			unsigned error = lodepng::encode("profiles/" + folder + tileHashStr + ".png", tilePixels.data, 8, 8);
-
-			// if there's an error, display it
-			if (error)
-				LB_ERROR(PPU, "encoder error {}: {}", error, lodepng_error_text(error));
-		}
+		// if there's an error, display it
+		if (error)
+			LB_ERROR(PPU, "encoder error {}: {}", error, lodepng_error_text(error));
 	}
-
-	lastWrite = offsetIdx;
 }
 
 void SpriteManager::writeIntercept(u16 offsetIdx) {
-	if (autoDumping) {
-		dump(offsetIdx);
+	// todo: rewrite logic
+	// todo: change this so that if the last vram write is a tile it won't be missed
+	// todo: is there any situations where a game will purposely write to the same tile location twice?
+	if ((lastWrite != -1) && (offsetIdx != lastWrite) && (lastWrite < 0x180)) {
+		size_t tileHash = getTileHash(lastWrite << 4);
+		auto& tileMap = (inBios) ? loadedBiosTiles : loadedGameTiles;
+
+		if (autoDumping) {
+			dump(tileHash, tileMap);
+		}
 	}
+	lastWrite = offsetIdx;
 
 	// 0x9800-0x9FFF
 	// todo: make a tilemap with "marks" for replacing tiles
@@ -249,6 +222,7 @@ void SpriteManager::writeIntercept(u16 offsetIdx) {
 void SpriteManager::loadProfile(std::map<size_t, Tile>& tilemap, const std::string& path) {
 	using json = nlohmann::json;
 
+	// parse texture packs
 	const std::string manifestPath = path + "manifest.json";
 	if (fs::exists(manifestPath) && !fs::is_empty(manifestPath)) {
 		std::fstream manifestFile(manifestPath);
@@ -261,6 +235,12 @@ void SpriteManager::loadProfile(std::map<size_t, Tile>& tilemap, const std::stri
 		json manifest;
 		manifestFile >> manifest;
 
+		// todo: add to ui
+		std::string root = path;
+		if (manifest.contains("options")) {
+			root += manifest["options"][0].get<std::string>() + "/";
+		}
+
 		if (!manifest.contains("sprites")) {
 			LB_ERROR(CG, "Manifest missing required sprites object.");
 			return;
@@ -270,7 +250,7 @@ void SpriteManager::loadProfile(std::map<size_t, Tile>& tilemap, const std::stri
 			PixelData image;
 			u32 width, height;
 
-			unsigned error = lodepng::decode(image, width, height, path + file + ".png");
+			unsigned error = lodepng::decode(image, width, height, root + file + ".png");
 
 			// if there's an error, display it and skip
 			if (error) {
@@ -284,7 +264,10 @@ void SpriteManager::loadProfile(std::map<size_t, Tile>& tilemap, const std::stri
 			}
 
 			if (sprite.is_string()) {
-				tilemap[std::stoull(sprite.get<std::string>(), nullptr, 16)] = { image, false };
+				auto& tile = tilemap[std::stoull(sprite.get<std::string>(), nullptr, 16)];
+				tile.data = image;
+				tile.usesIndexColors = imageIndexColors(image);
+				tile.rawData = false;
 			}
 			else if (sprite.is_object()) {
 				for (auto& [hash, uv] : sprite.items()) {
@@ -298,9 +281,51 @@ void SpriteManager::loadProfile(std::map<size_t, Tile>& tilemap, const std::stri
 						std::copy(it, it + (8 * sizeof(u32)), uvImage.begin() + (i * 8 * sizeof(u32)));
 					}
 
-					tilemap[std::stoull(hash, nullptr, 16)] = { uvImage, false };
+					auto& tile = tilemap[std::stoull(hash, nullptr, 16)];
+					tile.data = uvImage;
+					tile.usesIndexColors = imageIndexColors(uvImage);
+					tile.rawData = false;
 				}
 			}
 		}
 	}
+
+	// parse raw tiles to avoid future dumps
+	std::string rawPath = path + "raw/";
+	createDirectory(rawPath); // ensure no shenanigans
+	for (auto& sprite : fs::directory_iterator(rawPath)) {
+		PixelData image;
+		u32 width, height;
+
+		unsigned error = lodepng::decode(image, width, height, sprite.path().string());
+
+		// if there's an error, display it and skip
+		if (error) {
+			LB_ERROR(PPU, "decoder error {}: {}", error, lodepng_error_text(error));
+			continue;
+		}
+
+		// verify sprite is 8x8 (todo: remove this restriction?)
+		if (width != 8 || height != 8) {
+			continue;
+		}
+
+		auto& tile = loadedGameTiles[std::stoull(sprite.path().filename(), nullptr, 16)];
+		tile.data = image;
+		tile.usesIndexColors = imageIndexColors(image);
+		tile.rawData = true;
+	}
+}
+
+// todo: change logic? assumes 8x8 tile
+bool SpriteManager::imageIndexColors(const PixelData& image) {
+	for (int i = 0; i < (8 * 8); ++i) {
+		u32 color = Color::toInt(image[i * 4], image[(i * 4) + 1], image[(i * 4) + 2]) | 0xFF;
+
+		if (std::find(indexColors.begin(), indexColors.end(), color) == indexColors.end()) {
+			return false;
+		}
+	}
+
+	return true;
 }

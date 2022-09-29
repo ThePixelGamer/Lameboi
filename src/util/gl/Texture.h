@@ -18,4 +18,8 @@ public:
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, FilterValue);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, FilterValue);
 	}
+
+	~Texture() {
+		glDeleteTextures(1, &id);
+	}
 };

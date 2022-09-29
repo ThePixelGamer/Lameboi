@@ -17,8 +17,8 @@ void MainMenu::render() {
 		fileMenu->render();
 
 		if (ImGui::BeginMenu("Gameboy")) {
-			if (ImGui::MenuItem("Pause", nullptr, &paused)) {
-				gb.debug.continuing(!paused);
+			if (ImGui::MenuItem("Pause", nullptr, !gb.debug.running)) {
+				gb.debug.running = !gb.debug.running;
 			}
 
 			if (ImGui::MenuItem("Show Display")) {

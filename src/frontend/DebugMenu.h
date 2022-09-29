@@ -2,24 +2,19 @@
 
 #include "PPUMenu.h"
 
-class Gameboy;
+class Debugger;
 
 namespace ui {
 
 class DebugMenu {
-	Gameboy& gb;
+	Debugger& debug;
 
 	std::unique_ptr<PPUMenu> ppuMenu;
 
 	bool& showDebug;
 
 public:
-	DebugMenu(Gameboy& gb, bool& debug) :
-		gb(gb),
-		showDebug(debug) {
-
-		ppuMenu = std::make_unique<PPUMenu>(gb);
-	}
+	DebugMenu(Gameboy& gb, bool& debug);
 
 	void render();
 };

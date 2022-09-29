@@ -14,13 +14,8 @@
 #include "frontend/ViewportWindow.h"
 #include "frontend/MainMenu.h"
 
+#include "util/FileUtil.h"
 #include "util/SDLInterface.h"
-
-void createDirectory(std::string folder) {
-	if (!std::filesystem::exists(folder)) {
-		std::filesystem::create_directories(folder);
-	}
-}
 
 int main(int, char**) {
 	SDLInterface loader;

@@ -27,8 +27,8 @@ private:
 	SDL_AudioDeviceID audio_device;
 	std::array<float, samples * 2> sampleBuffer;
 
-	AudioFile<float> noiseWav;
-	size_t wavePos;
+	//AudioFile<float> noiseWav;
+	//size_t wavePos;
 
 	SoundControl control;
 

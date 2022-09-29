@@ -58,7 +58,7 @@ void FileMenu::openFile(const std::string& filename) {
 	if (gb.loadRom(filename)) {
 		fmt::print("Opened {}\n", filename);
 
-		gb.debug.continuing(!debugger_opened);
+		gb.debug.running = !debugger_opened;
 		gb.start();
 	}
 

@@ -4,12 +4,12 @@
 #include "debug/MemoryWindow.h"
 #include "debug/BreakpointsWindow.h"
 
-class Gameboy;
+class Debugger;
 
 namespace ui {
 
 class DebugWindow {
-	Gameboy& gb;
+	Debugger& debug;
 
 	CPUWindow cpuWindow;
 	MemoryWindow memWindow;
@@ -25,12 +25,7 @@ class DebugWindow {
 public:
 	bool show = false;
 
-	DebugWindow(Gameboy& gb) :
-		gb(gb),
-		cpuWindow(gb, show_cpu),
-		memWindow(gb, show_memory),
-		breakpointsWindow(gb, show_breakpoints)
-	{}
+	DebugWindow(Gameboy& gb);
 
 	void render();
 };

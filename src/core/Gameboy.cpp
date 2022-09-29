@@ -50,6 +50,7 @@ bool Gameboy::loadRom(const std::string& romPath) {
 	mbc->setup(romFile);
 	romFile.close();
 	log.open("log.txt");
+	spriteManager.loadRom(romContext);
 	return true;
 }
 
@@ -85,6 +86,14 @@ void Gameboy::run() {
 			for (size_t steps = debug.amountToStep(cpu.PC); emuRun && (steps > 0); --steps) {
 				cpu.ExecuteOpcode();
 
+				// todo: improve
+				if (debug.vblankStep) {
+					if (debug.inVblank) {
+						debug.inVblank = false;
+						debug.vblankStep = false;
+						debug.running = false;
+					}
+				}
 				/*
 				if (mem.serialControl.transferStart) {
 					std::cout << mem.serialData;
@@ -119,6 +128,7 @@ void Gameboy::clean() {
 	// write any ram to a file if the mbc needs to
 	if (mbc) {
 		mbc->close();
+		mbc.reset();
 	}
 
 	mem.clean();

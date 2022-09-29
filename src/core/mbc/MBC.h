@@ -46,7 +46,7 @@ public:
 
 protected:
 	MBC(const std::string& romPath_, bool ram_ = false, bool battery_ = false) :
-		romPath("saves/" + romPath + ".sav"),
+		romPath("saves/" + romPath_ + ".sav"),
 		ram(ram_),
 		battery(battery_) 
 	{}

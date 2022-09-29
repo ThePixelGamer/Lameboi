@@ -5,6 +5,13 @@
 
 namespace ui {
 
+DebugWindow::DebugWindow(Gameboy& gb) :
+	debug(gb.debug),
+	cpuWindow(gb, show_cpu),
+	memWindow(gb, show_memory),
+	breakpointsWindow(gb, show_breakpoints)
+{}
+
 void DebugWindow::render() {
 	if (show) {
 		ImGui::Begin("Debugger", &show);
@@ -23,13 +30,18 @@ void DebugWindow::render() {
 		breakpointsWindow.render();
 
 		if (ImGui::Button("Step 1")) {
-			gb.debug.step(1);
+			debug.step(1);
 		}
 
 		if (ImGui::Button("Step")) {
-			gb.debug.step(steps);
+			debug.step(steps);
 		}
 		ImGui::SameLine(); ImGui::InputScalar("", ImGuiDataType_U64, &steps, &step);
+
+		if (ImGui::Button("Step Frame")) {
+			debug.running = true;
+			debug.vblankStep = true;
+		}
 
 		ImGui::Checkbox("Show PPU Window", &PPU::windowEnabled);
 		ImGui::Checkbox("Show PPU Sprites", &PPU::spritesEnabled);

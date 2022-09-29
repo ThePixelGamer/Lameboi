@@ -24,7 +24,6 @@ endif()
 include_directories(
     "${PROJECT_SOURCE_DIR}/lib/PFD"
     "${PROJECT_SOURCE_DIR}/lib/imgui"
-    "${PROJECT_SOURCE_DIR}/lib/stb"
 )
 
 find_package(fmt CONFIG REQUIRED)
@@ -35,7 +34,7 @@ find_package(lodepng CONFIG REQUIRED)
 find_package(nlohmann_json CONFIG REQUIRED)
 find_package(SDL2 CONFIG REQUIRED)
 
-find_path(STB_INCLUDE_DIRS "stb.h")
+find_path(STB_INCLUDE_DIRS "stb_c_lexer.h")
 
 file(GLOB_RECURSE SRC_LIST "src/*.cpp")
 file(GLOB_RECURSE INCLUDE_LIST "src/*.h")

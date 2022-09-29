@@ -41,7 +41,7 @@ struct PaletteData {
 		return !(*this == pal);
 	}
 
-	u8 operator[](u8 idx) {
+	u8 operator[](u8 idx) const {
 		switch (idx) {
 			case 0: return color0;
 			case 1: return color1;

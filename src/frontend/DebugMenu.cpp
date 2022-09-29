@@ -2,11 +2,18 @@
 
 namespace ui {
 
+DebugMenu::DebugMenu(Gameboy& gb, bool& showDebug) :
+	debug(gb.debug),
+	showDebug(showDebug) {
+
+	ppuMenu = std::make_unique<PPUMenu>(gb);
+}
+
 void DebugMenu::render() {
 	if (ImGui::BeginMenu("Debug")) {
 		if (ImGui::MenuItem("Show Debugger")) {
 			showDebug = true;
-			gb.debug.continuing(false);
+			debug.running = false;
 		}
 
 		ppuMenu->render();

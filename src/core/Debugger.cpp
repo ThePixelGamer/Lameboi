@@ -17,15 +17,6 @@ std::set<u16>& Debugger::getBreakpoints() {
 	return breakpoints;
 }
 
-void Debugger::continuing(bool cont) {
-	canContinue = cont;
-}
-
-// to prevent the Show Debugger button from stopping the continue after hiding
-bool Debugger::isContinuing() {
-	return canContinue;
-}
-
 void Debugger::step(size_t steps_) {
 	isStepping = true;
 	steps = steps_;
@@ -34,18 +25,18 @@ void Debugger::step(size_t steps_) {
 size_t Debugger::amountToStep(u16 PC) {
 	if (!breakpoints.empty()) {
 		if (breakpoints.find(PC) != breakpoints.end()) {
-			continuing(false);
+			running = false;
 			return 0;
 		}
 	}
 
 	if (isStepping) {
-		canContinue = false; //don't continue after stepping
+		running = false; //don't continue after stepping
 		isStepping = false;
 		return steps;
 	}
 
-	if (canContinue) {
+	if (running) {
 		return 1;
 	}
 
