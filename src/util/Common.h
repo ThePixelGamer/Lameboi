@@ -20,3 +20,25 @@ constexpr void setBit(u8& byte, u8 bit, u8 val) {
 	byte &= ~(1 << bit);
 	byte |= val << bit;
 }
+
+// todo: move
+struct Pos2 {
+	u32 x, y;
+
+	bool operator==(const Pos2& rhs) const {
+		return x == rhs.x && y == rhs.y;
+	}
+
+	bool operator!=(const Pos2& rhs) const {
+		return !(*this == rhs);
+	}
+
+	bool operator<(const Pos2& rhs) const {
+		return x < rhs.x && y < rhs.y;
+	}
+
+	friend void swap(Pos2& lhs, Pos2& rhs) {
+		std::swap(lhs.x, rhs.x);
+		std::swap(lhs.y, rhs.y);
+	}
+};

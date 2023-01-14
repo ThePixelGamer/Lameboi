@@ -3,22 +3,11 @@
 #include "util/Types.h"
 
 struct Sprite {
-	u8 xPos, yPos, tile;
-	bool useOBP1;
-	bool xFlip, yFlip;
-	bool behindBG;
-	u8 lowerX3Byte;
-
-	Sprite() :
-		xPos(0),
-		yPos(0),
-		tile(0), 
-		useOBP1(false),
-		xFlip(false),
-		yFlip(false),
-		behindBG(false),
-		lowerX3Byte(0)
-	{}
+	u8 xPos = 0, yPos = 0, tile = 0;
+	bool useOBP1 = false;
+	bool xFlip = false, yFlip = false;
+	bool behindBG = false;
+	u8 lowerX3Byte = 0;
 
 	u8 read(u8 reg) {
 		switch (reg) {

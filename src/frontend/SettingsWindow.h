@@ -41,6 +41,7 @@ private:
 	void renderGeneralTab();
 	void renderVideoTab();
 	void renderInputTab();
+	void renderGfxTab();
 };
 
 } // namespace ui

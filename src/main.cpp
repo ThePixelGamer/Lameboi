@@ -35,7 +35,7 @@ int main(int, char**) {
 	createDirectory("saves");
 	createDirectory("profiles");
 	createDirectory("profiles/bios");
-	createDirectory("profiles/game");
+	createDirectory("profiles/raw");
 
 	LB_INFO(Frontend, "Working directory is {}", std::filesystem::current_path().string());
 

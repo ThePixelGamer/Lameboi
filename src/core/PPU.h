@@ -9,6 +9,7 @@
 #include "ppu/Sprite.h"
 #include "util/Color.h"
 #include "util/Types.h"
+#include "util/Common.h"
 
 namespace ui {
 	class BGMapWindow;
@@ -47,14 +48,11 @@ public:
 	SpriteManager& spriteManager;
 
 private:
-	//SCX and SCY
-	friend ui::BGMapWindow;
-	friend SpriteManager;
-
 	Memory& mem;
 	Debugger& debug;
 	Interrupt& interrupt;
 
+public:
 	//regs
 	std::array<u8, 0x2000> VRAM; //0x8000
 	std::array<Sprite, 40> sprites; //0xFE00
@@ -77,8 +75,11 @@ private:
 		u8 oamInterrupt : 1;
 		u8 lycInterrupt : 1;
 	} STAT;
+
 	u8 SCY; //0xFF42 Scroll Y
 	u8 SCX; //0xFF43 Scroll X
+	
+private:
 	u8 LY; //0xFF44 LCDC Y-Coord
 	u8 LYC; //0xFF45 LY Compare
 	PaletteData BGP; //0xFF47 BG Palette Data
@@ -152,6 +153,7 @@ public:
 	void render(std::array<u32, 160 * 144>& display);
 	void dumpBGMap(std::array<u32, 256 * 256>& bgmap, bool bgMap, bool tileSet);
 	void dumpTileMap(std::array<u32, 128 * 64 * 3>& tilemap);
+	void dumpBGMapTiles(std::array<u32, 32 * 8 * 32 * 8>& tiles, Pos2 min, Pos2 max, bool bgMap, bool tileSet);
 	void dumpTiles(std::array<u32, 32 * 8 * 32 * 8>& tiles, u32 x1, u32 y1, u32 x2, u32 y2, u32 w, u32 h);
 	void dumpSprites(std::array<u32, 64 * 40>& sprites);
 

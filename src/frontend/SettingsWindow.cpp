@@ -47,6 +47,10 @@ void SettingsWindow::render() {
 				renderInputTab();
 				ImGui::EndTabItem();
 			}
+			if (ImGui::BeginTabItem("CGfx")) {
+				renderGfxTab();
+				ImGui::EndTabItem();
+			}
 
 			ImGui::EndTabBar();
 		}
@@ -183,6 +187,55 @@ void SettingsWindow::renderInputTab() {
 	inputRemap(GB::A);
 	inputRemap(GB::Start);
 	inputRemap(GB::Select);
+}
+
+void manifestCombo(SpriteManager& spriteMgr, bool inBios) {
+	auto& manifest = spriteMgr.getManifest(inBios);
+	const char* combo = (inBios) ? "Bios Profile" : "Game Profile";
+
+	if (manifest.profiles.empty())
+		return;
+
+	auto& currentProfile = manifest.getCurrentProfile();
+	if (ImGui::BeginCombo(combo, currentProfile.name.c_str())) {
+		for (int i = 0; i < manifest.profiles.size(); ++i) {
+			auto& profile = manifest.profiles[i];
+
+			if (ImGui::Selectable(profile.name.c_str())) {
+				manifest.currentProfile = i;
+			}
+		}
+
+		ImGui::EndCombo();
+	}
+
+	combo = (inBios) ? "Bios Skin" : "Game Skin";
+
+	if (currentProfile.loadedSkins.empty())
+		return;
+
+	auto& skinName = currentProfile.getCurrentSkin().name;
+	if (skinName.empty())
+		return;
+	
+	if (ImGui::BeginCombo(combo, skinName.c_str())) {
+		for (int i = 0; i < currentProfile.loadedSkins.size(); ++i) {
+			auto& skin = currentProfile.loadedSkins[i];
+
+			if (ImGui::Selectable(skin.name.c_str())) {
+				currentProfile.currentSkin = i;
+			}
+		}
+
+		ImGui::EndCombo();
+	}
+}
+
+void SettingsWindow::renderGfxTab() {
+	auto& spriteMgr = gb.spriteManager;
+
+	manifestCombo(spriteMgr, true);
+	manifestCombo(spriteMgr, false);
 }
 
 } // namespace ui

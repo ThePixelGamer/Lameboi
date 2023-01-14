@@ -9,7 +9,7 @@ void RenderTexture::render(float zoom_mult) {
 	ImGui::Image(_getTextureId(), ImVec2(adjWidth, adjHeight), u, v);
 }
 
-std::tuple<bool, u32, u32> RenderTexture::render(float zoom_mult, bool grid, DrawCallback extraCallback) {
+std::tuple<bool, u32, u32> RenderTexture::render(float zoom_mult, bool grid, DrawCallback extraCallback, void* extraData) {
 	ImGuiIO& io = ImGui::GetIO();
 	float adjWidth = width * zoom_mult;
 	float adjHeight = height * zoom_mult;
@@ -50,7 +50,7 @@ std::tuple<bool, u32, u32> RenderTexture::render(float zoom_mult, bool grid, Dra
 	}
 
 	if (extraCallback) {
-		extraCallback(topleft, bottomright, zoom_mult);
+		extraCallback(extraData, topleft, bottomright, zoom_mult);
 	}
 
 	return { clicked, region_x, region_y };

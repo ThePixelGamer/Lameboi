@@ -29,10 +29,10 @@ public:
 	}
 
 	//pass this in to draw extra stuff
-	using DrawCallback = std::function<void(const ImVec2& topLeft, const ImVec2& bottomRight, float zoomMult)>;
+	using DrawCallback = std::function<void(void* data, const ImVec2& topLeft, const ImVec2& bottomRight, float zoomMult)>;
 
 	void render(float zoom_mult);
-	std::tuple<bool, u32, u32> render(float zoom_mult, bool grid, DrawCallback extraCallback = nullptr);
+	std::tuple<bool, u32, u32> render(float zoom_mult, bool grid, DrawCallback extraCallback = nullptr, void* extraData = nullptr);
 
 	void setSize(float w, float h);
 

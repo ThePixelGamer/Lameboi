@@ -229,9 +229,7 @@ void PPU::writeVRAM(u16 offset, u8 value) {
 
 	VRAM[offset] = value;
 
-	spriteManager.writeIntercept(offset >> 4);
-
-	//fprintf(log, "Write to VRAM $%04X: $%02X\n", loc, value); //PSI's Logger
+	spriteManager.writeIntercept(offset);
 }
 
 u8 PPU::readOAM(u8 offset) {
@@ -655,6 +653,22 @@ void PPU::dumpTileMap(std::array<u32, 128 * 64 * 3>& outData) {
 
 			size_t rgbIndex = ((t / 16) * 128 * 8) + ((t % 16) * 8) + (i * 128);
 			rowHelper(outData, rgbIndex, top, bottom);
+		}
+	}
+}
+
+void PPU::dumpBGMapTiles(std::array<u32, 32 * 8 * 32 * 8>& outData, Pos2 min, Pos2 max, bool bgMap, bool tileSet) {
+	auto map = VRAM.begin() + ((bgMap) ? 0x1C00 : 0x1800);
+
+	for (int ty = min.y; ty != max.y + 1; ++ty) {
+		for (int tx = min.x; tx != max.x + 1; ++tx) {
+			int t = tx + (ty * 32);
+			for (int y = 0; y < 8; ++y) {
+				auto tile = _fetchTileLine(tileSet, y, map[t]);
+
+				size_t rgbIndex = (ty - min.y) * (32 * 8 * 8) + (tx - min.x) * 8 + y * (32 * 8);
+				rowHelper(outData, rgbIndex, tile[0], tile[1]);
+			}
 		}
 	}
 }
