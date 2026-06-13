@@ -2,22 +2,23 @@
 
 #include <functional>
 #include <map>
+#include <string>
 
-#include <SDL.h>
+#include <SDL3/SDL.h>
 
 struct Gamepad {
-	SDL_GameController* controller;
+	SDL_Gamepad* controller;
 	const char* name;
 };
 
 struct Input {
 	SDL_Scancode key = SDL_SCANCODE_UNKNOWN;
-	SDL_GameControllerButton button = SDL_CONTROLLER_BUTTON_INVALID;
+	SDL_GamepadButton button = SDL_GAMEPAD_BUTTON_INVALID;
 
 	Input() = default;
-	Input(SDL_Scancode key_, SDL_GameControllerButton button_) : key(key_), button(button_) {}
+	Input(SDL_Scancode key_, SDL_GamepadButton button_) : key(key_), button(button_) {}
 	Input(SDL_Scancode key_) : key(key_) {}
-	Input(SDL_GameControllerButton button_) : button(button_) {}
+	Input(SDL_GamepadButton button_) : button(button_) {}
 };
 
 class InputManager {
@@ -50,8 +51,10 @@ public:
 		gamepadActive = false;
 		selectedPad = -1;
 
-		for (int joyIndex = 0; joyIndex < SDL_NumJoysticks(); ++joyIndex) {
-			addController(joyIndex);
+		int joyCount = 0;
+		SDL_JoystickID* controllers = SDL_GetJoysticks(&joyCount);
+		for (int i = 0; i < joyCount; ++i) {
+			addController(controllers[i]);
 		}
 	}
 
@@ -64,11 +67,11 @@ public:
 		return registerButtonHandler(name, std::bind(pm, obj, std::placeholders::_1));
 	}
 
-	void addController(int device);
+	void addController(SDL_JoystickID controller_id);
 	void removeController(int joyIndex);
 
 	void handleKey(SDL_KeyboardEvent key);
-	void handleButton(SDL_ControllerButtonEvent cbutton);
+	void handleButton(SDL_GamepadButtonEvent cbutton);
 
 	const std::map<int, Gamepad>& getControllers() {
 		return gamepads;

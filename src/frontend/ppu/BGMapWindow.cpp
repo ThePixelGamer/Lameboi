@@ -1,5 +1,7 @@
 #include "BGMapWindow.h"
 
+#include <lodepng.h>
+
 #include "core/Gameboy.h"
 #include "frontend/widgets/SquareResize.h"
 
@@ -147,14 +149,56 @@ void BGMapWindow::render() {
 			if (ImGui::BeginPopupModal(popupName, nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
 				dumpPreview.render(zoom);
 
-				ImGui::Text("Output Directory: %s", "");
+				auto& manifest = gb.spriteManager.getCurrentManifest();
+				auto& currentProfile = manifest.getCurrentProfile();
+				if (ImGui::BeginCombo("##current_profile", currentProfile.name.c_str())) {
+					for (int i = 0; i < manifest.profiles.size(); ++i) {
+						auto& profile = manifest.profiles[i];
 
-				ImGui::Separator();
-				if (ImGui::Button("Dump")) { 
-					ImGui::CloseCurrentPopup(); 
+						if (ImGui::Selectable(profile.name.c_str())) {
+							manifest.currentProfile = i;
+						}
+					}
+
+					ImGui::EndCombo();
 				}
 				ImGui::SameLine();
-				if (ImGui::Button("Cancel")) { ImGui::CloseCurrentPopup(); }
+
+				ImGui::InputText("##file", &dumpFile);
+
+				ImGui::Separator();
+				if (ImGui::Button("Dump")) {
+					if (!dumpFile.empty()) {
+						std::vector<u8> pixelData;
+						pixelData.resize(width * height * sizeof(u32));
+
+						for (int y = 0; y < height; ++y) {
+							for (int x = 0; x < width; ++x) {
+								u32 color = dumpPixels[x + (y * 32 * 8)];
+								int offset = (x * 4) + (y * width * 4);
+								pixelData[offset + 0] = color >> 24;
+								pixelData[offset + 1] = color >> 16;
+								pixelData[offset + 2] = color >> 8;
+								pixelData[offset + 3] = 0xFF; // alpha should be 0xFF in color;
+							}
+						}
+
+						const std::string folder = manifest.rootPath + currentProfile.name + "/";
+						unsigned error = lodepng::encode(folder + dumpFile + ".png", pixelData, width, height);
+
+						// if there's an error, display it
+						if (error)
+							LB_ERROR(PPU, "encoder error {}: {}", error, lodepng_error_text(error));
+
+						dumpFile = "";
+						ImGui::CloseCurrentPopup();
+					}
+				}
+				ImGui::SameLine();
+				if (ImGui::Button("Cancel")) {
+					dumpFile = "";
+					ImGui::CloseCurrentPopup(); 
+				}
 				
 				ImGui::EndPopup();
 			}

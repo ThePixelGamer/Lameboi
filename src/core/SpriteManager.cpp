@@ -287,7 +287,9 @@ void SpriteManager::loadProfile(Profile& profile, const std::string& localFolder
 }
 
 void SpriteManager::loadManifest(Manifest& manifest, const std::string& localFolder) {
-	for (auto& entry : fs::directory_iterator("profiles/" + localFolder)) {
+	manifest.rootPath = "profiles/" + localFolder;
+
+	for (auto& entry : fs::directory_iterator(manifest.rootPath)) {
 		if (entry.is_directory()) {
 			Profile profile = entry.path().filename().string();
 			LB_INFO(PPU, "Loaded {}", profile.name);
@@ -307,6 +309,6 @@ void SpriteManager::loadManifest(Manifest& manifest, const std::string& localFol
 			continue;
 		}
 
-		addTile(gameManifest.rawTiles, sprite.path().filename().string(), image, true);
+		addTile(manifest.rawTiles, sprite.path().filename().string(), image, true);
 	}
 }

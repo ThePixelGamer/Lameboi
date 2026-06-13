@@ -1,8 +1,8 @@
 #include "SDLInterface.h"
 
 #include "ImGuiHeaders.h"
-#include "GLHeaders.h"
-#include "imgui_impl_sdl.h"
+#include <glad/glad.h>
+#include "imgui_impl_sdl3.h"
 #include "imgui_impl_opengl3.h"
 
 #include "core/Input.h"
@@ -28,8 +28,8 @@ namespace ImGuiLayer {
 bool SDLInterface::init() {
 	SDL_SetHint(SDL_HINT_JOYSTICK_ALLOW_BACKGROUND_EVENTS, "1");
 
-	if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMECONTROLLER | SDL_INIT_AUDIO) != 0) {
-		SDL_Log("Unable to initialize SDL : %s", SDL_GetError());
+	if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMEPAD | SDL_INIT_AUDIO)) {
+		SDL_Log("Unable to initialize SDL: %s", SDL_GetError());
 		return false;
 	}
 
@@ -46,22 +46,21 @@ bool SDLInterface::init() {
 	SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
 	SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
 	SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 8);
-	SDL_WindowFlags window_flags = (SDL_WindowFlags)(SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI);
-	window = SDL_CreateWindow("lameboi", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 1280, 720, window_flags);
+	SDL_WindowFlags window_flags = (SDL_WindowFlags)(SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY);
+	window = SDL_CreateWindow("lameboi", 1280, 720, window_flags);
 	gl_context = SDL_GL_CreateContext(window);
 	SDL_GL_MakeCurrent(window, gl_context);
 	SDL_GL_SetSwapInterval(1); // Enable vsync
 
-	// todo: add support for other opengl loaders?
-	// Initialize gl3w
-	if (gl3wInit() != 0) {
-		fprintf(stderr, "Failed to initialize gl3w!\n");
+	int version = gladLoadGLLoader((GLADloadproc)SDL_GL_GetProcAddress);
+	if (version == 0) {
+		printf("Failed to initialize OpenGL context\n");
 		return false;
 	}
 
 	ImGuiLayer::Init();
 
-	ImGui_ImplSDL2_InitForOpenGL(window, gl_context);
+	ImGui_ImplSDL3_InitForOpenGL(window, gl_context);
 	ImGui_ImplOpenGL3_Init(glsl_version);
 
 	return true;
@@ -73,11 +72,11 @@ void SDLInterface::quit() {
 
 SDLInterface::~SDLInterface() {
 	ImGui_ImplOpenGL3_Shutdown();
-	ImGui_ImplSDL2_Shutdown();
+	ImGui_ImplSDL3_Shutdown();
 
 	ImGuiLayer::Destory();
 
-	SDL_GL_DeleteContext(gl_context);
+	SDL_GL_DestroyContext(gl_context);
 	SDL_DestroyWindow(window);
 	SDL_Quit();
 }
@@ -89,16 +88,16 @@ bool SDLInterface::run() {
 void SDLInterface::newFrame() {
 	SDL_Event e;
 	while (SDL_PollEvent(&e)) {
-		ImGui_ImplSDL2_ProcessEvent(&e);
+		ImGui_ImplSDL3_ProcessEvent(&e);
 		inputManager.processEvent(e);
 
 		switch (e.type) {
-			case SDL_QUIT:
+			case SDL_EVENT_QUIT:
 				done = true;
 				break;
 
-			case SDL_WINDOWEVENT:
-				if (e.window.event == SDL_WINDOWEVENT_CLOSE && e.window.windowID == SDL_GetWindowID(window)) {
+			case SDL_EVENT_WINDOW_CLOSE_REQUESTED:
+				if (e.window.windowID == SDL_GetWindowID(window)) {
 					done = true;
 				}
 				break;
@@ -107,7 +106,7 @@ void SDLInterface::newFrame() {
 
 	// Start the Dear ImGui frame
 	ImGui_ImplOpenGL3_NewFrame();
-	ImGui_ImplSDL2_NewFrame(window);
+	ImGui_ImplSDL3_NewFrame();
 	ImGui::NewFrame();
 }
 

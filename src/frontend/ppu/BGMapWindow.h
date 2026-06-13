@@ -29,6 +29,7 @@ class BGMapWindow {
 
 	std::array<u32, 32 * 8 * 32 * 8> dumpPixels;
 	RenderTexture dumpPreview;
+	std::string dumpFile = "";
 
 public:
 	BGMapWindow(Gameboy& gb, bool& show) :

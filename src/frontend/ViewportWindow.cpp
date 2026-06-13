@@ -154,27 +154,25 @@ void ViewportWindow::render() {
 	shader.use();
 
 	if (inFocus) {
-		const Uint8* state = SDL_GetKeyboardState(NULL);
+		const bool* state = SDL_GetKeyboardState(NULL);
 		const float cameraSpeed = 0.05f; // adjust accordingly
-		if (state[SDL_SCANCODE_W] == SDL_PRESSED)
+		if (state[SDL_SCANCODE_W])
 			cameraPos += cameraSpeed * cameraFront;
-		if (state[SDL_SCANCODE_S] == SDL_PRESSED)
+		if (state[SDL_SCANCODE_S])
 			cameraPos -= cameraSpeed * cameraFront;
-		if (state[SDL_SCANCODE_A] == SDL_PRESSED)
+		if (state[SDL_SCANCODE_A])
 			cameraPos -= glm::normalize(glm::cross(cameraFront, cameraUp)) * cameraSpeed;
-		if (state[SDL_SCANCODE_D] == SDL_PRESSED)
+		if (state[SDL_SCANCODE_D])
 			cameraPos += glm::normalize(glm::cross(cameraFront, cameraUp)) * cameraSpeed;
 
-		if (state[SDL_SCANCODE_ESCAPE] == SDL_PRESSED) {
-			SDL_SetRelativeMouseMode(SDL_FALSE);
+		if (state[SDL_SCANCODE_ESCAPE]) {
+			SDL_SetWindowRelativeMouseMode(NULL, false);
 			ImGui::GetIO().ConfigFlags &= ~ImGuiConfigFlags_NoMouseCursorChange;
 			inFocus = false;
 		}
 		else {
-			int xpos_ = 0, ypos_ = 0;
-			SDL_GetRelativeMouseState(&xpos_, &ypos_);
-			float xpos = (float)xpos_;
-			float ypos = (float)ypos_;
+			float xpos = 0, ypos = 0;
+			SDL_GetRelativeMouseState(&xpos, &ypos);
 
 			if (avoidReset) {
 				avoidReset = false;
@@ -245,8 +243,8 @@ void ViewportWindow::render() {
 	glDisable(GL_DEPTH_TEST); // disable depth test so screen-space quad isn't discarded due to depth test.
 	glBindTexture(GL_TEXTURE_2D, textureColorbuffer);
 
-	if (ImGui::ImageButton((ImTextureID)textureColorbuffer, ImVec2(internalWidth / 2.0f, internalHeight / 2.0f), ImVec2(0, 1), ImVec2(1, 0), 0)) {
-		SDL_SetRelativeMouseMode(SDL_TRUE);
+	if (ImGui::ImageButton("", (ImTextureID)textureColorbuffer, ImVec2(internalWidth / 2.0f, internalHeight / 2.0f), ImVec2(0, 1), ImVec2(1, 0))) {
+		SDL_SetWindowRelativeMouseMode(NULL, true);
 		ImGui::GetIO().ConfigFlags |= ImGuiConfigFlags_NoMouseCursorChange;
 		avoidReset = true;
 		inFocus = true;

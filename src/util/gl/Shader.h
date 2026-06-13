@@ -5,7 +5,7 @@
 
 #include <glm/glm.hpp>
 
-#include "util/GLHeaders.h"
+#include <glad/glad.h>
 #include "util/Log.h"
 
 class Shader {

@@ -6,27 +6,27 @@
 
 void InputManager::close() {
 	for (auto& [_, pad] : gamepads) {
-		SDL_GameControllerClose(pad.controller);
+		SDL_CloseGamepad(pad.controller);
 	}
 }
 
 void InputManager::processEvent(SDL_Event& e) {
 	switch (e.type) {
-		case SDL_CONTROLLERDEVICEADDED:
+		case SDL_EVENT_GAMEPAD_ADDED:
 			addController(e.cdevice.which);
 			break;
 
-		case SDL_CONTROLLERDEVICEREMOVED:
+		case SDL_EVENT_GAMEPAD_REMOVED:
 			removeController(e.cdevice.which);
 			break;
 
-		case SDL_CONTROLLERBUTTONDOWN:
-		case SDL_CONTROLLERBUTTONUP:
-			handleButton(e.cbutton);
+		case SDL_EVENT_GAMEPAD_BUTTON_DOWN:
+		case SDL_EVENT_GAMEPAD_BUTTON_UP:
+			handleButton(e.gbutton);
 			break;
 
-		case SDL_KEYDOWN:
-		case SDL_KEYUP:
+		case SDL_EVENT_KEY_DOWN:
+		case SDL_EVENT_KEY_UP:
 			handleKey(e.key);
 			break;
 
@@ -48,16 +48,15 @@ InputManager::InputData& InputManager::registerButtonHandler(const std::string& 
 	return inputMapping.emplace(name, InputData{ {}, callback }).first->second;
 }
 
-void InputManager::addController(int device) {
-	SDL_JoystickID controller_id = SDL_JoystickGetDeviceInstanceID(device);
-	if (controller_id < 0) {
-		LB_WARN(Input, "Couldn't get controller ID: {}\n", SDL_GetError());
+void InputManager::addController(SDL_JoystickID controller_id) {
+	if (controller_id == 0) {
+		LB_WARN(Input, "Invalid controller ID: {}\n", SDL_GetError());
 		return;
 	}
 
 	Gamepad pad{};
-	pad.name = SDL_JoystickNameForIndex(device);
-	pad.controller = SDL_GameControllerOpen(device);
+	pad.name = SDL_GetJoystickNameForID(controller_id);
+	pad.controller = SDL_OpenGamepad(controller_id);
 
 	if (!pad.controller) {
 		LB_WARN(Input, "Couldn't open gamecontroller {}: {}\n", pad.name, SDL_GetError());
@@ -74,7 +73,7 @@ void InputManager::addController(int device) {
 void InputManager::removeController(int joyIndex) {
 	auto it = gamepads.find(joyIndex);
 	if (it != gamepads.end()) {
-		SDL_GameControllerClose(it->second.controller);
+		SDL_CloseGamepad(it->second.controller);
 		gamepads.erase(it);
 
 		if (gamepads.empty()) {
@@ -84,69 +83,35 @@ void InputManager::removeController(int joyIndex) {
 }
 
 void InputManager::handleKey(SDL_KeyboardEvent key) {
-	SDL_Scancode keyInput = key.keysym.scancode;
-	Uint8 state = key.state;
+	SDL_Scancode keyInput = key.scancode;
 
 	for (auto& [name, data] : inputMapping) {
 		if (keyInput != data.input.key) {
 			continue;
 		}
 
-		bool down;
-		if (state == SDL_PRESSED) {
-			down = true;
-		}
-		else if (state == SDL_RELEASED) {
-			down = false;
-		}
-		else {
-			continue;
-		}
-
-		data.callback(down);
+		data.callback(key.down);
 	}
 
-	if (state == SDL_PRESSED) {
-		lastInput.key = keyInput;
-	}
-	else if (state == SDL_RELEASED) {
-		lastInput.key = SDL_SCANCODE_UNKNOWN;
-	}
+	lastInput.key = (key.down) ? keyInput : SDL_SCANCODE_UNKNOWN;
 }
 
-void InputManager::handleButton(SDL_ControllerButtonEvent cbutton) {
+void InputManager::handleButton(SDL_GamepadButtonEvent cbutton) {
 	if (!gamepadActive || selectedPad != cbutton.which) {
 		return;
 	}
 
-	auto buttonInput = static_cast<SDL_GameControllerButton>(cbutton.button);
-	Uint8 state = cbutton.state;
+	auto buttonInput = static_cast<SDL_GamepadButton>(cbutton.button);
 
 	for (auto& [name, data] : inputMapping) {
 		if (buttonInput != data.input.button) {
 			continue;
 		}
 
-		bool down;
-		if (state == SDL_PRESSED) {
-			down = true;
-		}
-		else if (state == SDL_RELEASED) {
-			down = false;
-		}
-		else {
-			continue;
-		}
-
-		data.callback(down);
+		data.callback(cbutton.down);
 	}
 
-	if (state == SDL_PRESSED) {
-		lastInput.button = buttonInput;
-	}
-	else if (state == SDL_RELEASED) {
-		lastInput.button = SDL_CONTROLLER_BUTTON_INVALID;
-	}
+	lastInput.button = (cbutton.down) ? buttonInput : SDL_GAMEPAD_BUTTON_INVALID;
 }
 
 const char* InputManager::getControllerName(int joyIndex) {
@@ -165,7 +130,7 @@ std::string InputManager::getButtonName(const char* buttonName) {
 	}
 
 	if (gamepadActive) {
-		return SDL_GameControllerGetStringForButton(inputMapping[buttonName].input.button);
+		return SDL_GetGamepadStringForButton(inputMapping[buttonName].input.button);
 	}
 	else {
 		return SDL_GetScancodeName(inputMapping[buttonName].input.key);
@@ -175,7 +140,7 @@ std::string InputManager::getButtonName(const char* buttonName) {
 // todo: improve this
 bool InputManager::remapButton(const char* buttonName) {
 	if (gamepadActive) {
-		if (lastInput.button == SDL_CONTROLLER_BUTTON_INVALID) {
+		if (lastInput.button == SDL_GAMEPAD_BUTTON_INVALID) {
 			return false;
 		}
 

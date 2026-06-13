@@ -18,7 +18,7 @@ void DisplayWindow::render() {
 		float m = std::max(size.x, size.y);
 
 		// todo: open an issue for imgui to provide some sort of context for direction
-		if (g.NavInputSource == ImGuiInputSource_None) {
+		if (g.ActiveIdSource == ImGuiInputSource_Mouse) {
 			bool resized = true;
 			
 			// will break with ImGuiConfigFlags_NoMouseCursorChange
@@ -46,9 +46,9 @@ void DisplayWindow::render() {
 			ImVec2 nav_resize_delta;
 
 			if (g.NavInputSource == ImGuiInputSource_Keyboard && g.IO.KeyShift)
-				nav_resize_delta = ImGui::GetNavInputAmount2d(ImGuiNavDirSourceFlags_Keyboard, ImGuiNavReadMode_Down);
+				nav_resize_delta = ImGui::GetKeyMagnitude2d(ImGuiKey_LeftArrow, ImGuiKey_RightArrow, ImGuiKey_UpArrow, ImGuiKey_DownArrow);
 			if (g.NavInputSource == ImGuiInputSource_Gamepad)
-				nav_resize_delta = ImGui::GetNavInputAmount2d(ImGuiNavDirSourceFlags_PadDPad, ImGuiNavReadMode_Down);
+				nav_resize_delta = ImGui::GetKeyMagnitude2d(ImGuiKey_GamepadDpadLeft, ImGuiKey_GamepadDpadRight, ImGuiKey_GamepadDpadUp, ImGuiKey_GamepadDpadDown);
 
 			if (nav_resize_delta.x != 0.0f && nav_resize_delta.y != 0.0f) {
 				// m is already set

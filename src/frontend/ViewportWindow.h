@@ -1,7 +1,7 @@
 #pragma once
 
 #include "util/ImGuiHeaders.h"
-#include "util/GLHeaders.h"
+#include <glad/glad.h>
 
 #include <array>
 #include <fstream>

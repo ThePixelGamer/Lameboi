@@ -37,7 +37,7 @@ public:
 	void setSize(float w, float h);
 
 private:
-	void* _getTextureId() {
-		return reinterpret_cast<ImTextureID>(static_cast<intptr_t>(id));
+	ImTextureID _getTextureId() {
+		return static_cast<ImTextureID>(static_cast<intptr_t>(id));
 	}
 };

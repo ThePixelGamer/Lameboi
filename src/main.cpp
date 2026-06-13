@@ -1,9 +1,5 @@
 #include <algorithm>
-#include <cstdio>
 #include <filesystem>
-#include <fstream>
-#include <sstream>
-#include <vector>
 
 #include "core/Gameboy.h"
 #include "core/Input.h"

@@ -2,15 +2,15 @@
 
 #include "core/Gameboy.h"
 
-#include "imgui_mem_editor.h"
+#include "imgui_memory_editor.h"
 
-inline ImU8 MemEditorRead(const ImU8* mem_, size_t offset) {
+inline ImU8 MemEditorRead(const ImU8* mem_, size_t offset, void* user_data) {
 	// maybe should make read const
 	auto* mem = reinterpret_cast<Memory*>(const_cast<ImU8*>(mem_));
 	return mem->read(static_cast<u16>(offset & 0xFFFF));
 }
 
-inline void MemEditorWrite(ImU8* mem_, size_t offset, ImU8 data) {
+inline void MemEditorWrite(ImU8* mem_, size_t offset, ImU8 data, void* user_data) {
 	auto* mem = reinterpret_cast<Memory*>(mem_);
 	mem->write(static_cast<u16>(offset & 0xFFFF), data);
 }

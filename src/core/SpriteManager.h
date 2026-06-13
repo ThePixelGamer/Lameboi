@@ -24,17 +24,24 @@ public:
 
 	using TileMap = std::map<u64, Tile>;
 
+	struct Sprite {
+
+	};
+
 	struct Skin {
-		TileMap map;
 		const std::string name;
+
+		TileMap map;
+		std::vector<Sprite> sprites;
 
 		Skin(const std::string& _name) : name(_name) {}
 	};
 
 	struct Profile {
+		const std::string name;
+
 		std::vector<Skin> loadedSkins;
 		size_t currentSkin = 0;
-		const std::string name;
 
 		Profile(const std::string& _name) : name(_name) {}
 
@@ -59,6 +66,7 @@ public:
 
 	struct Manifest {
 		TileMap rawTiles;
+		std::string rootPath;
 		std::vector<Profile> profiles;
 		size_t currentProfile = 0;
 
@@ -105,12 +113,11 @@ public:
 	void dumpTile(u16 tileOffset, TileMap& tileMap);
 	void writeIntercept(u16 offsetIdx);
 
+	Manifest& getCurrentManifest();
 	Manifest& getManifest(bool bios);
 	void dumpSprite();
 
 private:
-	Manifest& getCurrentManifest();
-
 	void loadProfile(Profile& profile, const std::string& path);
 	void loadManifest(Manifest& manifest, const std::string& path);
 };

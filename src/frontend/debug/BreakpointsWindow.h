@@ -28,7 +28,7 @@ namespace ui {
 					new_breakpoint = 0;
 				}
 
-				if (ImGui::ListBoxHeader("##breakpoints")) {
+				if (ImGui::BeginListBox("##breakpoints")) {
 					for (auto i = gb.debug.getBreakpoints().begin(); i != gb.debug.getBreakpoints().end();) {
 						std::stringstream ss;
 						ss << std::hex << *i;
@@ -43,7 +43,7 @@ namespace ui {
 						}
 					}
 
-					ImGui::ListBoxFooter();
+					ImGui::EndListBox();
 				}
 
 				ImGui::End();

@@ -6,7 +6,7 @@
 
 #include "stb_image.h"
 
-#include "util/GLHeaders.h"
+#include <glad/glad.h>
 #include "util/Log.h"
 
 ImageTexture::ImageTexture(const char* path) : Texture(GL_REPEAT, GL_LINEAR) {

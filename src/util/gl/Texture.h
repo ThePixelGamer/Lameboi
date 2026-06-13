@@ -1,6 +1,6 @@
 #pragma once
 
-#include "util/GLHeaders.h"
+#include <glad/glad.h>
 
 class Texture {
 protected:

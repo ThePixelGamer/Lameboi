@@ -1,7 +1,7 @@
 #pragma once
 
 #include <queue>
-#include <SDL_audio.h>
+#include <SDL3/SDL_audio.h>
 
 #include "Memory.h"
 #include "channel/SoundControl.h"
@@ -24,7 +24,7 @@ private:
 	u8 sampleCycles;
 	u16 bufferOffset;
 
-	SDL_AudioDeviceID audio_device;
+	SDL_AudioStream* audio_device;
 	std::array<float, samples * 2> sampleBuffer;
 
 	//AudioFile<float> noiseWav;

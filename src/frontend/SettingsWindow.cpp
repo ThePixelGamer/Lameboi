@@ -69,7 +69,7 @@ void SettingsWindow::render() {
 }
 
 void SettingsWindow::renderGeneralTab() {
-	ImGui::InputText("##bios_path", config.biosPath->data(), config.biosPath->size(), ImGuiInputTextFlags_ReadOnly);
+	ImGui::InputText("##bios_path", config.biosPath.get(), ImGuiInputTextFlags_ReadOnly);
 
 	ImGui::SameLine();
 	if (ImGui::Button("Select")) {
