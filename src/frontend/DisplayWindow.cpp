@@ -66,10 +66,18 @@ void DisplayWindow::render() {
 	};
 
 	ImVec2 windowMinSize = oldCursor + ImVec2(displayWidth, displayHeight) + ImGui::GetStyle().WindowPadding;
-	ImGui::SetNextWindowSizeConstraints(windowMinSize, ImVec2(FLT_MAX, FLT_MAX), square, &oldCursor);
+	//ImGui::SetNextWindowSizeConstraints(windowMinSize, ImVec2(FLT_MAX, FLT_MAX), square, &oldCursor);
 
-	ImGui::Begin("Lameboi", &show, ImGuiWindowFlags_NoScrollbar);
+	auto dockid = ImGui::DockSpaceOverViewport(ImGui::GetID("DockSpace"), nullptr, ImGuiDockNodeFlags_NoDockingOverCentralNode | ImGuiDockNodeFlags_PassthruCentralNode);
+	auto centralNode = ImGui::DockBuilderGetCentralNode(dockid);
+	ImGui::SetNextWindowDockID(centralNode->ID, ImGuiCond_Always);
 
+	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, { 0, 0 });
+	ImGui::Begin("Lameboi", &show, ImGuiWindowFlags_NoDecoration);
+	ImGui::PopStyleVar();
+
+	ImGui::Spacing();
+	ImGui::SetCursorPosX(ImGui::GetStyle().WindowPadding.x);
 	if (ImGui::Button("Stop")) {
 		gb.debug.running = false;
 		gb.stop();

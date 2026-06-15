@@ -243,12 +243,14 @@ void ViewportWindow::render() {
 	glDisable(GL_DEPTH_TEST); // disable depth test so screen-space quad isn't discarded due to depth test.
 	glBindTexture(GL_TEXTURE_2D, textureColorbuffer);
 
-	if (ImGui::ImageButton("", (ImTextureID)textureColorbuffer, ImVec2(internalWidth / 2.0f, internalHeight / 2.0f), ImVec2(0, 1), ImVec2(1, 0))) {
+	ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, { 0, 0 });
+	if (ImGui::ImageButton("##viewport", (ImTextureID)textureColorbuffer, ImVec2(internalWidth / 2.0f, internalHeight / 2.0f), ImVec2(0, 1), ImVec2(1, 0))) {
 		SDL_SetWindowRelativeMouseMode(NULL, true);
 		ImGui::GetIO().ConfigFlags |= ImGuiConfigFlags_NoMouseCursorChange;
 		avoidReset = true;
 		inFocus = true;
 	}
+	ImGui::PopStyleVar();
 
 	drawOptions();
 

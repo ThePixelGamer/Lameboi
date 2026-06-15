@@ -14,7 +14,9 @@ std::tuple<bool, u32, u32> RenderTexture::render(float zoom_mult, bool grid, Dra
 	float adjWidth = width * zoom_mult;
 	float adjHeight = height * zoom_mult;
 
-	bool clicked = ImGui::ImageButton("", _getTextureId(), ImVec2(adjWidth, adjHeight), u, v);
+	ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, { 0, 0 });
+	bool clicked = ImGui::ImageButton("##render", _getTextureId(), ImVec2(adjWidth, adjHeight), u, v);
+	ImGui::PopStyleVar();
 
 	ImVec2 topleft = ImGui::GetItemRectMin();
 	ImVec2 bottomright = ImGui::GetItemRectMax();

@@ -4,6 +4,7 @@
 #include <glad/glad.h>
 #include "imgui_impl_sdl3.h"
 #include "imgui_impl_opengl3.h"
+#include <SDL3/SDL_opengl.h>
 
 #include "core/Input.h"
 
@@ -15,6 +16,8 @@ namespace ImGuiLayer {
 		ImGuiIO& io = ImGui::GetIO(); (void)io;
 		//io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
 		//io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
+		io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;         // Enable Docking
+		io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;       // Enable Multi-Viewport / Platform Windows
 
 		// Setup Dear ImGui style
 		ImGui::StyleColorsDark();
@@ -86,24 +89,6 @@ bool SDLInterface::run() {
 }
 
 void SDLInterface::newFrame() {
-	SDL_Event e;
-	while (SDL_PollEvent(&e)) {
-		ImGui_ImplSDL3_ProcessEvent(&e);
-		inputManager.processEvent(e);
-
-		switch (e.type) {
-			case SDL_EVENT_QUIT:
-				done = true;
-				break;
-
-			case SDL_EVENT_WINDOW_CLOSE_REQUESTED:
-				if (e.window.windowID == SDL_GetWindowID(window)) {
-					done = true;
-				}
-				break;
-		}
-	}
-
 	// Start the Dear ImGui frame
 	ImGui_ImplOpenGL3_NewFrame();
 	ImGui_ImplSDL3_NewFrame();
@@ -118,5 +103,12 @@ void SDLInterface::render() {
 	glClearColor(0.45f, 0.55f, 0.60f, 1.00f);
 	glClear(GL_COLOR_BUFFER_BIT);
 	ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+
+	if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable) {
+		ImGui::UpdatePlatformWindows();
+		ImGui::RenderPlatformWindowsDefault();
+		SDL_GL_MakeCurrent(window, gl_context);
+	}
+
 	SDL_GL_SwapWindow(window);
 }

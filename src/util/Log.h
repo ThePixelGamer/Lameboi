@@ -88,7 +88,7 @@ struct Entry {
 
 // todo: move this to a source file
 inline std::string FormatMessage(const Entry& entry) {
-    return fmt::format("{} [{}] {}:{}:{}: {}\n", entry.class_name, entry.level_name, 
+    return fmt::format("[{}] [{}] {}:{}:{}: {}\n", entry.level_name, entry.class_name,
                        entry.filename, entry.line, entry.function, entry.message);
 }
 

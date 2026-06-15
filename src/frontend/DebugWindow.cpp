@@ -36,7 +36,7 @@ void DebugWindow::render() {
 		if (ImGui::Button("Step")) {
 			debug.step(steps);
 		}
-		ImGui::SameLine(); ImGui::InputScalar("", ImGuiDataType_U64, &steps, &step);
+		ImGui::SameLine(); ImGui::InputScalar("##step", ImGuiDataType_U64, &steps, &step);
 
 		if (ImGui::Button("Step Frame")) {
 			debug.running = true;
