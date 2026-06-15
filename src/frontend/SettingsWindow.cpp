@@ -160,33 +160,68 @@ void SettingsWindow::renderInputTab() {
 		ImGui::EndCombo();
 	}
 
-	auto inputRemap = [this](GB::Button button) {
+	ImVec2 start = ImGui::GetCursorScreenPos();
+	float p = std::min(ImGui::GetContentRegionAvail().x, ImGui::GetContentRegionAvail().y) / ImGui::GetStyle().FontSizeBase;
+	ImVec2 bsize = { p * 2, p * 2 };
+
+	auto inputRemap = [this, &start, &bsize](GB::Button button, ImVec2 offset) {
 		constexpr const char* names[] = {
 			"Up", "Down", "Left", "Right",
 			"Start", "Select", "B", "A"
 		};
 
+		ImGui::SetCursorScreenPos(start + offset);
 		const char* name = names[button];
 		std::string namegui = inputManager.getButtonName(name) + "##" + name;
-		if (ImGui::Button(namegui.c_str())) {
+		if (ImGui::Button(namegui.c_str(), bsize)) {
 			remapButton = button;
 		}
 
 		if (remapButton == button && inputManager.remapButton(name)) {
 			remapButton = GB::NumButtons;
 		}
-
-		ImGui::SameLine(); ImGui::Text(name);
 	};
 
-	inputRemap(GB::Up);
-	inputRemap(GB::Down);
-	inputRemap(GB::Left);
-	inputRemap(GB::Right);
-	inputRemap(GB::B);
-	inputRemap(GB::A);
-	inputRemap(GB::Start);
-	inputRemap(GB::Select);
+	ImColor dpadCol(39, 41, 41);
+	ImColor bCol(154, 34, 87);
+	ImColor sCol(114, 114, 114);
+	ImColor textCol(72, 70, 134);
+	ImGui::GetWindowDrawList()->AddRectFilled(start, start + ImGui::GetContentRegionAvail(), IM_COL32(196, 190, 187, 255));
+
+	auto updateButtonColor = [](ImVec4 col) {
+		ImGui::PushStyleColor(ImGuiCol_Button, col);
+
+		float h, s, v;
+		ImGui::ColorConvertRGBtoHSV(col.x, col.y, col.z, h, s, v);
+
+		ImGui::PushStyleColor(ImGuiCol_ButtonHovered, (ImVec4)ImColor::HSV(h, s + .1f, v + .1f));
+		ImGui::PushStyleColor(ImGuiCol_ButtonActive, (ImVec4)ImColor::HSV(h, s + .2f, v + .2f));
+	};
+
+	ImGui::PushFont(nullptr, p * 0.75f);
+	ImGui::GetWindowDrawList()->AddRectFilled(start + ImVec2(p*3, p*3), start + ImVec2(p*5, p*5), dpadCol);
+	updateButtonColor(dpadCol);
+	inputRemap(GB::Up, ImVec2{ p * 3, p });
+	inputRemap(GB::Down, ImVec2{ p * 3, p * 5 });
+	inputRemap(GB::Left, ImVec2{ p, p * 3 });
+	inputRemap(GB::Right, ImVec2{ p * 5, p * 3 });
+	ImGui::PopStyleColor(3);
+
+	bsize = { p * 1.5f, p * 1.5f };
+	updateButtonColor(bCol);
+
+	//ImGui::GetWindowDrawList()->AddCircleFilled(start + ImVec2(p * 8.75, p * 5.75), p, bCol);
+	//ImGui::GetWindowDrawList()->AddCircleFilled(start + ImVec2(p * 9.75, p * 2.75), p, bCol);
+	inputRemap(GB::B, ImVec2{ p * 8, p * 5 }); ImGui::SameLine(); ImGui::TextColored(textCol, "B");
+	inputRemap(GB::A, ImVec2{ p * 9, p * 2 }); ImGui::SameLine(); ImGui::TextColored(textCol, "A");
+	ImGui::PopStyleColor(3);
+
+	bsize = { p * 3, p * 1 };
+	updateButtonColor(sCol);
+	inputRemap(GB::Start, ImVec2{ p * 8, p * 8 }); ImGui::SameLine(); ImGui::TextColored(textCol, "Start");
+	inputRemap(GB::Select, ImVec2{ p * 1, p * 8 }); ImGui::SameLine(); ImGui::TextColored(textCol, "Select");
+	ImGui::PopStyleColor(3);
+	ImGui::PopFont();
 }
 
 void manifestCombo(SpriteManager& spriteMgr, bool inBios) {
