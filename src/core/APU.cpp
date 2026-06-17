@@ -2,7 +2,7 @@
 
 #include "Config.h"
 
-#include <algorithm>
+#include "util/Log.h"
 
 APU::APU() {
 	clean();
@@ -13,7 +13,7 @@ APU::APU() {
 	const SDL_AudioSpec spec{ SDL_AUDIO_F32, channels, frequency };
 	audio_device = SDL_OpenAudioDeviceStream(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &spec, nullptr, nullptr);
 	if (audio_device == nullptr) {
-		std::cout << "Failed to open audio: " << SDL_GetError() << std::endl;
+		LB_ERROR(Audio, "Failed to open audio: %s", SDL_GetError());
 	}
 	else {
 		SDL_ResumeAudioStreamDevice(audio_device);

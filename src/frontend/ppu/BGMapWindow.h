@@ -10,7 +10,6 @@ namespace ui {
 class BGMapWindow {
 	Gameboy& gb;
 		
-	bool& show;
 	static const size_t texWidth = 256;
 	static const size_t texHeight = 256;
 	std::array<u32, texWidth * texHeight> pixels;
@@ -32,9 +31,10 @@ class BGMapWindow {
 	std::string dumpFile = "";
 
 public:
-	BGMapWindow(Gameboy& gb, bool& show) :
+	bool show = false;
+
+	BGMapWindow(Gameboy& gb) :
 		gb(gb),
-		show(show),
 		tex(texWidth, texHeight, pixels.data()),
 		dumpPreview(32 * 8, 32 * 8, dumpPixels.data())
 	{

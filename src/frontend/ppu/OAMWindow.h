@@ -12,7 +12,6 @@ namespace ui {
 class OAMWindow {
 	Gameboy& gb;
 		
-	bool& show;
 	std::array<u32, 64 * 40> pixels;
 	Color invisColor;
 	RenderTexture tex;
@@ -22,9 +21,10 @@ class OAMWindow {
 	u32 step = 1;
 
 public:
-	OAMWindow(Gameboy& gb, bool& show) :
+	bool show = false;
+
+	OAMWindow(Gameboy& gb) :
 		gb(gb),
-		show(show),
 		tex(64, 40, pixels.data())
 	{
 		pixels.fill(0xFFFFFFFF);

@@ -3,6 +3,7 @@
 // only needed for GB::Button
 #include "io/Joypad.h"
 #include "frontend/DisplayWindow.h"
+#include "util/Log.h"
 
 void InputManager::close() {
 	for (auto& [_, pad] : gamepads) {

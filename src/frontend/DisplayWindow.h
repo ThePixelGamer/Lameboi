@@ -1,16 +1,16 @@
 #pragma once
 
-#include <chrono>
+#include <array>
 
-#include "core/Gameboy.h"
 #include "util/ImGuiHeaders.h"
 #include "util/RenderTexture.h"
+
+class App;
 
 namespace ui {
 
 class DisplayWindow {
-	Gameboy& gb;
-	PPU& ppu;
+	App& context;
 
 	RenderTexture display;
 	
@@ -29,13 +29,9 @@ public:
 	// maybe move this into Input?
 	static inline bool focused = false;
 
-	DisplayWindow(Gameboy& gb) :
-		gb(gb),
-		ppu(gb.ppu),
-		display(displayWidth, displayHeight, displayBuf.data())
-	{
-			
-	}
+	DisplayWindow(App& context) :
+		context(context),
+		display(displayWidth, displayHeight, displayBuf.data()) {}
 
 	void render();
 

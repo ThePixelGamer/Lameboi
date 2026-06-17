@@ -1,5 +1,7 @@
 #include "TileDataWindow.h"
 
+#include "core/Gameboy.h"
+
 namespace ui {
 
 void drawSectionSeparator(void* extraData, const ImVec2& topleft, const ImVec2& bottomright, float mult) {

@@ -1,5 +1,9 @@
 #include "DisplayWindow.h"
 
+#include <mutex>
+
+#include "App.h"
+
 namespace ui {
 
 void DisplayWindow::render() {
@@ -79,8 +83,8 @@ void DisplayWindow::render() {
 	ImGui::Spacing();
 	ImGui::SetCursorPosX(ImGui::GetStyle().WindowPadding.x);
 	if (ImGui::Button("Stop")) {
-		gb.debug.running = false;
-		gb.stop();
+		context.gb->debug.running = false;
+		context.gb->stop();
 	}
 
 	ImGui::SameLine(); ImGui::Checkbox("Use Custom Graphics", &useCG);
@@ -111,6 +115,7 @@ void DisplayWindow::render() {
 }
 
 void DisplayWindow::updateBuffer() {
+	auto& ppu = context.gb->ppu;
 	std::unique_lock lock(ppu.vblank_m);
 
 	if (useCG) {

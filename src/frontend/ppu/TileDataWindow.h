@@ -1,16 +1,15 @@
 #pragma once
 
-#include "core/Gameboy.h"
 #include "util/Common.h"
-#include "util/ImGuiHeaders.h"
 #include "util/RenderTexture.h"
+
+class Gameboy;
 
 namespace ui {
 
 class TileDataWindow {
 	Gameboy& gb;
 		
-	bool& show;
 	std::array<u32, 128 * 64 * 3> pixels;
 	RenderTexture tex;
 	
@@ -27,9 +26,10 @@ class TileDataWindow {
 	bool grid = true;
 
 public:
-	TileDataWindow(Gameboy& gb, bool& show) :
+	bool show = false;
+
+	TileDataWindow(Gameboy& gb) :
 		gb(gb),
-		show(show),
 		tex(128, 64 * 3, pixels.data()),
 		dumpPreview(32 * 8, 32 * 8, dumpPixels.data())
 	{

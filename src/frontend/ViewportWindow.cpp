@@ -4,7 +4,7 @@
 #include <glm/gtc/type_ptr.hpp>
 #include <stb_image.h>
 
-#include "util/SDLInterface.h"
+#include <SDL3/SDL.h>
 
 namespace ui {
 

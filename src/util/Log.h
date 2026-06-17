@@ -15,6 +15,7 @@ enum class Level : u8 {
 };
 
 enum class Class : u8 {
+    App,
     CPU,
     PPU,
     Audio,
@@ -56,6 +57,7 @@ inline const char* ClassToString(Class log_class) {
         return #x
 
     switch (log_class) {
+        CLS(App);
         CLS(CPU);
         CLS(PPU);
         CLS(Audio);

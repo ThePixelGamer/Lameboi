@@ -2,35 +2,21 @@
 
 #include <memory>
 
-#include "FileMenu.h"
-#include "DebugMenu.h"
-
 #include "core/Gameboy.h"
-#include "util/ImGuiHeaders.h"
+#include <PFD.h>
 
-class SDLInterface;
+struct App;
 
 namespace ui {
 
-// provides access to other ui stuff to provide functionality to menu items
-// todo: better name
-struct MainMenuContext {
-	bool& showDisplay;
-	bool& showViewport;
-	bool& showDebug;
-	bool& showSettings;
-	SDLInterface& loader;
-};
-
 class MainMenu {
-	ImGuiIO& io = ImGui::GetIO();
-
-	std::unique_ptr<FileMenu> fileMenu;
-	std::unique_ptr<DebugMenu> debugMenu;
+	// file menu
+	std::unique_ptr<pfd::open_file> romFile = nullptr;
+	std::thread emuThread;
 
 	Gameboy& gb;
 
-	MainMenuContext context;
+	App& context;
 	bool paused = false;
 
 	// todo: streamline?
@@ -41,17 +27,19 @@ class MainMenu {
 	u64 fps = 0;
 
 public:
-	MainMenu(Gameboy& gb, const MainMenuContext& context) :
-		gb(gb),
-		context(context) {
-		
-		fileMenu = std::make_unique<FileMenu>(gb, context.showDebug, context.loader);
-		debugMenu = std::make_unique<DebugMenu>(gb, context.showDebug);
+	MainMenu(Gameboy& gb, App& context);
+
+	~MainMenu() {
+		emuThread.join();
 	}
 
 	void render();
 
 private:
+	void renderFile();
+	void renderGameboy();
+	void renderDebug();
+
 	void updateFPS();
 };
 
