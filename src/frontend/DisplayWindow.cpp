@@ -83,8 +83,8 @@ void DisplayWindow::render() {
 	ImGui::Spacing();
 	ImGui::SetCursorPosX(ImGui::GetStyle().WindowPadding.x);
 	if (ImGui::Button("Stop")) {
-		context.gb->debug.running = false;
-		context.gb->stop();
+		context.gb.debug.running = false;
+		context.gb.stop();
 	}
 
 	ImGui::SameLine(); ImGui::Checkbox("Use Custom Graphics", &useCG);
@@ -115,7 +115,7 @@ void DisplayWindow::render() {
 }
 
 void DisplayWindow::updateBuffer() {
-	auto& ppu = context.gb->ppu;
+	auto& ppu = context.gb.ppu;
 	std::unique_lock lock(ppu.vblank_m);
 
 	if (useCG) {

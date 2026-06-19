@@ -24,6 +24,7 @@
 #include "io/SerialPort.h"
 
 #include "util/Log.h"
+#include "util/FileUtil.h"
 
 // todo: add more context?
 struct RomContext {
@@ -80,6 +81,8 @@ public:
 		debug(mem) {
 		bios.fill(0xFF);
 		mbc.reset();
+
+		createDirectory("saves");
 	}
 
 	bool loadBios(const std::string& biosPath);

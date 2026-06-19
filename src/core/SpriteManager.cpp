@@ -287,7 +287,8 @@ void SpriteManager::loadProfile(Profile& profile, const std::string& localFolder
 }
 
 void SpriteManager::loadManifest(Manifest& manifest, const std::string& localFolder) {
-	manifest.rootPath = "profiles/" + localFolder;
+	manifest.rootPath = "profiles/" + localFolder; 
+	createDirectory(manifest.rootPath);
 
 	for (auto& entry : fs::directory_iterator(manifest.rootPath)) {
 		if (entry.is_directory()) {

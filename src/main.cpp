@@ -35,14 +35,6 @@ public:
 		ImGui_ImplSDL3_InitForOpenGL(window, gl_context);
 		ImGui_ImplOpenGL3_Init("#version 130");
 
-		// create basic files/folders
-		createDirectory("saves");
-		createDirectory("profiles");
-		createDirectory("profiles/bios");
-		createDirectory("profiles/raw");
-
-		init();
-
 		LB_INFO(App, "Working directory is {}", std::filesystem::current_path().string());
 	}
 

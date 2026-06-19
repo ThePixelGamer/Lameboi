@@ -37,7 +37,7 @@ void MainMenu::renderFile() {
 		if (gb.loadRom(filename)) {
 			fmt::print("Opened {}\n", filename);
 
-			gb.debug.running = !context.debug->show;
+			gb.debug.running = !context.debug.show;
 			gb.start();
 		}
 
@@ -104,15 +104,15 @@ void MainMenu::renderGameboy() {
 		}
 
 		if (ImGui::MenuItem("Show Display")) {
-			context.display->show = true;
+			context.display.show = true;
 		}
 
 		if (ImGui::MenuItem("Show Viewport")) {
-			context.viewport->show = true;
+			context.viewport.show = true;
 		}
 
 		if (ImGui::MenuItem("Settings")) {
-			context.settings->show = true;
+			context.settings.show = true;
 		}
 
 		ImGui::EndMenu();
@@ -122,14 +122,14 @@ void MainMenu::renderGameboy() {
 void MainMenu::renderDebug() {
 	if (ImGui::BeginMenu("Debug")) {
 		if (ImGui::MenuItem("Show Debugger")) {
-			context.debug->show = true;
+			context.debug.show = true;
 			gb.debug.running = false;
 		}
 
 		if (ImGui::BeginMenu("PPU")) {
-			ImGui::MenuItem("Background Map", nullptr, &context.bgmapWindow->show);
-			ImGui::MenuItem("Tile Data", nullptr, &context.tileDataWindow->show);
-			ImGui::MenuItem("OAM Sprites", nullptr, &context.oamWindow->show);
+			ImGui::MenuItem("Background Map", nullptr, &context.bgmapWindow.show);
+			ImGui::MenuItem("Tile Data", nullptr, &context.tileDataWindow.show);
+			ImGui::MenuItem("OAM Sprites", nullptr, &context.oamWindow.show);
 
 			ImGui::EndMenu();
 		}
