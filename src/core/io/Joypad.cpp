@@ -65,7 +65,7 @@ void Joypad::pressButton(GB::Button button) {
 
 	// set the interrupt flag when a button is pressed
 	if (selectButton || selectDirect)
-		interrupt.requestJoypad = true;
+		interrupt.request.joypad = true;
 }
 
 void Joypad::releaseButton(GB::Button button) {

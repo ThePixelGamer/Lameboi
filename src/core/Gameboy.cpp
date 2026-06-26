@@ -26,31 +26,12 @@ bool Gameboy::loadBios(const std::string& biosPath) {
 }
 
 bool Gameboy::loadRom(const std::string& romPath) {
-	if (!fs::exists(romPath)) {
-		LB_WARN(Frontend, "{} file does not exist", romPath);
+	if (!cart.load(romPath)) {
 		return false;
 	}
 
-	std::ifstream romFile(romPath, std::ifstream::binary);
-
-	if (!romFile) {
-		LB_WARN(Frontend, "{} file failed to open", romPath);
-		return false;
-	}
-
-	u8 type = romFile.seekg(0x147).get(); //get mbc type
-	romFile.seekg(0); //reset ifstream position
-
-	romContext.fileName = fs::path(romPath).stem().string();
-	mbc = MBC::createInstance(romContext.fileName, type);
-	if (mbc == nullptr) {
-		return false;
-	}
-
-	mbc->setup(romFile);
-	romFile.close();
-	log.open("log.txt");
-	spriteManager.loadRom(romContext);
+	log.open(cart.romName + ".txt");
+	spriteManager.loadRom(cart.romName);
 	return true;
 }
 
@@ -125,11 +106,8 @@ void Gameboy::run() {
 }
 
 void Gameboy::clean() {
-	// write any ram to a file if the mbc needs to
-	if (mbc) {
-		mbc->close();
-		mbc.reset();
-	}
+	// save any battery backed components to a file
+	cart.unload();
 
 	mem.clean();
 	cpu.clean();

@@ -26,23 +26,13 @@
 #include "util/Log.h"
 #include "util/FileUtil.h"
 
-// todo: add more context?
-struct RomContext {
-	std::string fileName;
-	std::string title; // 0x134 - 0x143, assuming not a cgb cartridge
-	CartridgeType cartType; // 0x147
-	u8 romSize; // 0x148, just uses the code
-	u8 ramSize; // 0x149, just uses the code
-	u16 checksum; // 0x14E-0x14F
-};
-
 class Gameboy {
 public:
 	// Internal
 	Memory mem;
 	std::array<u8, 0x100> bios;
-	std::unique_ptr<MBC> mbc;
-
+	Cartridge cart;
+	
 	Scheduler scheduler;
 	Interrupt interrupt;
 	SpriteManager spriteManager;
@@ -55,7 +45,6 @@ public:
 	Timer timer;
 	SerialPort serial;
 
-	RomContext romContext;
 	Debugger debug;
 	std::ofstream log;
 
@@ -80,7 +69,6 @@ public:
 		serial(),
 		debug(mem) {
 		bios.fill(0xFF);
-		mbc.reset();
 
 		createDirectory("saves");
 	}

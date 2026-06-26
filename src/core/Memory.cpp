@@ -6,6 +6,7 @@
 #include <iterator> //std::end
 
 #include <fmt/format.h>
+#include <util/Types.h>
 
 Memory::Memory(Gameboy& t_gb) : gb(t_gb) {
 	clean();
@@ -13,148 +14,140 @@ Memory::Memory(Gameboy& t_gb) : gb(t_gb) {
 
 void Memory::clean() {
 	WRAM.fill(0);
-	DMA = 0;
+	DMA_START = 0;
 	boot = true;
-	undocumented.fill(0);
 	HRAM.fill(0);
 
 	memoryRead = false;
-	dmaAddr = 0;
-	dmaOffset = 0;
+	dma = 0;
 }
 
 void Memory::update() {
-	if (dmaOffset == 0) {
-		return;
-	}
+	if (dma == 0) return;
 
-	if (dmaOffset <= 0xA0) {
-		u8 idx = (0xA0 - dmaOffset);
-		dmaAddr = (DMA << 8) | idx;
-		gb.ppu.writeOAM(idx, _read(dmaAddr), true);
+	// DMA Transfer, 1 byte per M Cycle
+	if (dma <= DMA_SIZE) {
+		u8 idx = (DMA_SIZE - dma);
+		u16 dmaAddr = (DMA_START << 8) | idx;
+		gb.ppu.writeOAM(idx, read(dmaAddr), true);
 	}
-
-	--dmaOffset;
+	--dma;
 }
+
+enum MemTag : u8 {
+	BIOS,
+	ROM0,
+	ROM1,
+	VRAM,
+	ERAM,
+	WRAM, // todo: split into 2 for CGB support
+	ECHO,
+	OAM, // OAM/Unsupported
+	HIGH, // I/O, HRAM, IE
+};
+
+constexpr auto memtags = []() {
+	std::array<MemTag, 256> tmp{};
+	tmp[0] = BIOS; // 0x0000-0x0100
+
+	int i = 0x1;
+	while (i < 0x40) tmp[i++] = ROM0; // 0x0100-0x3FFF
+	while (i < 0x80) tmp[i++] = ROM1; // 0x4000-0x7FFF
+	while (i < 0xA0) tmp[i++] = VRAM; // 0x8000-0x9FFF
+	while (i < 0xC0) tmp[i++] = ERAM; // 0xA000-0xBFFF
+	while (i < 0xE0) tmp[i++] = WRAM; // 0xC000-0xDFFF
+	while (i < 0xFE) tmp[i++] = ECHO; // 0xE000-0xFDFF
+	tmp[i++] = OAM; // 0xFE00-0xFEFF
+	tmp[i] = HIGH; // 0xFF00-0xFFFF
+
+	return tmp;
+}();
 
 // todo: template for debugger?
-u8 Memory::read(u16 loc) {
-	if (dmaOffset != 0 && loc < 0xFF00) {
-		if (dmaOffset <= 0xA0 && loc >= 0xFE00) {
-			return 0xFF;
+u8 Memory::cpu_read(u16 loc) {
+	MemTag tag = memtags[loc >> 8];
+	const u8 low = loc & 0xFF;
+
+	// DMA Blocking 
+	if (dma != 0) {
+		if (tag == HIGH && (low & 0x80) && low < 0xFF) {
+			return HRAM[loc & 0x7F];
 		}
 
-		u8 byte = 0;
-		if (inRange(loc, 0x8000, 0x9FFF) != inRange(dmaAddr, 0x8000, 0x9FFF)) {
-			byte = _read(loc);
-		}
-		else {
-			byte = _read(dmaAddr);
-		}
-		return byte;
+		// todo: handle OAM Corruption
+
+		return 0xFF;
 	}
 
-	if (loc < 0xFE00) {
-		return _read(loc);
-	}
-	else if (loc < 0xFEA0) {
-		return gb.ppu.readOAM(loc & 0xFF);
-	}
-	else if (loc < 0xFF00) {
-		return undocumented[loc - 0xFEA0];
-	}
-	else {
-		return read_high(loc & 0xFF);
-	}
+	return read(loc);
 }
 
-u8 Memory::_read(u16 loc) {
-	u8 type = loc >> 12; //get top 4 bits
+u8 Memory::read(u16 loc) {
+	MemTag tag = memtags[loc >> 8];
+	const u8 low = loc & 0xFF;
 
-	switch (type) {
-		case 0x0:
-			if (boot && (loc < 0x100)) { // loc < 0x100
-				return gb.bios[loc];
+	switch (tag) {
+		case HIGH: return read_high(low);
+
+		case ECHO:
+		case MemTag::WRAM: return WRAM[loc & 0x1FFF];
+
+		case BIOS:
+			if (boot) {
+				return gb.bios[low];
 			}
 			[[fallthrough]];
 		
-		case 0x1: case 0x2: case 0x3:
-		case 0x4: case 0x5: case 0x6: case 0x7:
-		case 0xA: case 0xB:
-			if (gb.mbc) {
-				return gb.mbc->read(loc);
-			}
-			break;
+		case ROM0: return gb.cart.readBank0(loc & 0x3FFF);
+		case ROM1: return gb.cart.readBank1(loc & 0x3FFF);
+		case ERAM: return gb.cart.readRam(loc & 0x1FFF);
 
-		case 0x8: case 0x9:
-			return gb.ppu.readVRAM(loc & 0x1FFF);
+		case VRAM: return gb.ppu.readVRAM(loc & 0x1FFF);
+		case OAM: return (low < 0xA0) ? gb.ppu.readOAM(low) : 0x0;
 
-		case 0xC: case 0xD:
-		case 0xE: case 0xF:
-			return WRAM[loc & 0x1FFF];
-
-		default:
-			fmt::print("ur dumb {:x}", loc);
-			break;
+		default: return 0xFF;
 	}
-
-	return 0xFF;
 }
 
-void Memory::write(u16 loc, u8 value) {
-	if (dmaOffset != 0 && dmaOffset <= 0xA0 && loc < 0xFF00) {
+void Memory::cpu_write(u16 loc, u8 value) {
+	// DMA Blocking 
+	if (dma != 0) {
+		// todo: handle OAM Corruption
 		return;
 	}
 
-	if (loc < 0xFE00) {
-		u8 type = loc >> 12; //get top 4 bits
+	MemTag tag = memtags[loc >> 8];
+	const u8 low = loc & 0xFF;
 
-		switch (type) {
-			case 0x0: case 0x1: case 0x2: case 0x3:
-			case 0x4: case 0x5: case 0x6: case 0x7:
-			case 0xA: case 0xB:
-				if (gb.mbc) {
-					gb.mbc->write(loc, value);
-				}
-				break;
+	switch (tag) {
+		case HIGH: write_high(low, value); break;
 
-			case 0x8: case 0x9:
-				gb.ppu.writeVRAM(loc & 0x1FFF, value);
-				break;
+		case ECHO:
+		case MemTag::WRAM: WRAM[loc & 0x1FFF] = value; break;
 
-			case 0xC: case 0xD:
-			case 0xE: case 0xF:
-				WRAM[loc & 0x1FFF] = value;
-				break;
+		case BIOS:
+		case ROM0: gb.cart.writeBank0(loc & 0x3FFF, value); break;
+		case ROM1: gb.cart.writeBank1(loc & 0x3FFF, value); break;
+		case ERAM: gb.cart.writeRam(loc & 0x1FFF, value); break;
 
-			default:
-				fmt::print("ur dumb {:x}", loc);
-				break;
-		}
-	}
-	else if (loc < 0xFEA0) {
-		gb.ppu.writeOAM(loc & 0xFF, value);
-	}
-	else if (loc < 0xFF00) {
-		//tetris does this so I may remove it in order to avoid annoyances
-		fmt::print("Writing to unused memory [{:x}]: {}\n", loc, value);
-	}
-	else {
-		write_high(loc & 0xFF, value);
+		case VRAM: gb.ppu.writeVRAM(loc & 0x1FFF, value); break;
+		case OAM: if (low < 0xA0) { gb.ppu.writeOAM(low, value); } break;
+
+		default: break;
 	}
 }
 
 u8 Memory::read_high(u8 loc) {
 	u8 ioreg = loc & 0x7F;
 
-	if (loc == 0xF || loc == 0xFF) {
-		return gb.interrupt.read(loc & 0x80);
+	if (loc & 0x80) {
+		if ((loc & 0xFF) == 0xFF) 
+			return gb.interrupt.enable.read();
+		else
+			return HRAM[loc & 0x7F];
 	}
-	else if (loc & 0x80) {
-		return HRAM[loc & 0x7F];
-	}
-	else if (ioreg == 0x46) {
-		return DMA;
+	else if (loc == IO::DMA) {
+		return DMA_START;
 	}
 	else {
 		return gb.io.read(ioreg);
@@ -164,19 +157,17 @@ u8 Memory::read_high(u8 loc) {
 void Memory::write_high(u8 loc, u8 value) {
 	u8 ioreg = loc & 0x7F;
 
-	if (loc == 0xF || loc == 0xFF) {
-		gb.interrupt.write(loc & 0x80, value);
-	}
-	else if (loc & 0x80) {
-		HRAM[loc & 0x7F] = value;
+	if (loc & 0x80) {
+		if ((loc & 0xFF) == 0xFF)
+			gb.interrupt.enable.write(value);
+		else
+			HRAM[loc & 0x7F] = value;
 	}
 	else if (ioreg == 0x46) { // DMA Transfer
-		if (dmaOffset >= 0xA0) {
-			return;
+		if (dma == 0) {
+			DMA_START = value;
+			dma = DMA_SIZE;
 		}
-
-		DMA = value;
-		dmaOffset = 0xA2;
 	}
 	else {
 		gb.io.write(ioreg, value);

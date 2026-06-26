@@ -50,7 +50,7 @@ public:
 
 			TIMA = TMA;
 			reloaded = true;
-			interrupt.requestTimer = true;
+			interrupt.request.timer = true;
 		}
 		else if (TAC.timerOn) {
 			u16 mask = timerMask[TAC.clockSelect];

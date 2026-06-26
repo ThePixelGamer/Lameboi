@@ -131,7 +131,7 @@ void PPU::update() {
 	}
 
 	if (!last_stat && stat_state) {
-		interrupt.requestLcdStat = true;
+		interrupt.request.lcdStat = true;
 	}
 
 	last_stat = stat_state;
@@ -572,7 +572,7 @@ void PPU::vblank() {
 		vblankHelper = true;
 		debug.inVblank = true;
 
-		interrupt.requestVblank = true;
+		interrupt.request.vblank = true;
 
 		std::unique_lock lock(vblank_m);
 

@@ -34,6 +34,18 @@ void MainMenu::renderFile() {
 		// wait for the any emu threads to finish
 		gb.stop();
 
+		if (!std::filesystem::exists(filename)) {
+			LB_INFO(Frontend, "File {} does not exist", filename);
+
+			// Silently drop it from recent roms list if it exists
+			auto& recentRoms = *config.recentRoms;
+			auto romIt = std::find(recentRoms.begin(), recentRoms.end(), filename);
+			if (romIt != recentRoms.end()) {
+				recentRoms.erase(romIt);
+			}
+
+			return;
+		}
 		if (gb.loadRom(filename)) {
 			fmt::print("Opened {}\n", filename);
 
@@ -58,20 +70,11 @@ void MainMenu::renderFile() {
 		}
 	};
 
-	ImGui::BeginDisabled((bool)romFile);
+	//ImGui::BeginDisabled();
 
-	if (ImGui::BeginMenu("File")) {
+	if (ImGui::BeginMenu("File", !romFile)) {
 		if (ImGui::MenuItem("Open Rom")) {
 			romFile = std::make_unique<pfd::open_file>("Select GB Rom", "C:\\", gbFileTypes);
-
-			if (romFile && romFile->ready()) {
-				auto result = romFile->result();
-				if (!result.empty()) {
-					openFile(result[0]);
-				}
-
-				romFile = nullptr;
-			}
 		}
 
 		if (ImGui::BeginMenu("Open Recent", config.recentRoms->size())) {
@@ -94,7 +97,16 @@ void MainMenu::renderFile() {
 		ImGui::EndMenu();
 	}
 
-	ImGui::EndDisabled();
+	if (romFile && romFile->ready()) {
+		auto result = romFile->result();
+		if (!result.empty()) {
+			openFile(result[0]);
+		}
+
+		romFile = nullptr;
+	}
+
+	//ImGui::EndDisabled();
 }
 
 void MainMenu::renderGameboy() {

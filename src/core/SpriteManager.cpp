@@ -27,8 +27,8 @@ SpriteManager::SpriteManager(PPU& ppu, bool& bios) : ppu(ppu), inBios(bios) {
 	loadManifest(biosManifest, "bios/");
 }
 
-void SpriteManager::loadRom(RomContext& romContext) {
-	gameFolder = romContext.fileName + "/";
+void SpriteManager::loadRom(const std::string& romName) {
+	gameFolder = romName + "/";
 	loadManifest(gameManifest, gameFolder);
 }
 

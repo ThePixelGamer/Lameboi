@@ -9,7 +9,6 @@
 
 class PPU;
 struct Pixel;
-struct RomContext;
 
 // name is a bit confusing; handles dumping sprites as png and loading pngs to override sprite data
 class SpriteManager {
@@ -98,12 +97,12 @@ private:
 	std::string gameFolder;
 	u16 lastWrite = 0xFFFF;
 	
-	bool autoDumping = true;
+	bool autoDumping = false;
 
 public:
 	SpriteManager(PPU& ppu, bool& bios);
 
-	void loadRom(RomContext& romContext);
+	void loadRom(const std::string& romName);
 
 	void render(std::array<u32, 160 * 144>& display);
 	size_t getTileHash(u16 tileOffset);

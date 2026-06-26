@@ -16,7 +16,7 @@ struct Config {
 	// General
 	Setting<bool> inputOverlay{ true };
 	Setting<std::string> biosPath{ "dmg_boot.bin" }; // should resolve to a full directory when saving
-	Setting<std::vector<std::string>> recentRoms{ {} };
+	Setting<std::vector<std::string>> recentRoms{ {} }; // todo: use set?
 
 	// Video
 	Setting<std::string> currentPalette{ "default" };

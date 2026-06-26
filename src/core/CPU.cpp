@@ -119,28 +119,28 @@ void CPU::fireInterrupt(u8 interrupt) {
 
 bool CPU::handleInterrupts() {
 	if (IME && interrupt.pending()) {
-		if (interrupt.shouldFire(Interrupt::Type::VBlank)) {
-			interrupt.requestVblank = false;
+		if (interrupt.shouldFire(Interrupt::VBlank)) {
+			interrupt.request.vblank = false;
 
 			fireInterrupt(0x40);
 		}
-		else if (interrupt.shouldFire(Interrupt::Type::LCD_STAT)) {
-			interrupt.requestLcdStat = false;
+		else if (interrupt.shouldFire(Interrupt::LCD_STAT)) {
+			interrupt.request.lcdStat = false;
 
 			fireInterrupt(0x48);
 		}
-		else if (interrupt.shouldFire(Interrupt::Type::Timer)) {
-			interrupt.requestTimer = false;
+		else if (interrupt.shouldFire(Interrupt::Timer)) {
+			interrupt.request.timer = false;
 
 			fireInterrupt(0x50);
 		}
-		else if (interrupt.shouldFire(Interrupt::Type::Serial)) {
-			interrupt.requestSerial = false;
+		else if (interrupt.shouldFire(Interrupt::Serial)) {
+			interrupt.request.serial = false;
 
 			fireInterrupt(0x58);
 		}
-		else if (interrupt.shouldFire(Interrupt::Type::Joypad)) {
-			interrupt.requestJoypad = false;
+		else if (interrupt.shouldFire(Interrupt::Joypad)) {
+			interrupt.request.joypad = false;
 
 			fireInterrupt(0x60);
 		}
@@ -357,7 +357,7 @@ void CPU::ExecuteOpcode() {
 				handler = true;
 				lowPower = true;
 			}
-			else if (interrupt.read(true) & interrupt.read(false) & 0x1F) {
+			else if (interrupt.enable.read() & interrupt.request.read() & 0x1F) {
 				haltBug = true;
 			}
 			else {
@@ -871,7 +871,7 @@ void CPU::setZero(bool val) {
 }
 
 void CPU::write(u16 loc, u8 value) {
-	mem.write(loc, value);
+	mem.cpu_write(loc, value);
 	scheduler.newMCycle();
 }
 
@@ -904,7 +904,7 @@ T CPU::getLEBytes(u16& addr) {
 			newAddr = addr + currentByte;
 		}
 
-		value += mem.read(newAddr) << (currentByte * 8);
+		value += mem.cpu_read(newAddr) << (currentByte * 8);
 
 		scheduler.newMCycle();
 	}
