@@ -2,7 +2,6 @@
 
 #include "Channel.h"
 #include "Envelope.h"
-#include "LengthCounter.h"
 #include "util/Types.h"
 
 class Square : public Channel {

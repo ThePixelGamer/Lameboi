@@ -161,20 +161,26 @@ bool Cartridge::load(const std::filesystem::path& romPath) {
 			}
 		}
 	}
-
+	
+	connected = true;
 	return true;
 }
 
 void Cartridge::unload() {
-	if (has(BATTERY)) {
-		std::ofstream ramFile(getSavePath(), std::ofstream::binary);
-		ramFile.write((char*)ram, ramSize);
-	}
+	// only unload if load() has been called, rom should be non-null after that call
+	if (connected) {
+		if (has(BATTERY)) {
+			std::ofstream ramFile(getSavePath(), std::ofstream::binary);
+			ramFile.write((char*)ram, ramSize);
+		}
 
-	delete ram;
-	ramSize = 0;
-	delete rom;
-	romSize = 0;
+		delete ram;
+		ramSize = 0;
+		delete rom;
+		romSize = 0;
+
+		connected = false;
+	}
 }
 
 void Cartridge::writeBank0(u16 offset, u8 data) { if (mbc) mbc->writeBank0(offset, data); }

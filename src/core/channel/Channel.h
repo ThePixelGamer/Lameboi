@@ -1,10 +1,35 @@
 #pragma once
 
-#include "LengthCounter.h"
+#include <util/Types.h>
 
 class Channel {
 public:
-	LengthCounter length;
+	struct LengthCounter {
+	private:
+		bool& soundOn;
+
+	public:
+		u16 counter;
+		bool enable;
+
+		LengthCounter(bool& soundOn) : soundOn(soundOn) {
+			reset();
+		}
+
+		void reset() {
+			counter = 0;
+			enable = false;
+		}
+
+		void tick() {
+			if (enable) {
+				if (counter && --counter == 0) {
+					soundOn = false;
+				}
+			}
+		}
+	} length;
+
 	bool left, right;
 	bool soundOn;
 

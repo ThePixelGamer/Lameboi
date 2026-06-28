@@ -18,7 +18,6 @@
 #include "SpriteManager.h"
 #include "Debugger.h"
 
-#include "IO.h"
 #include "io/Joypad.h"
 #include "io/Timer.h"
 #include "io/SerialPort.h"
@@ -40,7 +39,8 @@ public:
 	CPU cpu;
 	PPU ppu;
 	APU apu;
-	IO io;
+
+	// I/O
 	Joypad joypad;
 	Timer timer;
 	SerialPort serial;
@@ -63,7 +63,6 @@ public:
 		cpu(mem, scheduler, interrupt),
 		ppu(*this),
 		apu(),
-		io(*this),
 		joypad(interrupt),
 		timer(interrupt),
 		serial(),

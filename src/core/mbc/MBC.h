@@ -29,7 +29,7 @@ public:
 		_MAX,
 		HW_MASK = 0xF,
 
-		RAM = 1 << 4,
+		RAM,
 		BATTERY = RAM << 1,
 		TIMER = BATTERY << 1,
 		RUMBLE = TIMER << 1,
@@ -41,7 +41,7 @@ public:
 	static std::string getHWName(Hardware hw);
 
 	// https://gbdev.io/pandocs/The_Cartridge_Header.html
-	struct Header {
+	struct alignas(1) Header {
 		static constexpr u16 BASE = 0x100;
 
 		u8 entryPoint[0x4];
@@ -62,7 +62,6 @@ public:
 
 		u8 nLCode[0x2];
 		bool sgbFlag;
-
 
 		enum Type : u8 {
 			ROM_ONLY = 0x00,
@@ -110,6 +109,8 @@ public:
 		u8 hChecksum;
 		u8 highChecksum, lowChecksum;
 
+		Header() = delete;
+
 		constexpr std::size_t getMaxRomBanks() {
 			// todo: verify but it seems to me that the 2 nibbles are used to support bank amounts outside the power of 2
 			// ex: $10 = 6 banks or in pandocs $52 = 72 banks
@@ -126,7 +127,7 @@ public:
 			return ramBank[ramSizeCode];
 		}
 	};
-	static_assert(offsetof(Header, lowChecksum) == (0x14F - Header::BASE));
+	static_assert(sizeof(Header) == (0x150 - Header::BASE), "Alignas failed");
 
 	static_assert(offsetof(Header, cartType) == (0x147 - Header::BASE));
 	static_assert(offsetof(Header, romSizeCode) == (0x148 - Header::BASE));
@@ -141,6 +142,7 @@ public:
 
 	std::unique_ptr<class MBC> mbc;
 
+	bool connected = false;
 	std::string romName;
 
 	Cartridge() = default;

@@ -2,24 +2,18 @@
 
 #include "Gameboy.h"
 
-#include <algorithm> //std::fill
-#include <iterator> //std::end
-
-#include <fmt/format.h>
-#include <util/Types.h>
-
 Memory::Memory(Gameboy& t_gb) : gb(t_gb) {
 	clean();
+
+	// initialize memorytags
 }
 
 void Memory::clean() {
 	WRAM.fill(0);
-	DMA_START = 0;
-	boot = true;
 	HRAM.fill(0);
 
-	memoryRead = false;
-	dma = 0;
+	dma = DMA_START = 0;
+	boot = true;
 }
 
 void Memory::update() {
@@ -64,7 +58,7 @@ constexpr auto memtags = []() {
 }();
 
 // todo: template for debugger?
-u8 Memory::cpu_read(u16 loc) {
+u8 Memory::cpu_read(addr loc) {
 	MemTag tag = memtags[loc >> 8];
 	const u8 low = loc & 0xFF;
 
@@ -82,7 +76,7 @@ u8 Memory::cpu_read(u16 loc) {
 	return read(loc);
 }
 
-u8 Memory::read(u16 loc) {
+u8 Memory::read(addr loc) {
 	MemTag tag = memtags[loc >> 8];
 	const u8 low = loc & 0xFF;
 
@@ -138,38 +132,106 @@ void Memory::cpu_write(u16 loc, u8 value) {
 }
 
 u8 Memory::read_high(u8 loc) {
-	u8 ioreg = loc & 0x7F;
+	u8 reg = loc & 0x7F;
 
 	if (loc & 0x80) {
-		if ((loc & 0xFF) == 0xFF) 
+		if (loc == IO::IE) 
 			return gb.interrupt.enable.read();
 		else
-			return HRAM[loc & 0x7F];
-	}
-	else if (loc == IO::DMA) {
-		return DMA_START;
+			return HRAM[reg];
 	}
 	else {
-		return gb.io.read(ioreg);
+		return read_io(reg);
 	}
 }
 
 void Memory::write_high(u8 loc, u8 value) {
-	u8 ioreg = loc & 0x7F;
+	u8 reg = loc & 0x7F;
 
 	if (loc & 0x80) {
-		if ((loc & 0xFF) == 0xFF)
+		if (loc == IO::IE)
 			gb.interrupt.enable.write(value);
 		else
 			HRAM[loc & 0x7F] = value;
 	}
-	else if (ioreg == 0x46) { // DMA Transfer
-		if (dma == 0) {
-			DMA_START = value;
-			dma = DMA_SIZE;
-		}
-	}
 	else {
-		gb.io.write(ioreg, value);
-	} 
+		write_io(reg, value);
+	}
+}
+
+namespace IO {
+
+enum IOTag : u8 {
+	Unused,
+	Joypad,
+	Serial,
+	Timer,
+	Interrupt,
+	Audio,
+	Wave,
+	PPU,
+	DMA,
+	BOOT,
+};
+
+constexpr auto tags = []() {
+	std::array<IOTag, 128> tmp{};
+
+	tmp[0x00] = Joypad; // 0xFF00
+	for (int i = 0x01; i < 0x03;) tmp[i++] = Serial; // 0xFF01-0xFF02
+	for (int i = 0x04; i < 0x08;) tmp[i++] = Timer; // 0xFF04-0xFF07
+	tmp[0x0F] = Interrupt; // 0xFF0F
+	for (int i = 0x10; i < 0x27;) tmp[i++] = Audio; // 0xFF10-0xFF26
+	for (int i = 0x30; i < 0x40;) tmp[i++] = Wave; // 0xFF30-0xFF3F
+	for (int i = 0x40; i < 0x4C;) tmp[i++] = PPU; // 0xFF40-0xFF4B
+	tmp[0x46] = DMA; // 0xFF46
+	tmp[0x50] = BOOT; // 0xFF50
+
+	return tmp;
+}();
+
+}
+
+u8 Memory::read_io(u8 reg) {
+	auto iotag = IO::tags[reg];
+
+	switch (iotag) {
+		case IO::Joypad: return gb.joypad.read();
+		case IO::Serial: return gb.serial.read(reg);
+		case IO::Timer: return gb.timer.read(reg);
+		case IO::Audio: return gb.apu.read_reg(reg);
+		case IO::Wave: return gb.apu.read_wave(reg);
+		case IO::PPU: return gb.ppu.read(reg);
+
+		case IO::Interrupt: return gb.interrupt.request.read();
+		case IO::DMA: return DMA_START;
+		case IO::BOOT: return boot;
+
+		case IO::Unused: 
+		default: return 0xFF;
+	}
+}
+
+void Memory::write_io(u8 reg, u8 value) {
+	auto iotag = IO::tags[reg];
+
+	switch (iotag) {
+		case IO::Joypad: gb.joypad.write(value); break;
+		case IO::Serial: gb.serial.write(reg, value); break;
+		case IO::Timer: gb.timer.write(reg, value); break;
+		case IO::Audio: gb.apu.write_reg(reg, value); break;
+		case IO::Wave: gb.apu.write_wave(reg, value); break;
+		case IO::PPU: gb.ppu.write(reg, value); break;
+
+		case IO::Interrupt: gb.interrupt.request.write(value); break;
+		case IO::DMA: {
+			if (dma == 0) {
+				DMA_START = value;
+				dma = DMA_SIZE;
+			}
+		} break;
+		case IO::BOOT: boot = !value; break;
+
+		case IO::Unused: break;
+	}
 }
