@@ -10,7 +10,7 @@
 #include "util/Types.h"
 
 class Memory;
-class Scheduler;
+class Gameboy;
 class Interrupt;
 
 #define GB_Carry		0x10
@@ -36,8 +36,8 @@ struct Flags {
 };
 
 struct CPU {
+	Gameboy& gb;
 	Memory& mem;
-	Scheduler& scheduler;
 	Interrupt& interrupt;
 
 	RegPair<u8, Flags> AF; u8& A = AF.high; Flags& F = AF.low;
@@ -50,7 +50,8 @@ struct CPU {
 	bool IME = false;
 	size_t opcodeCycleCount = 0;
 
-	CPU(Memory&, Scheduler&, Interrupt&);
+	CPU(Gameboy&);
+
 	void handlePrint();
 	bool handleInterrupts();
 	void clean();
@@ -60,6 +61,8 @@ private:
 	bool haltBug = false;
 	bool lowPower = false;
 	bool handler = false;
+
+	void newMCycle();
 
 	void fireInterrupt(u8 interrupt);
 

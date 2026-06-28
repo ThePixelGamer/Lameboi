@@ -12,7 +12,6 @@
 #include "PPU.h"
 #include "APU.h"
 #include "Interrupt.h"
-#include "Scheduler.h"
 #include "SpriteManager.h"
 #include "Debugger.h"
 
@@ -38,7 +37,6 @@ public:
 	std::array<u8, 0x100> bios;
 	Cartridge cart;
 	
-	Scheduler scheduler;
 	Interrupt interrupt;
 	SpriteManager spriteManager;
 
@@ -55,10 +53,9 @@ public:
 
 	Gameboy() :
 		mem(*this),
-		scheduler(*this),
 		interrupt(),
 		spriteManager(ppu, mem.boot),
-		cpu(mem, scheduler, interrupt),
+		cpu(*this),
 		ppu(*this),
 		apu(),
 		joypad(interrupt),

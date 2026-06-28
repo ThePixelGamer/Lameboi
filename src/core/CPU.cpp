@@ -75,7 +75,7 @@ void CPU::handlePrint() {
 	//fprintf(log, "PC:%04x OPC:%02x %02x %02x C:%x H:%x N:%x Z:%x A:%02x\n", PC - 1, opcode, GetLEBytes<u8>(PC), GetLEBytes<u8>(PC + 1), CheckCarry(), CheckHalfCarry(), CheckNegative(), CheckZero(), A); //LilaQ
 }
 
-CPU::CPU(Memory& mem, Scheduler& scheduler, Interrupt& interrupt) : mem(mem), scheduler(scheduler), interrupt(interrupt) {
+CPU::CPU(Gameboy& gb) : mem(gb.mem), gb(gb), interrupt(gb.interrupt) {
 	clean();
 }
 
@@ -102,17 +102,26 @@ u8 CPU::M_Write_Helper(T func, Args... args) {
 	return value;
 }
 
+void CPU::newMCycle() {
+	++opcodeCycleCount;
+
+	gb.mem.update();
+	gb.apu.update();
+	gb.ppu.update();
+	gb.timer.update();
+}
+
 void CPU::fireInterrupt(u8 interrupt) {
 	//2 nops
-	scheduler.newMCycle();
-	scheduler.newMCycle();
+	newMCycle();
+	newMCycle();
 	
 	//push
 	write(SP, PC);
 	SP -= 2;
 
 	PC = interrupt;
-	scheduler.newMCycle();
+	newMCycle();
 
 	IME = false;
 }
@@ -161,7 +170,7 @@ void CPU::ExecuteOpcode() {
 			lowPower = false;
 		}
 		else {
-			scheduler.newMCycle(); //not sure about how I'm handling it
+			newMCycle(); //not sure about how I'm handling it
 			return;
 		}
 	}
@@ -872,7 +881,7 @@ void CPU::setZero(bool val) {
 
 void CPU::write(u16 loc, u8 value) {
 	mem.cpu_write(loc, value);
-	scheduler.newMCycle();
+	newMCycle();
 }
 
 void CPU::write(u16 loc, u16 value) {
@@ -882,13 +891,13 @@ void CPU::write(u16 loc, u16 value) {
 
 u8 CPU::readHigh(u8 loc) {
 	u8 value = mem.read_high(loc);
-	scheduler.newMCycle();
+	newMCycle();
 	return value;
 }
 
 void CPU::writeHigh(u8 loc, u8 value) {
 	mem.write_high(loc, value);
-	scheduler.newMCycle();
+	newMCycle();
 }
 
 template <typename T, bool increase>
@@ -906,7 +915,7 @@ T CPU::getLEBytes(u16& addr) {
 
 		value += mem.cpu_read(newAddr) << (currentByte * 8);
 
-		scheduler.newMCycle();
+		newMCycle();
 	}
 	return value;
 }
@@ -1041,7 +1050,7 @@ void CPU::Load(u8& loc, u8 val) {
 }
 
 void CPU::Push(u16 reg_pair) {
-	scheduler.newMCycle();
+	newMCycle();
 	write(SP, reg_pair);
 	SP -= 2;
 }
@@ -1054,28 +1063,28 @@ void CPU::Pop(R& reg_pair) {
 
 void CPU::Jump(u16 loc, bool cond) {
 	if (cond) {
-		scheduler.newMCycle();
+		newMCycle();
 		PC = loc;
 	}
 }
 
 void CPU::JumpRelative(s8 offset, bool cond) {
 	if (cond) {
-		scheduler.newMCycle();
+		newMCycle();
 		PC += offset;
 	}
 }
 
 void CPU::Call(u16 loc, bool cond) {
 	if(cond) {
-		//scheduler.newMCycle(); push already runs a m-cycle so this isn't needed
+		//newMCycle(); push already runs a m-cycle so this isn't needed
 		Push(PC);
 		PC = loc;
 	}
 }
 
 void CPU::Ret() {
-	scheduler.newMCycle();
+	newMCycle();
 	Pop(PC);
 }
 
