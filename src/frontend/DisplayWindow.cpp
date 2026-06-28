@@ -1,6 +1,5 @@
 #include "DisplayWindow.h"
 
-#include <mutex>
 
 #include "App.h"
 
@@ -83,7 +82,6 @@ void DisplayWindow::render() {
 	ImGui::Spacing();
 	ImGui::SetCursorPosX(ImGui::GetStyle().WindowPadding.x);
 	if (ImGui::Button("Stop")) {
-		context.gb.debug.running = false;
 		context.gb.stop();
 	}
 

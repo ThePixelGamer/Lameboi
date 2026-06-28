@@ -19,7 +19,6 @@ class DebugWindow {
 	bool show_memory = false;
 	bool show_breakpoints = false;
 
-	u64 step = 1;
 	size_t steps = 1;
 
 public:

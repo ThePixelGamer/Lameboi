@@ -1,44 +1,31 @@
 #include "Debugger.h"
 
-
-void Debugger::addBreakpoint(u16 PC) {
-	breakpoints.insert(PC);
-}
-
-Debugger::BreakpointIter Debugger::removeBreakpoint(BreakpointIter PC) {
-	return breakpoints.erase(PC);
-}
-
-void Debugger::removeBreakpoint(u16 PC) {
-	breakpoints.erase(PC);
-}
-
-std::set<u16>& Debugger::getBreakpoints() {
-	return breakpoints;
-}
-
-void Debugger::step(size_t steps_) {
-	isStepping = true;
-	steps = steps_;
-}
-
-size_t Debugger::amountToStep(u16 PC) {
-	if (!breakpoints.empty()) {
-		if (breakpoints.find(PC) != breakpoints.end()) {
-			running = false;
-			return 0;
-		}
+bool Debugger::shouldBreak(addr PC) {
+	// have we already hit a breakpoint?
+	if (!running) {
+		return true;
 	}
 
-	if (isStepping) {
-		running = false; //don't continue after stepping
-		isStepping = false;
-		return steps;
+	// does the current instruction have a breakpoint?
+	if (breakpoints.find(PC) != breakpoints.end()) {
+		pause();
+		return true;
 	}
 
-	if (running) {
-		return 1;
+	// have we finished stepping?
+	if (steps != 0 && --steps == 0) {
+		pause();
+		return true;
 	}
 
-	return 0;
+	// are we in vblank?
+	if (breakVblank && inVblank) {
+		breakVblank = inVblank = false;
+
+		pause();
+		return true;
+	}
+
+	// no? continue :3
+	return false;
 }

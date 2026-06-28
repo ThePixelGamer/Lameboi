@@ -120,7 +120,7 @@ public:
 	static inline bool windowEnabled = true;
 	static inline bool spritesEnabled = true;
 
-	size_t framesPresented;
+	u16 framesPresented;
 
 	std::mutex vblank_m;
 

@@ -30,17 +30,19 @@ void DebugWindow::render() {
 		breakpointsWindow.render();
 
 		if (ImGui::Button("Step 1")) {
-			debug.step(1);
+			debug.step();
 		}
 
 		if (ImGui::Button("Step")) {
 			debug.step(steps);
 		}
-		ImGui::SameLine(); ImGui::InputScalar("##step", ImGuiDataType_U64, &steps, &step);
+
+		static ImU64 step = 1, stepFast = 50;
+		ImGui::SameLine(); ImGui::InputScalar("##step", ImGuiDataType_U64, &steps, &step, &stepFast);
 
 		if (ImGui::Button("Step Frame")) {
-			debug.running = true;
-			debug.vblankStep = true;
+			debug.breakVblank = true;
+			debug.resume();
 		}
 
 		ImGui::Checkbox("Show PPU Window", &PPU::windowEnabled);

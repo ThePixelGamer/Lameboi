@@ -12,12 +12,9 @@ namespace ui {
 class MainMenu {
 	// file menu
 	std::unique_ptr<pfd::open_file> romFile = nullptr;
-	std::thread emuThread;
 
+	App& app;
 	Gameboy& gb;
-
-	App& context;
-	bool paused = false;
 
 	// todo: streamline?
 	using second = std::chrono::duration<int>;
@@ -27,11 +24,7 @@ class MainMenu {
 	u64 fps = 0;
 
 public:
-	MainMenu(Gameboy& gb, App& context);
-
-	~MainMenu() {
-		emuThread.join();
-	}
+	MainMenu(App& app);
 
 	void render();
 
@@ -39,8 +32,6 @@ private:
 	void renderFile();
 	void renderGameboy();
 	void renderDebug();
-
-	void updateFPS();
 };
 
 } // namespace ui

@@ -13,6 +13,11 @@ bool Gameboy::loadBios(const std::string& biosPath) {
 		return false;
 	}
 
+	if (fs::file_size(biosPath) != bios.size()) {
+		LB_WARN(Frontend, "{} file is not a valid DMG bios", biosPath);
+		return false;
+	}
+
 	std::ifstream biosFile(biosPath, std::ifstream::binary);
 
 	if (!biosFile) {
@@ -20,88 +25,40 @@ bool Gameboy::loadBios(const std::string& biosPath) {
 		return false;
 	}
 
-	biosFile.read(reinterpret_cast<char*>(bios.data()), 0x100);
+	biosFile.read((char*)bios.data(), bios.size());
 	biosFile.close();
 	return true;
 }
 
-bool Gameboy::loadRom(const std::string& romPath) {
+bool Gameboy::loadRom(const std::string& romPath, bool start, bool power) {
 	if (!cart.load(romPath)) {
 		return false;
 	}
 
-	log.open(cart.romName + ".txt");
 	spriteManager.loadRom(cart.romName);
+
+	if (power) {
+		if (!start) debug.pause();
+		this->start();
+	}
+
 	return true;
 }
 
-void Gameboy::start() {
-	std::lock_guard<std::mutex> lk(emuM);
-	emuRun = true;
-	emuDone = false; 
-	emuCV.notify_one();
-}
-
-void Gameboy::stop() {
-	if (!emuDone) {
-		emuRun = false;
-		std::unique_lock lk(emuM);
-		emuCV.wait(lk, [this] { return emuDone; });
-	}
-}
-
-void Gameboy::close() {
-	std::unique_lock lk(emuM);
-	emuRun = false;
-	// hack to get the wait to work, need to rework in context of threadRun
-	emuCV.wait(lk, [this] { return emuDone; });
-}
-
-// https://en.cppreference.com/w/cpp/thread/condition_variable
 void Gameboy::run() {
-	while (threadRun) {
-		std::unique_lock lk(emuM);
-		emuCV.wait(lk, [this] { return !emuDone; });
-
-		while (emuRun) {
-			for (size_t steps = debug.amountToStep(cpu.PC); emuRun && (steps > 0); --steps) {
-				cpu.ExecuteOpcode();
-
-				// todo: improve
-				if (debug.vblankStep) {
-					if (debug.inVblank) {
-						debug.inVblank = false;
-						debug.vblankStep = false;
-						debug.running = false;
-					}
-				}
-				/*
-				if (mem.serialControl.transferStart) {
-					std::cout << mem.serialData;
-					mem.serialControl.transferStart = 0;
-				}
-				*/
-			}
+	while (emuRun) {
+		if (debug.shouldBreak(cpu.PC)) {
+			continue;
 		}
 
-		// todo: should this print be changed?
-		if (threadRun) {
-			fmt::printf("----------------------------------------------------\n");
+		cpu.ExecuteOpcode();
+
+		/*
+		if (mem.serialControl.transferStart) {
+			std::cout << mem.serialData;
+			mem.serialControl.transferStart = 0;
 		}
-
-		clean();
-
-		// loading bios once now
-		//bios.fill(0xFF);
-
-		// not needed, remove?
-		if (log.is_open()) {
-			log.close();
-		}
-
-		emuDone = true;
-		lk.unlock();
-		emuCV.notify_one();
+		*/
 	}
 }
 

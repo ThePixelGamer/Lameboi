@@ -16,6 +16,7 @@ struct App {
 	bool requestExit = false;
 
 	Gameboy gb;
+	std::thread emuThread;
 
 	ui::DisplayWindow display;
 	ui::DebugWindow debug;
@@ -32,21 +33,19 @@ struct App {
 		debug(gb),
 		settings(gb),
 		viewport(),
-		menubar(gb, *this),
+		menubar(*this),
 		bgmapWindow(gb),
 		tileDataWindow(gb),
-		oamWindow(gb)
-	{}
+		oamWindow(gb),
+
+		emuThread(&Gameboy::thread, &gb)
+	{
+		gb.loadBios(config.biosPath);
+	}
 
 	~App() {
-		gb.threadRun = false;
-		// is this the best place for this?
-		if (!gb.emuRun) {
-			std::lock_guard lk(gb.emuM);
-			gb.emuDone = false;
-			gb.emuCV.notify_one();
-		}
-		gb.stop();
+		gb.exit();
+		emuThread.join();
 
 		inputManager.close();
 	}

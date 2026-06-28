@@ -1,11 +1,9 @@
 #pragma once
 
-#include <algorithm> //std::fill
-#include <chrono>
-#include <cmath>
-#include <fstream> //std::istream
-#include <memory>
-#include <set>
+#include <atomic>
+#include <condition_variable>
+#include <fstream>
+#include <mutex>
 #include <string>
 
 #include "Memory.h"
@@ -26,7 +24,15 @@
 #include "util/FileUtil.h"
 
 class Gameboy {
+private:
+	// Threading
+	std::mutex m;
+	std::condition_variable cv;
+	std::atomic_bool threadRun = true;
+
 public:
+	std::atomic_bool emuRun = false;
+
 	// Internal
 	Memory mem;
 	std::array<u8, 0x100> bios;
@@ -46,14 +52,6 @@ public:
 	SerialPort serial;
 
 	Debugger debug;
-	std::ofstream log;
-
-	// Threading
-	std::mutex emuM;
-	std::condition_variable emuCV;
-	std::atomic_bool threadRun = true;
-	std::atomic_bool emuRun = false;
-	bool emuDone = true;
 
 	Gameboy() :
 		mem(*this),
@@ -73,22 +71,58 @@ public:
 	}
 
 	bool loadBios(const std::string& biosPath);
-	bool loadRom(const std::string& romPath);
+	bool loadRom(const std::string& romPath, bool start = true, bool power = true);
 
-	// todo: better comments :/
+	// signal run thread to start executing 
+	void start() {
+		emuRun = true;
+		std::unique_lock lk(m);
+		cv.notify_one();
+	}
 
-	// rom is loaded, continue running in thread
-	void start();
+	// wait for thread to stop executing
+	void stop() {
+		// stop only if running 
+		if (emuRun) {
+			emuRun = false;
+			std::unique_lock lk(m);
+			cv.wait(lk);
+		}
+	}
 
-	// check to see if thread is running, "close" if so
-	void stop();
+	// signal and wait for thread to finish 
+	void exit() {
+		threadRun = false;
+		
+		// Core never started so "start" to cleanly exit
+		if (!emuRun) {
+			std::unique_lock lk(m);
+			cv.notify_one();
+		}
 
-	// ignore the check, "close" the thread
-	void close();
+		emuRun = false;
+		std::unique_lock lk(m);
+		cv.wait(lk);
+	}
 
 	// the main thread function
-	void run();
+	void thread() {
+		while (threadRun) {
+			{
+				std::unique_lock lk(m);
+				cv.wait(lk);
+			}
+
+			run();
+			clean();
+
+			// notify stop()/exit() that we finished cleaning up
+			std::unique_lock lk(m);
+			cv.notify_one();
+		}
+	}
 
 private:
+	void run();
 	void clean();
 };

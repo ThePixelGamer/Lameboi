@@ -4,15 +4,6 @@
 
 namespace ui {
 
-MainMenu::MainMenu(Gameboy& gb, App& context) :
-	gb(gb),
-	context(context),
-	emuThread(&Gameboy::run, &gb) {
-
-	// todo: call this somewhere else on startup?
-	gb.loadBios(config.biosPath);
-}
-
 // todo: run on a separate thread to not be affected by UI performance?
 void MainMenu::updateFPS() {
 	perf = std::chrono::duration_cast<second>(clock::now() - perfTimer);
@@ -22,6 +13,7 @@ void MainMenu::updateFPS() {
 		gb.ppu.framesPresented = 0;
 	}
 }
+MainMenu::MainMenu(App& app) : gb(app.gb), app(app) {}
 
 const std::vector<std::string> gbFileTypes{
 	"Gameboy ROMs (.gb)", "*.gb",
@@ -34,7 +26,7 @@ void MainMenu::renderFile() {
 		// wait for the any emu threads to finish
 		gb.stop();
 
-		if (!std::filesystem::exists(filename)) {
+		if (!gb.loadRom(filename, !app.debug.show)) {
 			LB_INFO(Frontend, "File {} does not exist", filename);
 
 			// Silently drop it from recent roms list if it exists
@@ -46,12 +38,8 @@ void MainMenu::renderFile() {
 
 			return;
 		}
-		if (gb.loadRom(filename)) {
-			fmt::print("Opened {}\n", filename);
 
-			gb.debug.running = !context.debug.show;
-			gb.start();
-		}
+		LB_INFO(Frontend, "Opened {}", filename);
 
 		auto& recentRoms = *config.recentRoms;
 		auto romIt = std::find(recentRoms.begin(), recentRoms.end(), filename);
@@ -91,7 +79,7 @@ void MainMenu::renderFile() {
 
 		ImGui::Separator();
 		if (ImGui::MenuItem("Quit")) {
-			context.requestExit = true;
+			app.requestExit = true;
 		}
 
 		ImGui::EndMenu();
@@ -115,16 +103,12 @@ void MainMenu::renderGameboy() {
 			gb.debug.running = !gb.debug.running;
 		}
 
-		if (ImGui::MenuItem("Show Display")) {
-			context.display.show = true;
+		if (ImGui::MenuItem("Show Viewport", nullptr, app.viewport.show)) {
+			app.viewport.show = true;
 		}
 
-		if (ImGui::MenuItem("Show Viewport")) {
-			context.viewport.show = true;
-		}
-
-		if (ImGui::MenuItem("Settings")) {
-			context.settings.show = true;
+		if (ImGui::MenuItem("Settings", nullptr, app.settings.show)) {
+			app.settings.show = true;
 		}
 
 		ImGui::EndMenu();
@@ -133,15 +117,15 @@ void MainMenu::renderGameboy() {
 
 void MainMenu::renderDebug() {
 	if (ImGui::BeginMenu("Debug")) {
-		if (ImGui::MenuItem("Show Debugger")) {
-			context.debug.show = true;
-			gb.debug.running = false;
+		if (ImGui::MenuItem("Show Debugger", nullptr, app.debug.show)) {
+			app.debug.show = true;
+			gb.debug.pause();
 		}
 
 		if (ImGui::BeginMenu("PPU")) {
-			ImGui::MenuItem("Background Map", nullptr, &context.bgmapWindow.show);
-			ImGui::MenuItem("Tile Data", nullptr, &context.tileDataWindow.show);
-			ImGui::MenuItem("OAM Sprites", nullptr, &context.oamWindow.show);
+			ImGui::MenuItem("Background Map", nullptr, &app.bgmapWindow.show);
+			ImGui::MenuItem("Tile Data", nullptr, &app.tileDataWindow.show);
+			ImGui::MenuItem("OAM Sprites", nullptr, &app.oamWindow.show);
 
 			ImGui::EndMenu();
 		}
@@ -159,7 +143,8 @@ void MainMenu::render() {
 		ImGui::EndMainMenuBar();
 	}
 
-	// todo: move to it's own class or perhaps have the "status bar" be tied to the display window
+	// Render status bar over entire window
+	// todo: should the "status bar" be tied to the display window?
 	ImGuiViewportP* viewport = (ImGuiViewportP*)(void*)ImGui::GetMainViewport();
 	ImGuiWindowFlags window_flags = ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_MenuBar;
 	if (ImGui::BeginViewportSideBar("##MainStatusBar", viewport, ImGuiDir_Down, ImGui::GetFrameHeight(), window_flags)) {
