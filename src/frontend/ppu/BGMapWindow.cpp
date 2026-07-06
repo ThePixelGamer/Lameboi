@@ -5,8 +5,7 @@
 #include "core/Gameboy.h"
 #include "frontend/widgets/SquareResize.h"
 
-#define IMGUI_DEFINE_MATH_OPERATORS
-#include "util/ImGuiHeaders.h"
+#include <imgui_stdlib.h>
 
 namespace ui {
 
@@ -61,21 +60,14 @@ void drawDisplayBox(Gameboy& gb, const ImVec2& topleft, const ImVec2& bottomrigh
 	ImGui::GetWindowDrawList()->AddLine(boxBL, boxWrapXBR, boxColor, boxThickness); //bottom
 }
 
-void BGMapWindow::drawExtra(void* extraData, const ImVec2& topleft, const ImVec2& bottomright, float mult) {
-	if (!extraData) {
-		LB_ERROR(Frontend, "extraData is nullptr");
-		return;
-	}
-	
-	auto pThis = static_cast<BGMapWindow*>(extraData);
-
-	if (pThis->displayOutline) {
-		drawDisplayBox(pThis->gb, topleft, bottomright, mult);
+void BGMapWindow::drawExtra(const ImVec2& topleft, const ImVec2& bottomright, float mult) {
+	if (displayOutline) {
+		drawDisplayBox(gb, topleft, bottomright, mult);
 	}
 
-	if (pThis->selected) {
-		Pos2& min = pThis->selectionMin;
-		Pos2& max = pThis->selectionMax;
+	if (selected) {
+		Pos2& min = selectionMin;
+		Pos2& max = selectionMax;
 
 		float tileMult = 8.0f * mult;
 		ImVec2 TL = ImVec2(topleft.x + (min.x * tileMult), topleft.y + (min.y * tileMult));
@@ -110,7 +102,7 @@ void BGMapWindow::handleClick(u32 x, u32 y) {
 // todo: resize the image when the window is resized, also keep the image squared when doing so (avoid extra whitespace?)
 void BGMapWindow::render() {
 	if (show) {
-		ImVec2 windowMinSize = oldCursor + ImVec2(texWidth, texHeight) + ImGui::GetStyle().WindowPadding;
+		ImVec2 windowMinSize = oldCursor + ImVec2(bgmapTex.W, bgmapTex.H) + ImGui::GetStyle().WindowPadding;
 		ImGui::SetNextWindowSizeConstraints(windowMinSize, ImVec2(FLT_MAX, FLT_MAX), &squareResize, &oldCursor);
 
 		ImGui::Begin("Background Maps", &show, ImGuiWindowFlags_NoScrollbar);
@@ -138,16 +130,15 @@ void BGMapWindow::render() {
 
 			int width = (selectionMax.x - selectionMin.x + 1) * 8;
 			int height = (selectionMax.y - selectionMin.y + 1) * 8;
-			dumpPreview.setSize(width, height);
-			gb.ppu.dumpBGMapTiles(dumpPixels, selectionMin, selectionMax, b_bgmap, b_tileset);
-			dumpPreview.update();
+			dump.setSize(width, height);
+			gb.ppu.dumpBGMapTiles(dump, selectionMin, selectionMax, b_bgmap, b_tileset);
 			float zoom = std::max(std::min(256.0f / width, 256.0f / height), 1.0f);
-			dumpPreview.render(zoom * 0.5f);
+			dump.render(zoom * 0.5f);
 
 			ImGui::SetNextWindowPos(ImGui::GetMainViewport()->GetCenter(), ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
 
 			if (ImGui::BeginPopupModal(popupName, nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
-				dumpPreview.render(zoom);
+				dump.render(zoom);
 
 				auto& manifest = gb.spriteManager.getCurrentManifest();
 				auto& currentProfile = manifest.getCurrentProfile();
@@ -170,25 +161,13 @@ void BGMapWindow::render() {
 				if (ImGui::Button("Dump")) {
 					if (!dumpFile.empty()) {
 						std::vector<u8> pixelData;
-						pixelData.resize(width * height * sizeof(u32));
-
-						for (int y = 0; y < height; ++y) {
-							for (int x = 0; x < width; ++x) {
-								u32 color = dumpPixels[x + (y * 32 * 8)];
-								int offset = (x * 4) + (y * width * 4);
-								pixelData[offset + 0] = color >> 24;
-								pixelData[offset + 1] = color >> 16;
-								pixelData[offset + 2] = color >> 8;
-								pixelData[offset + 3] = 0xFF; // alpha should be 0xFF in color;
-							}
-						}
+						pixelData.resize(width * height * 4);
+						std::copy_n(dump.data().begin(), pixelData.size(), pixelData.begin());
 
 						const std::string folder = manifest.rootPath + currentProfile.name + "/";
-						unsigned error = lodepng::encode(folder + dumpFile + ".png", pixelData, width, height);
-
-						// if there's an error, display it
-						if (error)
+						if (auto error = lodepng::encode(folder + dumpFile + ".png", pixelData, width, height)) {
 							LB_ERROR(PPU, "encoder error {}: {}", error, lodepng_error_text(error));
+						}
 
 						dumpFile = "";
 						ImGui::CloseCurrentPopup();
@@ -211,16 +190,13 @@ void BGMapWindow::render() {
 
 		oldCursor = ImGui::GetCursorPos();
 
-		gb.ppu.dumpBGMap(pixels, b_bgmap, b_tileset);
-		tex.update();
+		gb.ppu.dumpBGMap(bgmapTex, b_bgmap, b_tileset);
 
 		ImVec2 availSize = ImGui::GetContentRegionAvail();
-		float zoom = std::max(std::min(availSize.x / texWidth, availSize.y / texHeight), 1.0f);
-		auto [clicked, posx, posy] = tex.render(zoom, true, &drawExtra, this);
+		float zoom = std::max(std::min(availSize.x / bgmapTex.W, availSize.y / bgmapTex.H), 1.0f);
+		using namespace std::placeholders;
+		bgmapTex.render(zoom, true, std::bind(&BGMapWindow::drawExtra, this, _1, _2, _3), std::bind(&BGMapWindow::handleClick, this, _1, _2));
 
-		if (clicked) {
-			handleClick(posx, posy);
-		}
 		ImGui::EndGroup();
 
 		ImGui::End();

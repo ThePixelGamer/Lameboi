@@ -2,9 +2,11 @@
 
 #include <filesystem>
 
+#include <imgui.h>
+#include <fmt/format.h>
+
 #include "core/Gameboy.h"
 #include "core/Input.h"
-#include "util/ImGuiHeaders.h"
 #include "util/StringUtils.h"
 
 const std::vector<std::string> palletteFileTypes{
@@ -69,7 +71,7 @@ void SettingsWindow::render() {
 }
 
 void SettingsWindow::renderGeneralTab() {
-	ImGui::InputText("##bios_path", config.biosPath.get(), ImGuiInputTextFlags_ReadOnly);
+	ImGui::InputText("##bios_path", config.biosPath.get()->data(), ImGuiInputTextFlags_ReadOnly);
 
 	ImGui::SameLine();
 	if (ImGui::Button("Select")) {
@@ -93,12 +95,18 @@ void SettingsWindow::renderGeneralTab() {
 }
 
 void SettingsWindow::renderVideoTab() {
-	ImGui::ColorEdit3("##ColorEditor", PPU::paletteColors[paletteIdx].data());
+	auto& c = PPU::paletteColors[paletteIdx];
+	ImVec4 col = ImColor(c.r, c.g, c.b);
+	if (ImGui::ColorEdit3("##ColorEditor", (float*)&col)) {
+		PPU::paletteColors[paletteIdx] = (float*)&col;
+	}
 
 	for (u8 i = 0; i < 4; ++i) {
 		std::string name = "##Color" + std::to_string(i);
-		Color& color = PPU::paletteColors[i];
-		if (ImGui::ColorButton(name.c_str(), ImVec4(color.r, color.g, color.b, 1.0f)))
+
+		auto& c = PPU::paletteColors[paletteIdx];
+		ImVec4 col = ImColor(c.r, c.g, c.b);
+		if (ImGui::ColorButton(name.c_str(), col))
 			paletteIdx = i;
 
 		if (i != 3)
@@ -133,7 +141,7 @@ void SettingsWindow::renderVideoTab() {
 			}
 
 			// ensure light -> dark palette
-			std::sort(palette.begin(), palette.end(), std::greater<u32>());
+			// std::sort(palette.begin(), palette.end(), std::greater<Color>());
 
 			config.currentPalette = std::filesystem::path(filePath).stem().string();
 			(*config.paletteProfiles)[config.currentPalette] = palette;
@@ -145,18 +153,24 @@ void SettingsWindow::renderVideoTab() {
 }
 
 void SettingsWindow::renderInputTab() {
-	const char* deviceName = (inputManager.gamepadActive) ? inputManager.getControllerName(inputManager.selectedPad) : "Keyboard";
-	if (ImGui::BeginCombo("Input Device##controllers", deviceName)) {
-		if (ImGui::Selectable("Keyboard")) {
-			inputManager.gamepadActive = false;
-		}
-
-		for (auto [id, pad] : inputManager.getControllers()) {
-			if (ImGui::Selectable(pad.name)) {
-				inputManager.gamepadActive = true;
-				inputManager.selectedPad = id;
+	if (ImGui::BeginCombo("Input Keyboard", inputManager.keyboard.getName())) {
+		for (auto keyboard : inputManager.keyboard.available) {
+			std::string name = fmt::format("{}##{}", Input::Keyboard::getName(keyboard), keyboard);
+			if (ImGui::Selectable(name.c_str())) {
+				inputManager.keyboard.active = keyboard;
 			}
 		}
+
+		ImGui::EndCombo();
+	}
+	if (ImGui::BeginCombo("Input Gamepad", inputManager.gamepad.getName())) {
+		for (auto gamepad : inputManager.gamepad.available) {
+			std::string name = fmt::format("{}##{}", Input::Gamepad::getName(gamepad), gamepad);
+			if (ImGui::Selectable(name.c_str())) {
+				inputManager.gamepad.open(gamepad);
+			}
+		}
+
 		ImGui::EndCombo();
 	}
 
@@ -164,21 +178,16 @@ void SettingsWindow::renderInputTab() {
 	float p = std::min(ImGui::GetContentRegionAvail().x, ImGui::GetContentRegionAvail().y) / ImGui::GetStyle().FontSizeBase;
 	ImVec2 bsize = { p * 2, p * 2 };
 
-	auto inputRemap = [this, &start, &bsize](GB::Button button, ImVec2 offset) {
-		constexpr const char* names[] = {
-			"Up", "Down", "Left", "Right",
-			"Start", "Select", "B", "A"
-		};
-
+	auto inputRemap = [this, &start, &bsize](Joypad::Button button, ImVec2 offset) {
 		ImGui::SetCursorScreenPos(start + offset);
-		const char* name = names[button];
-		std::string namegui = inputManager.getButtonName(name) + "##" + name;
+		const char* name = Joypad::names[button];
+		bool activeGamepad = inputManager.gamepad.active != inputManager.gamepad.invalid;
+		std::string namegui = fmt::format("{}##{}", inputManager.mapping.binds.at(name).getString(!activeGamepad), name);
 		if (ImGui::Button(namegui.c_str(), bsize)) {
-			remapButton = button;
-		}
-
-		if (remapButton == button && inputManager.remapButton(name)) {
-			remapButton = GB::NumButtons;
+			if (inputManager.rebind == name) {
+				inputManager.rebind = nullptr;
+			}
+			inputManager.rebind = name;
 		}
 	};
 
@@ -201,10 +210,10 @@ void SettingsWindow::renderInputTab() {
 	ImGui::PushFont(nullptr, p * 0.75f);
 	ImGui::GetWindowDrawList()->AddRectFilled(start + ImVec2(p*3, p*3), start + ImVec2(p*5, p*5), dpadCol);
 	updateButtonColor(dpadCol);
-	inputRemap(GB::Up, ImVec2{ p * 3, p });
-	inputRemap(GB::Down, ImVec2{ p * 3, p * 5 });
-	inputRemap(GB::Left, ImVec2{ p, p * 3 });
-	inputRemap(GB::Right, ImVec2{ p * 5, p * 3 });
+	inputRemap(Joypad::Up, ImVec2{ p * 3, p });
+	inputRemap(Joypad::Down, ImVec2{ p * 3, p * 5 });
+	inputRemap(Joypad::Left, ImVec2{ p, p * 3 });
+	inputRemap(Joypad::Right, ImVec2{ p * 5, p * 3 });
 	ImGui::PopStyleColor(3);
 
 	bsize = { p * 1.5f, p * 1.5f };
@@ -212,14 +221,14 @@ void SettingsWindow::renderInputTab() {
 
 	//ImGui::GetWindowDrawList()->AddCircleFilled(start + ImVec2(p * 8.75, p * 5.75), p, bCol);
 	//ImGui::GetWindowDrawList()->AddCircleFilled(start + ImVec2(p * 9.75, p * 2.75), p, bCol);
-	inputRemap(GB::B, ImVec2{ p * 8, p * 5 }); ImGui::SameLine(); ImGui::TextColored(textCol, "B");
-	inputRemap(GB::A, ImVec2{ p * 9, p * 2 }); ImGui::SameLine(); ImGui::TextColored(textCol, "A");
+	inputRemap(Joypad::B, ImVec2{ p * 8, p * 5 }); ImGui::SameLine(); ImGui::TextColored(textCol, "B");
+	inputRemap(Joypad::A, ImVec2{ p * 9, p * 2 }); ImGui::SameLine(); ImGui::TextColored(textCol, "A");
 	ImGui::PopStyleColor(3);
 
 	bsize = { p * 3, p * 1 };
 	updateButtonColor(sCol);
-	inputRemap(GB::Start, ImVec2{ p * 8, p * 8 }); ImGui::SameLine(); ImGui::TextColored(textCol, "Start");
-	inputRemap(GB::Select, ImVec2{ p * 1, p * 8 }); ImGui::SameLine(); ImGui::TextColored(textCol, "Select");
+	inputRemap(Joypad::Start, ImVec2{ p * 8, p * 8 }); ImGui::SameLine(); ImGui::TextColored(textCol, "Start");
+	inputRemap(Joypad::Select, ImVec2{ p * 1, p * 8 }); ImGui::SameLine(); ImGui::TextColored(textCol, "Select");
 	ImGui::PopStyleColor(3);
 	ImGui::PopFont();
 }

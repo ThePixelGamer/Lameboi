@@ -5,8 +5,6 @@
 #include <mutex>
 #include <vector>
 
-#include "ppu/Palette.h"
-#include "ppu/Sprite.h"
 #include "util/Color.h"
 #include "util/Types.h"
 #include "util/Common.h"
@@ -21,12 +19,102 @@ class Debugger;
 class SpriteManager;
 class Interrupt;
 
+struct Sprite {
+	u8 xPos = 0, yPos = 0, tile = 0;
+	bool useOBP1 = false;
+	bool xFlip = false, yFlip = false;
+	bool behindBG = false;
+	u8 lowerX3Byte = 0;
+
+	u8 read(u8 reg) {
+		switch (reg) {
+			case 0: return yPos;
+			case 1: return xPos;
+			case 2: return tile;
+			case 3: return (behindBG << 7) | (yFlip << 6) | (xFlip << 5) | (useOBP1 << 4) | lowerX3Byte;
+
+			default:
+				//log
+				return 0xFF;
+		}
+	}
+
+	void write(u8 reg, u8 value) {
+		switch (reg) {
+			case 0: yPos = value; break;
+			case 1: xPos = value; break;
+			case 2: tile = value; break;
+			case 3:
+				behindBG = (value & 0x80);
+				yFlip = (value & 0x40);
+				xFlip = (value & 0x20);
+				useOBP1 = (value & 0x10);
+				lowerX3Byte = (value & 0xF);
+				break;
+
+			default:
+				//log
+				break;
+		}
+	}
+};
+
+struct PaletteData {
+	u8 color0 : 2;
+	u8 color1 : 2;
+	u8 color2 : 2;
+	u8 color3 : 2;
+
+	PaletteData() :
+		color0(0),
+		color1(0),
+		color2(0),
+		color3(0) {}
+
+	PaletteData(u8 c0, u8 c1, u8 c2, u8 c3) :
+		color0(c0),
+		color1(c1),
+		color2(c2),
+		color3(c3) {}
+
+	PaletteData& operator=(u8 c) {
+		color0 = (c);
+		color1 = (c >> 2);
+		color2 = (c >> 4);
+		color3 = (c >> 6);
+		return *this;
+	}
+
+	bool operator==(PaletteData& pal) {
+		return color0 == pal.color0
+			&& color1 == pal.color1
+			&& color2 == pal.color2
+			&& color3 == pal.color3;
+	}
+
+	bool operator!=(PaletteData& pal) {
+		return !(*this == pal);
+	}
+
+	u8 operator[](u8 idx) const {
+		switch (idx) {
+			case 0: return color0;
+			case 1: return color1;
+			case 2: return color2;
+			case 3: return color3;
+			default: return 0;
+		}
+	}
+
+	u8 read() {
+		return (color3 << 6) | (color2 << 4) | (color1 << 2) | (color0);
+	}
+};
+
 struct Pixel {
 	static constexpr u64 INVALID_ID = static_cast<u64>(-1);
 
 	// gb paletted color
-	u8 color = 0; // 2-bit
-
 	PaletteData palette;
 	u64 hash = INVALID_ID; // 8-bytes
 	u8 x = 0; // 4-bit
@@ -36,13 +124,18 @@ struct Pixel {
 
 class PPU {
 public:
+	constexpr static size_t W = 160, H = 144;
+	constexpr static size_t T = 8;
+
+
 	static Pixel DefaultPixel;
 
 	struct Framebuffer {
 		std::vector<u64> hashes;
+		std::array<Pixel, W * H> metainfo;
 
 		// todo: separate cg and raw color displays
-		std::array<Pixel, 160 * 144> pixels;
+		std::array<u8, W * H> pixels{};
 	};
 
 	SpriteManager& spriteManager;
@@ -125,7 +218,7 @@ public:
 	std::mutex vblank_m;
 
 	//helper for dumpSprites
-	inline static u32 invisPixel = 0;
+	inline static Color invisPixel{ u32(0) };
 
 	enum Mode {
 		HBlank,
@@ -150,12 +243,14 @@ public:
 	u8 readOAM(u8 offset);
 	void writeOAM(u8 offset, u8 value, bool force = false);
 
-	void render(std::array<u32, 160 * 144>& display);
-	void dumpBGMap(std::array<u32, 256 * 256>& bgmap, bool bgMap, bool tileSet);
-	void dumpTileMap(std::array<u32, 128 * 64 * 3>& tilemap);
-	void dumpBGMapTiles(std::array<u32, 32 * 8 * 32 * 8>& tiles, Pos2 min, Pos2 max, bool bgMap, bool tileSet);
-	void dumpTiles(std::array<u32, 32 * 8 * 32 * 8>& tiles, u32 x1, u32 y1, u32 x2, u32 y2, u32 w, u32 h);
-	void dumpSprites(std::array<u32, 64 * 40>& sprites);
+	void dumpTile(u8* out, const size_t outW, const u16 tileOffset);
+
+	void render(std::array<u8, 160 * 144 * 4>& display);
+	void dumpBGMap(std::array<u8, 256 * 256 * 4>& bgmap, bool bgMap, bool tileSet);
+	void dumpTileMap(std::array<u8, 128 * 64 * 3 * 4>& tilemap);
+	void dumpBGMapTiles(std::array<u8, 32 * 8 * 32 * 8 * 4>& tiles, Pos2 min, Pos2 max, bool bgMap, bool tileSet);
+	void dumpTiles(std::array<u8, 32 * 8 * 32 * 8 * 4>& tiles, u32 x1, u32 y1, u32 x2, u32 y2, u32 w, u32 h);
+	void dumpSprites(std::array<u8, 64 * 40 * 4>& sprites);
 
 private:
 	void scanline();

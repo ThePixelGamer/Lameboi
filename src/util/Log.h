@@ -29,6 +29,7 @@ enum class Class : u8 {
     CG,
     Input,
     Util,
+    GL,
 
     Count
 };

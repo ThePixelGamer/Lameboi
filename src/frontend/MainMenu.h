@@ -1,30 +1,23 @@
 #pragma once
 
 #include <memory>
-
-#include "core/Gameboy.h"
 #include <PFD.h>
 
-struct App;
+class Gameboy;
+struct UI;
 
 namespace ui {
 
 class MainMenu {
 	// file menu
 	std::unique_ptr<pfd::open_file> romFile = nullptr;
+	bool showDemoWindow = false;
 
-	App& app;
+	UI& app;
 	Gameboy& gb;
 
-	// todo: streamline?
-	using second = std::chrono::duration<int>;
-	using clock = std::chrono::high_resolution_clock;
-	std::chrono::time_point<clock> perfTimer;
-	second perf;
-	u64 fps = 0;
-
 public:
-	MainMenu(App& app);
+	MainMenu(UI& app);
 
 	void render();
 

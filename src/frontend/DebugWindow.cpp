@@ -1,15 +1,16 @@
 #include "DebugWindow.h"
 
+#include <imgui.h>
+
 #include "core/Gameboy.h"
-#include "util/ImGuiHeaders.h"
 
 namespace ui {
 
 DebugWindow::DebugWindow(Gameboy& gb) :
 	debug(gb.debug),
-	cpuWindow(gb, show_cpu),
-	memWindow(gb, show_memory),
-	breakpointsWindow(gb, show_breakpoints)
+	cpu(gb),
+	mem(gb),
+	breakpoints(gb)
 {}
 
 void DebugWindow::render() {
@@ -17,17 +18,17 @@ void DebugWindow::render() {
 		ImGui::Begin("Debugger", &show);
 
 		if (ImGui::Button("Show CPU"))
-			show_cpu = !show_cpu;
+			cpu.show = !cpu.show;
 
 		if (ImGui::Button("Show Memory"))
-			show_memory = !show_memory;
+			mem.show = !mem.show;
 
 		if (ImGui::Button("Show Breakpoints"))
-			show_breakpoints = !show_breakpoints;
+			breakpoints.show = !breakpoints.show;
 
-		cpuWindow.render();
-		memWindow.render();
-		breakpointsWindow.render();
+		cpu.render();
+		mem.render();
+		breakpoints.render();
 
 		if (ImGui::Button("Step 1")) {
 			debug.step();

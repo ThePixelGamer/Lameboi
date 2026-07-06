@@ -6,48 +6,15 @@
 
 // Color3/RGB implementation
 struct Color {
-	float r, g, b;
+	u8 r, g, b, a;
+	
+	Color() : Color(0xFF, 0xFF, 0xFF, 0xFF) {}
+	Color(u8 r, u8 g, u8 b, u8 a = 0xFF) : r(r), g(g), b(b), a(a) {}
+	Color(float c[3]) : Color(u8(c[0] * 255.f), u8(c[1] * 255.f), u8(c[2] * 255.f), 0xFF) {}
+	Color(u32 rgb) : Color(rgb >> 16, rgb >> 8, rgb, 0xFF) {}
 
-	Color() : Color(0xff, 0xff, 0xff) {}
-
-	Color(u8 _r, u8 _g, u8 _b) {
-		setRGB(_r, _g, _b);
-	}
-
-	// todo: add some & 0xFF, implicit *should* take care of it
-	Color(u32 rgb) : Color(rgb >> 16, rgb >> 8, rgb) {}
-
-	Color& operator=(u32 rgb) {
-		setRGB(rgb >> 16, rgb >> 8, rgb);
-		return *this;
-	}
-
-	// returns RGBA for opengl textures
-	operator u32() const {
-		return (getRGB() << 8) | 0xFF;
-	}
-
-	void setRGB(u8 _r, u8 _g, u8 _b) {
-		r = _r / 255.0f;
-		g = _g / 255.0f;
-		b = _b / 255.0f;
-	}
-
-	u32 getRGB() const {
-		u32 out = 0;
-		out = static_cast<u8>(r * 255.0f) << 16;
-		out |= static_cast<u8>(g * 255.0f) << 8;
-		out |= static_cast<u8>(b * 255.0f);
-		return out;
-	}
-
-	// helper function for imgui
-	float* data() {
-		return &r;
-	}
-
-	static u32 toInt(u8 _r, u8 _g, u8 _b) {
-		return (_r << 24) | (_g << 16) | (_b << 8);
+	bool operator==(const Color& c) const {
+		return r == c.r && g == c.g && b == c.b && a == c.a;
 	}
 };
 

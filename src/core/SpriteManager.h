@@ -5,6 +5,7 @@
 #include <vector>
 #include <utility>
 
+#include "util/Color.h"
 #include "util/Types.h"
 
 class PPU;
@@ -13,7 +14,7 @@ struct Pixel;
 // name is a bit confusing; handles dumping sprites as png and loading pngs to override sprite data
 class SpriteManager {
 public:
-	using PixelData = std::vector<u8>;
+	using PixelData = std::vector<Color>;
 
 	struct Tile {
 		PixelData data;
@@ -104,7 +105,7 @@ public:
 
 	void loadRom(const std::string& romName);
 
-	void render(std::array<u32, 160 * 144>& display);
+	void render(std::array<u8, 160 * 144 * 4>& display);
 	size_t getTileHash(u16 tileOffset);
 	Tile getTilePixels(u16 tileOffset);
 	const Tile& getTile(u64 hash, bool inBios);

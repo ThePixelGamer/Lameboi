@@ -53,7 +53,8 @@ void PPU::clean() {
 	// Internal
 	for (auto& displayBuf : buffers) {
 		displayBuf.hashes.resize(((160 / 8) + 2) * ((144 / 8) + 2)); // reserve enough space for a full screen of multiple tiles
-		displayBuf.pixels.fill(DefaultPixel); // white
+		displayBuf.metainfo.fill(DefaultPixel); // white
+		displayBuf.pixels.fill(0); // white
 	}
 
 	renderSprites.fill(0);
@@ -254,19 +255,22 @@ void PPU::writeOAM(u8 offset, u8 value, bool force) {
 	sprites[offset >> 2].write(offset & 0x3, value);
 }
 
-template<size_t N>
-void rowHelper(std::array<u32, N>& outData, size_t index, u8 bottom, u8 top, bool color0Invis = false, PaletteData& pallete = PaletteData(0, 1, 2, 3)) {
-	for (int x = 0; x < 8; ++x) {
-		u8 bit = 7 - x;
-		u8 color = (getBit(top, bit) << 1) | getBit(bottom, bit);
+u16 PPU::_fetchTileAddr(bool method8000, u8 tileoffset) {
+	u16 addr = 0;
 
-		if (color0Invis && color == pallete.color0) {
-			outData[index + x] = PPU::invisPixel;
-		}
-		else {
-			outData[index + x] = PPU::paletteColors[pallete[color]];
-		}
+	if (tileoffset & 0x80) {
+		addr = 0x800;
 	}
+	else if (!method8000) {
+		addr = 0x1000;
+	}
+
+	return addr + ((tileoffset & 0x7F) * 16);
+}
+
+std::array<u8, 2> PPU::_fetchTileLine(bool method8000, u8 yoffset, u8 tileoffset) {
+	size_t loc = _fetchTileAddr(method8000, tileoffset) + (yoffset * 2);
+	return { VRAM[loc], VRAM[loc + 1] };
 }
 
 void PPU::scanline() {
@@ -279,11 +283,9 @@ void PPU::scanline() {
 	std::array<Pixel, 8> line = {};
 	const auto map0 = VRAM.begin() + 0x1800;
 	const auto map1 = VRAM.begin() + 0x1C00;
-	const u8 tileMaxX = (256 / 8);
+	constexpr u8 tileMaxX = (256 / T);
 
-	for (u8 tileX = 0; tileX < (160 / 8); ++tileX) {
-		// nullptr = bgp
-		std::array<PaletteData*, 8> palettes = {};
+	for (u8 tileX = 0; tileX < (W / T); ++tileX) {
 
 		if (LCDC.displayPriority) {
 			// Background
@@ -291,16 +293,15 @@ void PPU::scanline() {
 			u8 y = (LY + SCY) & 0xFF;
 
 			auto map = (LCDC.bgMap) ? map1 : map0;
-			u16 tileOffset = (x / 8) + ((y / 8) * tileMaxX);
-			u8 yOffset = y % 8;
-			u8 xShift = SCX % 8;
+			u16 tileOffset = (x / T) + ((y / T) * tileMaxX);
+			u8 yOffset = y % T;
+			u8 xShift = SCX % T;
 
 			rawLine = _fetchTileLine(LCDC.tileSet, yOffset, map[tileOffset]);
 			rawLine[0] <<= xShift;
 			rawLine[1] <<= xShift;
 			
 			size_t hash = spriteManager.getTileHash(_fetchTileAddr(LCDC.tileSet, map[tileOffset]));
-
 			for (u8 lineX = 0; lineX < 8; ++lineX) {
 				auto& pixel = line[lineX];
 				pixel.hash = hash;
@@ -337,6 +338,9 @@ void PPU::scanline() {
 				}
 			}
 		}
+
+		// nullptr = bgp
+		std::array<PaletteData*, 8> palettes = {};
 
 		if (spritesEnabled && LCDC.objDisplay) {
 			std::array<u8, 8> bottomSpriteLine;
@@ -410,117 +414,15 @@ void PPU::scanline() {
 			u8 color = (getBit(rawLine[1], 7 - x) << 1) | getBit(rawLine[0], 7 - x);
 			PaletteData& palette = (palettes[x]) ? *palettes[x] : BGP;
 
-			auto& pixel = nextBuffer->pixels[(LY * 160) + (tileX * 8) + x];
+			size_t offset = (LY * 160) + (tileX * 8) + x;
+			auto& pixel = nextBuffer->metainfo[offset];
 			// custom graphics shenanigans
 			pixel = line[x];
 			pixel.palette = palette;
 
-			pixel.color = palette[color];
+			nextBuffer->pixels[offset] = palette[color];
 		}
 	}
-
-	/*
-	std::array<u8, 2> line = { 0, 0 };
-	std::array<u8, 2> currentSprite = { 0, 0 };
-
-	const auto map0 = VRAM.begin() + 0x1800;
-	const auto map1 = VRAM.begin() + 0x1C00;
-
-	for (u8 x = 0; x < 160; ++x) {
-		PaletteData* palette = &BGP;
-		u8 tileX = x % 8;
-
-		if (tileX == 0) {
-			//background
-			if (LCDC.displayPriority) {
-				u16 adjustedX = (x + SCX) & 0xFF;
-				u16 y = (LY + SCY) & 0xFF;
-
-				auto map = (LCDC.bgMap) ? map1 : map0;
-				u8 xShift = SCX % 8;
-				u16 offset = (adjustedX / 8) + ((y / 8) * 32);
-				u8 yOffset = y % 8;
-				if (xShift == 0) {
-					line = _fetchTileLine(LCDC.tileSet, yOffset, map[offset]);
-				}
-				else {
-					auto tlineL = _fetchTileLine(LCDC.tileSet, yOffset, map[offset]);
-
-					offset = (adjustedX >= 248) ? offset - 31 : offset + 1;
-					auto tlineR = _fetchTileLine(LCDC.tileSet, yOffset, map[offset]);
-
-					line[0] = (tlineL[0] << xShift) | (tlineR[0] >> (8 - xShift));
-					line[1] = (tlineL[1] << xShift) | (tlineR[1] >> (8 - xShift));
-				}
-			}
-
-			//window
-			if (LCDC.displayPriority && LCDC.windowDisplay) {
-				s16 adjustedX = (WX - 7);
-				if (x >= adjustedX) {
-					if (LY >= WY) {
-						auto map = (LCDC.windowMap) ? map1 : map0;
-						u8 offset = map[((x - adjustedX) / 8) + ((windowLines / 8) * 32)];
-						line = _fetchTileLine(LCDC.tileSet, windowLines % 8, offset);
-						windowYTrigger = true;
-					}
-				}
-			}
-		}
-
-		u8 c0 = getBit(line[1], 7 - tileX);
-		u8 c1 = getBit(line[0], 7 - tileX);
-
-		//sprites
-		if (LCDC.objDisplay) {
-			u8 bottomSpriteX = 255;
-
-			for (u8 i = 0; i < loadedSprites; ++i) {
-				Sprite sprite = sprites[renderSprites[i]];
-
-				if (x < (sprite.xPos - 8) || x >= sprite.xPos) {
-					continue;
-				}
-
-				u8 y = (LY + 16 - sprite.yPos) % 16;
-				if (sprite.yFlip) {
-					y = ((LCDC.objSize) ? 15 : 7) - y;
-				}
-
-				u8 tileY = y % 8;
-				if (LCDC.objSize) { // 8x16
-					currentSprite = _fetchTileLine(true, tileY, (y < 8) ? (sprite.tile & 0xFE) : (sprite.tile | 0x1));
-				}
-				else { // 8x8
-					currentSprite = _fetchTileLine(true, tileY, sprite.tile);
-				}
-
-				u8 bitX = sprite.xPos - x - 1;
-				if (sprite.xFlip) {
-					bitX = 7 - bitX;
-				}
-
-				u8 s_c0 = getBit(currentSprite[1], bitX);
-				u8 s_c1 = getBit(currentSprite[0], bitX);
-
-				if (sprite.behindBG) {
-					if (c0 != 0 || c1 != 0) {
-						continue;
-					}
-				}
-
-				if((bottomSpriteX > sprite.xPos) && (s_c0 || s_c1)) {
-					palette = &((sprite.useOBP1) ? OBP1 : OBP0);
-					bottomSpriteX = sprite.xPos;
-					c0 = s_c0;
-					c1 = s_c1;
-				}
-			}
-		}
-
-		(*nextBuffer)[x + (LY * 160)] = (*palette)[(c0 << 1) | c1];
-	}
-	*/
 
 	STAT.mode = Mode::HBlank;
 }
@@ -602,37 +504,81 @@ bool PPU::_nextLine() {
 	return false;
 }
 
-u16 PPU::_fetchTileAddr(bool method8000, u8 tileoffset) {
-	u16 addr = 0;
-
-	if (tileoffset & 0x80) {
-		addr = 0x800;
-	}
-	else if (!method8000) {
-		addr = 0x1000;
-	}
-
-	return addr + ((tileoffset & 0x7F) * 16);
-}
-
-std::array<u8, 2> PPU::_fetchTileLine(bool method8000, u8 yoffset, u8 tileoffset) {
-	size_t loc = _fetchTileAddr(method8000, tileoffset) + (yoffset * 2);
-
-	return std::array<u8, 2>{
-		VRAM[loc],
-		VRAM[loc + 1],
-	};
-}
-
-void PPU::render(std::array<u32, 160 * 144>& display) {
+void PPU::render(std::array<u8, 160 * 144 * 4>& display) {
 	for (size_t p = 0; p < 160 * 144; ++p) {
-		auto& pixel = currentBuffer->pixels[p];
-		display[p] = paletteColors[pixel.color];
+		auto& pixel = paletteColors[currentBuffer->pixels[p]];
+		size_t idx = p * 4;
+		display[idx] = pixel.r;
+		display[idx + 1] = pixel.g;
+		display[idx + 2] = pixel.b;
+		//display[idx + 3] = pixel.a;
+	}
+}
+
+template<size_t N>
+void rowHelper(std::array<u8, N>& outData, size_t index, u8 bottom, u8 top, bool color0Invis = false, PaletteData& pallete = PaletteData(0, 1, 2, 3)) {
+	for (int x = 0; x < 8; ++x) {
+		u8 bit = 7 - x;
+		u8 color = (getBit(top, bit) << 1) | getBit(bottom, bit);
+
+		auto& pixel = (color0Invis && color == pallete.color0) ? PPU::invisPixel : PPU::paletteColors[pallete[color]];
+		std::copy_n((u8*)&pixel, 4, outData.begin() + ((index + x) * 4));
+	}
+}
+
+template <size_t N>
+void dumpTiles(std::array<u8, N>& outData, const size_t outW, const size_t tW, const size_t tH, const size_t baseOffset) {
+	size_t tileOffset = baseOffset;
+
+	for (size_t tX = 0, tY = 0; (tX * tY) < (tW * tH); ++tX) {
+		if (tX == tW) {
+			tX = 0;
+			++tY;
+			tileOffset += 0x100;
+		}
+
+		size_t pixelOffset = (tY * PPU::T);
+		for (int y = 0; y < PPU::T; ++y) {
+			u8 bottom = VRAM[tileOffset];
+			u8 top = VRAM[tileOffset + 1];
+			tileOffset += 2;
+
+			for (int x = 0; x < T; ++x) {
+				u8 bit = T - x - 1;
+				u8 color = (getBit(top, bit) << 1) | getBit(bottom, bit);
+
+				auto& pixel = PPU::paletteColors[pallete[color]];
+
+				outData[pixelOffset + 0] = pixel.
+				std::copy_n((u8*)&pixel, 4, outData.begin() + ((index + x) * 4));
+			}
+		}
+	}
+}
+
+void PPU::dumpTile(u8* out, const size_t outW, const u16 tile) {
+	if (tile > 0x17F) return;
+
+	for (int y = 0; y < PPU::T; ++y) {
+		auto& line = VRAM.begin() + (tile * 0x10) + (y * 2);
+
+		for (int x = 0; x < T; ++x) {
+			u8 bit = T - x - 1;
+			u8 color = (getBit(line[1], bit) << 1) | getBit(line[0], bit);
+
+			auto& pixel = PPU::paletteColors[color];
+			*(out++) = pixel.r;
+			*(out++) = pixel.g;
+			*(out++) = pixel.b;
+			*(out++);// = pixel.a;
+		}
+
+		out += outW;
 	}
 }
 
 //maybe add support for an auto option?
-void PPU::dumpBGMap(std::array<u32, 256 * 256>& outData, bool bgMap, bool tileSet) {
+void PPU::dumpBGMap(std::array<u8, 256 * 256 * 4>& outData, bool bgMap, bool tileSet) {
 	auto map = VRAM.begin() + ((bgMap) ? 0x1C00 : 0x1800);
 
 	for (int t = 0; t < 0x400; ++t) {
@@ -645,7 +591,7 @@ void PPU::dumpBGMap(std::array<u32, 256 * 256>& outData, bool bgMap, bool tileSe
 	}
 }
 
-void PPU::dumpTileMap(std::array<u32, 128 * 64 * 3>& outData) {
+void PPU::dumpTileMap(std::array<u8, 128 * 64 * 3 * 4>& outData) {
 	for (int t = 0; t < 0x180; ++t) {
 		for (int i = 0; i < 8; ++i) {
 			u8 top = VRAM[(t * 16ll) + (i * 2ll)];
@@ -657,7 +603,7 @@ void PPU::dumpTileMap(std::array<u32, 128 * 64 * 3>& outData) {
 	}
 }
 
-void PPU::dumpBGMapTiles(std::array<u32, 32 * 8 * 32 * 8>& outData, Pos2 min, Pos2 max, bool bgMap, bool tileSet) {
+void PPU::dumpBGMapTiles(std::array<u8, 32 * 8 * 32 * 8 * 4>& outData, Pos2 min, Pos2 max, bool bgMap, bool tileSet) {
 	auto map = VRAM.begin() + ((bgMap) ? 0x1C00 : 0x1800);
 
 	for (int ty = min.y; ty != max.y + 1; ++ty) {
@@ -673,7 +619,7 @@ void PPU::dumpBGMapTiles(std::array<u32, 32 * 8 * 32 * 8>& outData, Pos2 min, Po
 	}
 }
 
-void PPU::dumpTiles(std::array<u32, 32 * 8 * 32 * 8>& outData, u32 x1, u32 y1, u32 x2, u32 y2, u32 w, u32 h) {
+void PPU::dumpTiles(std::array<u8, 32 * 8 * 32 * 8 * 4>& outData, u32 x1, u32 y1, u32 x2, u32 y2, u32 w, u32 h) {
 	u32 tileOffset = 0;
 	u32 rowOffset = 0;
 
@@ -697,7 +643,7 @@ void PPU::dumpTiles(std::array<u32, 32 * 8 * 32 * 8>& outData, u32 x1, u32 y1, u
 	}
 }
 
-void PPU::dumpSprites(std::array<u32, 64 * 40>& outData) {
+void PPU::dumpSprites(std::array<u8, 64 * 40 * 4>& outData) {
 	for (u8 obj = 0; obj < 40; ++obj) {
 		for (u8 y = 0; y < 8; ++y) {
 			auto tile = _fetchTileLine(true, y, sprites[obj].tile);

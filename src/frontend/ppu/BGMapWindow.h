@@ -1,7 +1,7 @@
 #pragma once
 
 #include "util/Common.h"
-#include "util/RenderTexture.h"
+#include "frontend/widgets/Image.h"
 
 class Gameboy;
 
@@ -10,10 +10,7 @@ namespace ui {
 class BGMapWindow {
 	Gameboy& gb;
 		
-	static const size_t texWidth = 256;
-	static const size_t texHeight = 256;
-	std::array<u32, texWidth * texHeight> pixels;
-	RenderTexture tex;
+	Image<256, 256> bgmapTex{};
 
 	ImVec2 oldCursor;
 	bool displayOutline = false;
@@ -26,26 +23,23 @@ class BGMapWindow {
 	Pos2 selectionMin = { 0, 0 }, selectionMax = { 0, 0 };
 	bool selected = false;
 
-	std::array<u32, 32 * 8 * 32 * 8> dumpPixels;
-	RenderTexture dumpPreview;
+	Image<32 * 8, 32 * 8> dump{};
 	std::string dumpFile = "";
 
 public:
 	bool show = false;
 
 	BGMapWindow(Gameboy& gb) :
-		gb(gb),
-		tex(texWidth, texHeight, pixels.data()),
-		dumpPreview(32 * 8, 32 * 8, dumpPixels.data())
+		gb(gb)
 	{
-		pixels.fill(0xFFFFFFFF);
+		bgmapTex.data().fill(0xFF);
 	}
 
 	void render();
 
 private:
 	void handleClick(u32 x, u32 y);
-	static void drawExtra(void* extraData, const ImVec2& topleft, const ImVec2& bottomright, float mult);
+	void drawExtra(const ImVec2& topleft, const ImVec2& bottomright, float mult);
 };
 
 } // namespace ui

@@ -1,66 +1,70 @@
 #pragma once
 
-#include "util/ImGuiHeaders.h"
-#include <glad/glad.h>
+#include <imgui.h>
+#include <SDL3/SDL.h>
 
-#include <array>
-#include <fstream>
-
-#include <glm/glm.hpp>
-
-#include "util/gl/ImageTexture.h"
-#include "util/gl/Shader.h"
+#include "render/Scene.h"
 
 namespace ui {
 
 class ViewportWindow {
-	Shader shader;
-	GLuint VAO;
-	GLuint framebuffer, textureColorbuffer;
-	std::unique_ptr<ImageTexture> boxTexture, faceTexture;
-
-	glm::vec3 cameraPos = glm::vec3(0.0f, 0.0f, 3.0f);
-	glm::vec3 cameraFront = glm::vec3(0.0f, 0.0f, -1.0f);
-	glm::vec3 cameraUp = glm::vec3(0.0f, 1.0f, 0.0f);
-	
-	const std::array<glm::vec3, 10> cubePos {
-		glm::vec3(0.0f,  0.0f,  0.0f),
-		glm::vec3(2.0f,  5.0f, -15.0f),
-		glm::vec3(-1.5f, -2.2f, -2.5f),
-		glm::vec3(-3.8f, -2.0f, -12.3f),
-		glm::vec3(2.4f, -0.4f, -3.5f),
-		glm::vec3(-1.7f,  3.0f, -7.5f),
-		glm::vec3(1.3f, -2.0f, -2.5f),
-		glm::vec3(1.5f,  2.0f, -2.5f),
-		glm::vec3(1.5f,  0.2f, -1.5f),
-		glm::vec3(-1.3f,  1.0f, -1.5f)
-	};
-
-	bool wireframe = false;
-
-	const GLsizei internalWidth = 1080;
-	const GLsizei internalHeight = 1080;
-
-	bool inFocus = false;
+private:
+	Scene scene;
+	bool inFocus = false; 
 	bool avoidReset = false;
-	float yaw = -90.0f, pitch = 0.0f;
-	float lastX = internalWidth / 2.0f, lastY = internalHeight / 2.0f;
-	float fov = 70.0f;
 
 public:
 	bool show = false;
 
-	ViewportWindow();
+	ViewportWindow() = default;
 
-	void render();
+	// capturing the mouse seems to be broken
+	void render() {
+		if (inFocus && !scene.handleInput(avoidReset)) {
+			captureMouse(false);
+		}
 
-	// todo: add input handlers for camera controls (mouse support?)
-	void registerInputHandlers() {
+		if (show) {
+			ImGui::Begin("##Viewport", &show, ImGuiWindowFlags_AlwaysAutoResize);
 
+			ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, { 0, 0 });
+			if (ImGui::ImageButton("##viewport", (ImTextureID)scene.render(), ImVec2(scene.Width / 2.0f, scene.Height / 2.0f), ImVec2(0, 1), ImVec2(1, 0))) {
+				captureMouse(true);
+			}
+			ImGui::PopStyleVar();
+
+			drawOptions();
+
+			ImGui::End();
+		}
 	}
 
 private:
-	void drawOptions();
+	void captureMouse(bool hasMouse) {
+		if (hasMouse) {
+			ImGui::GetIO().ConfigFlags |= ImGuiConfigFlags_NoMouse;
+			avoidReset = true;
+		}
+		else {
+			ImGui::GetIO().ConfigFlags &= ~ImGuiConfigFlags_NoMouse;
+		}
+
+		SDL_SetWindowRelativeMouseMode(NULL, hasMouse);
+		inFocus = hasMouse;
+	}
+
+	void drawOptions() {
+		if (ImGui::Button("Options")) {
+			ImGui::OpenPopup("##options_context");
+		}
+
+		if (ImGui::BeginPopup("##options_context")) {
+			ImGui::Checkbox("Wireframe", &scene.wireframe);
+			ImGui::SliderFloat("FOV", &scene.fov, 30.0f, 150.0f, "%.0f");
+
+			ImGui::EndPopup();
+		}
+	}
 };
 
 } // namespace ui

@@ -14,8 +14,6 @@ namespace ui {
 class SettingsWindow {
 	Gameboy& gb;
 
-	GB::Button remapButton = GB::NumButtons;
-
 	u8 paletteIdx;
 	std::unique_ptr<pfd::open_file> paletteFile = nullptr;
 	std::unique_ptr<pfd::open_file> biosFile = nullptr;

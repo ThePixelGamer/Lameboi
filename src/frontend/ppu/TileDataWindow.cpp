@@ -4,7 +4,7 @@
 
 namespace ui {
 
-void drawSectionSeparator(void* extraData, const ImVec2& topleft, const ImVec2& bottomright, float mult) {
+void drawSectionSeparator(const ImVec2& topleft, const ImVec2& bottomright, float mult) {
 	const auto boxColor = IM_COL32(105, 105, 105, 255);
 	//const auto boxColor = IM_COL32(255, 0, 0, 255);
 	const auto boxThickness = 1.5f;
@@ -23,11 +23,8 @@ void TileDataWindow::render() {
 	if (show) {
 		ImGui::Begin("Tile Data", &show);
 
-		gb.ppu.dumpTileMap(pixels);
-		tex.update();
-
-
-		auto [clicked, posx, posy] = tex.render(zoom, grid, drawSectionSeparator);
+		gb.ppu.dumpTileMap(tilemap);
+		tilemap.render(zoom, grid, drawSectionSeparator);
 		/*
 		if (clicked) {
 			printf("Clicked: %d, %d\n", posx, posy);

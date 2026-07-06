@@ -1,7 +1,9 @@
 #pragma once
 
-#include "util/Common.h"
-#include "util/RenderTexture.h"
+#include <array>
+
+#include "frontend/widgets/Image.h"
+#include "util/Types.h"
 
 class Gameboy;
 
@@ -10,8 +12,7 @@ namespace ui {
 class TileDataWindow {
 	Gameboy& gb;
 		
-	std::array<u32, 128 * 64 * 3> pixels;
-	RenderTexture tex;
+	Image<128, 64 * 3> tilemap{};
 	
 	bool valid = false;
 	bool second = false;
@@ -19,8 +20,7 @@ class TileDataWindow {
 	u32 x2 = 0, y2 = 0;
 	u32 tiles = 0;
 	int height = 1, minHeight = 1;
-	std::array<u32, 32 * 8 * 32 * 8> dumpPixels;
-	RenderTexture dumpPreview;
+	Image<32 * 8, 32 * 8> dump{};
 
 	u32 zoom = 3;
 	bool grid = true;
@@ -29,11 +29,9 @@ public:
 	bool show = false;
 
 	TileDataWindow(Gameboy& gb) :
-		gb(gb),
-		tex(128, 64 * 3, pixels.data()),
-		dumpPreview(32 * 8, 32 * 8, dumpPixels.data())
+		gb(gb)
 	{
-		pixels.fill(0xFFFFFFFF);
+		dump.data().fill(0xFF);
 	}
 
 	void render();

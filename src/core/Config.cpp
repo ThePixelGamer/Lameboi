@@ -16,7 +16,7 @@ struct adl_serializer<PaletteProfile> {
 			std::array<std::string, 4> paletteStr{};
 
 			for (int i = 0; i < 4; ++i) {
-				paletteStr[i] = '#' + hexToString(palette[i].getRGB());
+				paletteStr[i] = '#' + hexToString(palette[i].r << 16 | palette[i].g << 8 | palette[i].b);
 			}
 
 			j[name] = paletteStr;

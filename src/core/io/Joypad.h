@@ -5,49 +5,33 @@
 
 class Interrupt;
 
-// todo: move to file?
-namespace GB {
-
-enum Button : u8 {
-	Up,
-	Down,
-	Left,
-	Right,
-	Start,
-	Select,
-	B,
-	A,
-	NumButtons
-};
-
-};
-
 class Joypad {
-	Interrupt& interrupt;
-
+public:
 	//button states
-	std::array<bool, GB::NumButtons> buttonStates;
+	enum Button : u8 {
+		Down, Up, Left, Right,
+		Start, Select, B, A,
+		NumButtons
+	};
 
-	//registers
-	bool selectDirect; 
-	bool selectButton;
-	bool b1, b2, b3, b4;
+	constexpr static const char* names[] = {
+		"Down", "Up", "Left", "Right",
+		"Start", "Select", "B", "A"
+	};
+
+private:
+	Interrupt& interrupt;
+	std::array<bool, NumButtons> buttonStates;
+	bool selectDirect, selectButton;
 
 public:
 	Joypad(Interrupt& interrupt);
 
 	void clean();
 
-	void pressButton(GB::Button button);
-	void releaseButton(GB::Button button);
-	bool getButtonState(GB::Button button);
-
 	u8 read();
 	void write(u8);
 
 private:
-	bool& _mapToButton(GB::Button button);
-
-	template<GB::Button Button>
-	void updateButton(bool down);
+	void updateButton(Button button, bool down);
 };

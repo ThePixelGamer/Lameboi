@@ -1,7 +1,9 @@
 #include "DisplayWindow.h"
 
+#include <imgui.h>
+#include <imgui_internal.h>
 
-#include "App.h"
+#include "MainWindow.h"
 
 namespace ui {
 
@@ -16,7 +18,7 @@ void DisplayWindow::render() {
 		ImGuiContext& g = *GImGui;
 		ImVec2& padding = ImGui::GetStyle().WindowPadding;
 		ImVec2 size = data->DesiredSize - *beforeImage - padding;
-		size /= ImVec2(displayWidth, displayHeight);
+		size /= ImVec2(Display::W, Display::H);
 
 		float m = std::max(size.x, size.y);
 
@@ -64,11 +66,11 @@ void DisplayWindow::render() {
 			}
 		}
 
-		data->DesiredSize.x = (m * displayWidth) + beforeImage->x + padding.x;
-		data->DesiredSize.y = (m * displayHeight) + beforeImage->y + padding.y;
+		data->DesiredSize.x = (m * Display::W) + beforeImage->x + padding.x;
+		data->DesiredSize.y = (m * Display::H) + beforeImage->y + padding.y;
 	};
 
-	ImVec2 windowMinSize = oldCursor + ImVec2(displayWidth, displayHeight) + ImGui::GetStyle().WindowPadding;
+	ImVec2 windowMinSize = oldCursor + ImVec2(Display::W, Display::H) + ImGui::GetStyle().WindowPadding;
 	//ImGui::SetNextWindowSizeConstraints(windowMinSize, ImVec2(FLT_MAX, FLT_MAX), square, &oldCursor);
 
 	auto dockid = ImGui::DockSpaceOverViewport(ImGui::GetID("DockSpace"), nullptr, ImGuiDockNodeFlags_NoDockingOverCentralNode | ImGuiDockNodeFlags_PassthruCentralNode);
@@ -87,6 +89,36 @@ void DisplayWindow::render() {
 
 	ImGui::SameLine(); ImGui::Checkbox("Use Custom Graphics", &useCG);
 
+	auto& gb = context.gb;
+	// Update FPS counter
+	// todo: run on a separate thread to not be affected by UI performance?
+	using namespace std::chrono_literals;
+	auto perf = std::chrono::duration_cast<std::chrono::seconds>(clock::now() - perfTimer);
+	if (perf >= 1s) {
+		// add seconds to existing time_point to avoid missing the next second (handle lost remainder from duration_cast)
+		perfTimer += perf;
+		if (gb.ppu.framesPresented) {
+			// take avg in case this takes longer than 1 second to run again
+			fps = gb.ppu.framesPresented / perf.count();
+			gb.ppu.framesPresented = 0;
+		}
+		else {
+			fps = 0;
+		}
+	}
+
+	// Not a fan of this
+	std::string status{};
+	if (gb.emuRun) {
+		status = (gb.debug.running) ? fmt::format("{} fps", fps) : "Paused";
+	}
+	
+	if (!status.empty()) {
+		ImGui::SameLine();
+		ImGui::SetCursorPosX(ImGui::GetCursorPosX() + ImMax(0.0f, ImGui::GetContentRegionAvail().x - ImGui::CalcTextSize(status.c_str()).x - ImGui::GetStyle().ItemInnerSpacing.x));
+		ImGui::Text(status.c_str());
+	}
+
 	oldCursor = ImGui::GetCursorPos();
 
 	// Inputs
@@ -94,10 +126,9 @@ void DisplayWindow::render() {
 
 	// Display
 	updateBuffer();
-	display.update();
 
 	ImVec2 availSize = ImGui::GetContentRegionAvail();
-	display.render(std::max(std::min(availSize.x / displayWidth, availSize.y / displayHeight), 1.0f));
+	display.render(std::max(std::min(availSize.x / Display::W, availSize.y / Display::H), 1.0f));
 
 	// handle right click on image
 	ImGui::OpenPopupOnItemClick("display_context_popup", ImGuiMouseButton_Right);
@@ -117,10 +148,10 @@ void DisplayWindow::updateBuffer() {
 	std::unique_lock lock(ppu.vblank_m);
 
 	if (useCG) {
-		ppu.spriteManager.render(displayBuf);
+		ppu.spriteManager.render(display);
 	}
 	else {
-		ppu.render(displayBuf);
+		ppu.render(display);
 	}
 }
 

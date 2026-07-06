@@ -6,6 +6,35 @@
 
 class Gameboy;
 
+namespace IO {
+
+enum Register {
+	// Joypad
+	JOYP = 0x00,
+
+	// Serial Transfer
+	SB = 0x01,
+	SC = 0x02,
+
+	// Timer & Divider
+	DIV = 0x04,
+	TIMA = 0x05,
+	_6 = 0x06,
+	_7 = 0x07,
+
+	// Interrupts
+	IF = 0x0F,
+	IE = 0xFF,
+
+	// Audio
+	_10 = 0x10,
+	//DMA = 0x46,
+
+	// HRAM 0x80 - 0xFE 
+};
+
+}
+
 // https://gbdev.io/pandocs/Memory_Map.html
 class Memory {
 private:

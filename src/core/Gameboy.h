@@ -28,9 +28,17 @@ private:
 	std::mutex m;
 	std::condition_variable cv;
 	std::atomic_bool threadRun = true;
+	std::thread emuThread;
 
 public:
 	std::atomic_bool emuRun = false;
+
+	enum class Type {
+		DMG,
+		MGB,
+		SGB,
+		CGB
+	};
 
 	// Internal
 	Memory mem;
@@ -62,9 +70,15 @@ public:
 		timer(interrupt),
 		serial(),
 		debug(mem) {
-		bios.fill(0xFF);
 
+		bios.fill(0xFF);
 		createDirectory("saves");
+		emuThread = std::thread(&Gameboy::thread, this);
+	}
+
+	~Gameboy() {
+		exit();
+		emuThread.join();
 	}
 
 	bool loadBios(const std::string& biosPath);

@@ -11,13 +11,9 @@ namespace ui {
 class DebugWindow {
 	Debugger& debug;
 
-	CPUWindow cpuWindow;
-	MemoryWindow memWindow;
-	BreakpointsWindow breakpointsWindow;
-
-	bool show_cpu = false;
-	bool show_memory = false;
-	bool show_breakpoints = false;
+	CPUWindow cpu;
+	MemoryWindow mem;
+	BreakpointsWindow breakpoints;
 
 	size_t steps = 1;
 

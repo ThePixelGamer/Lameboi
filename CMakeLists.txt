@@ -1,3 +1,5 @@
+# todo: I'd like to rewrite this to better support the core/render engine being detached from the frontend
+
 cmake_minimum_required(VERSION 3.15)
 
 set(CMAKE_CXX_STANDARD 17)
@@ -8,23 +10,11 @@ project(lameboi)
 set(LB_RESOURCE_DEST "${PROJECT_SOURCE_DIR}/bin" CACHE FILEPATH "Set the resource directory for debug builds.")
 set(LB_SHADER_DIR "${PROJECT_SOURCE_DIR}/src/frontend/shaders")
 
-# change stack to be 10MB vs 1MB/8MB
-if (MSVC)
-   set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /STACK:10000000")
-else ()
-   set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,--stack,10000000")
-endif()
-
 # todo: apply it for clang/gcc windows builds?
 # NO MIN MAX MACROS >:(
 if (MSVC)
     add_compile_definitions(NOMINMAX)
 endif()
-
-include_directories(
-    "${PROJECT_SOURCE_DIR}/lib/PFD"
-    "${PROJECT_SOURCE_DIR}/lib/imgui"
-)
 
 find_package(fmt CONFIG REQUIRED)
 find_package(glad CONFIG REQUIRED)
@@ -33,8 +23,7 @@ find_package(imgui CONFIG REQUIRED)
 find_package(lodepng CONFIG REQUIRED)
 find_package(nlohmann_json CONFIG REQUIRED)
 find_package(SDL3 CONFIG REQUIRED)
-
-find_path(STB_INCLUDE_DIRS "stb_c_lexer.h")
+find_package(Stb REQUIRED)
 
 file(GLOB_RECURSE SRC_LIST "src/*.cpp")
 file(GLOB_RECURSE INCLUDE_LIST "src/*.h")
@@ -53,11 +42,18 @@ add_executable(lameboi
 )
 
 set_target_properties(lameboi PROPERTIES
-  MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+    MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>"
+)
+
+target_compile_definitions(lameboi PRIVATE 
+    IMGUI_USER_CONFIG="frontend/imconfig.h"
+)
 
 target_include_directories(lameboi PRIVATE 
     ./src
-    ${STB_INCLUDE_DIRS}
+    ${Stb_INCLUDE_DIR}
+    ${PROJECT_SOURCE_DIR}/lib/PFD
+    ${PROJECT_SOURCE_DIR}/lib/imgui
 )
 
 target_link_libraries(lameboi PRIVATE

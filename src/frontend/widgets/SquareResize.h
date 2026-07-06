@@ -2,7 +2,8 @@
 
 #include <algorithm>
 
-#include "util/ImGuiHeaders.h"
+#include <imgui.h>
+#include <imgui_internal.h>
 
 inline void squareResize(ImGuiSizeCallbackData* data) {
 	auto beforeImage = static_cast<ImVec2*>(data->UserData);

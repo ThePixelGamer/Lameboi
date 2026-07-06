@@ -1,26 +1,28 @@
 #pragma once
 
 #include <array>
+#include <chrono>
 
-#include "util/ImGuiHeaders.h"
-#include "util/RenderTexture.h"
+#include "widgets/Image.h"
 
-class App;
+struct UI;
 
 namespace ui {
 
 class DisplayWindow {
-	App& context;
+	UI& context;
 
-	RenderTexture display;
-	
-	static constexpr size_t displayWidth = 160;
-	static constexpr size_t displayHeight = 144;
-	std::array<u32, displayWidth * displayHeight> displayBuf{};
+	using Display = Image<160, 144>;
+	Display display;
 
 	ImVec2 oldCursor;
 	// todo: update with the window math
 	u32 zoom = 3;
+
+	// todo: streamline?
+	using clock = std::chrono::high_resolution_clock;
+	clock::time_point perfTimer = clock::now();
+	u16 fps = 0;
 
 public:
 	bool show = true;
@@ -29,9 +31,9 @@ public:
 	// maybe move this into Input?
 	static inline bool focused = false;
 
-	DisplayWindow(App& context) :
+	DisplayWindow(UI& context) :
 		context(context),
-		display(displayWidth, displayHeight, displayBuf.data()) {}
+		display() {}
 
 	void render();
 

@@ -1,8 +1,8 @@
 #pragma once
-
+ 
 #include "core/Gameboy.h"
 
-#include "imgui_memory_editor.h"
+#include <imgui_memory_editor.h>
 
 inline ImU8 MemEditorRead(const ImU8* mem_, size_t offset, void* user_data) {
 	// maybe should make read const
@@ -19,14 +19,13 @@ namespace ui {
 
 class MemoryWindow {
 	Gameboy& gb;
-
 	MemoryEditor mem_edit;
-	bool& show;
-	
+
 public:
-	MemoryWindow(Gameboy& gb, bool& show) :
-		gb(gb),
-		show(show)
+	bool show = false;
+
+	MemoryWindow(Gameboy& gb) :
+		gb(gb)
 	{
 		mem_edit.ReadFn = &MemEditorRead;
 		mem_edit.WriteFn = &MemEditorWrite;

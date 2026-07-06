@@ -1,20 +1,19 @@
 #pragma once
 
-#include "core/Gameboy.h"
-#include "util/ImGuiHeaders.h"
-
 #include <sstream>
+
+#include <imgui.h>
+#include "core/Gameboy.h"
 
 namespace ui {
 	class BreakpointsWindow {
 		Gameboy& gb;
 
-		bool& show;
-
 	public:
-		BreakpointsWindow(Gameboy& gb, bool& show) :
-			gb(gb),
-			show(show) 
+		bool show = false;
+
+		BreakpointsWindow(Gameboy& gb) :
+			gb(gb) 
 		{}
 
 		void render() {

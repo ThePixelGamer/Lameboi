@@ -1,22 +1,20 @@
 #pragma once
 
-#include "core/Gameboy.h"
-#include "core/Input.h"
+#include "DebugWindow.h"
+#include "DisplayWindow.h"
+#include "SettingsWindow.h"
+#include "ViewportWindow.h"
+#include "MainMenu.h"
+#include "ppu/BGMapWindow.h"
+#include "ppu/OAMWindow.h"
+#include "ppu/TileDataWindow.h"
 
-#include "frontend/DebugWindow.h"
-#include "frontend/DisplayWindow.h"
-#include "frontend/SettingsWindow.h"
-#include "frontend/ViewportWindow.h"
-#include "frontend/MainMenu.h"
-#include "frontend/ppu/BGMapWindow.h"
-#include "frontend/ppu/OAMWindow.h"
-#include "frontend/ppu/TileDataWindow.h"
+class Gameboy;
 
-struct App {
+struct UI {
 	bool requestExit = false;
 
-	Gameboy gb;
-	std::thread emuThread;
+	Gameboy& gb;
 
 	ui::DisplayWindow display;
 	ui::DebugWindow debug;
@@ -28,7 +26,8 @@ struct App {
 	ui::TileDataWindow tileDataWindow;
 	ui::OAMWindow oamWindow;
 
-	App() : 
+	UI(Gameboy& gb) :
+		gb(gb),
 		display(*this),
 		debug(gb),
 		settings(gb),
@@ -36,21 +35,11 @@ struct App {
 		menubar(*this),
 		bgmapWindow(gb),
 		tileDataWindow(gb),
-		oamWindow(gb),
+		oamWindow(gb) {
 
-		emuThread(&Gameboy::thread, &gb)
-	{
-		gb.loadBios(config.biosPath);
 	}
 
-	~App() {
-		gb.exit();
-		emuThread.join();
-
-		inputManager.close();
-	}
-
-	void render() {
+	bool render() {
 		display.render();
 		menubar.render();
 
@@ -63,5 +52,7 @@ struct App {
 		bgmapWindow.render();
 		tileDataWindow.render();
 		oamWindow.render();
+
+		return requestExit;
 	}
 };

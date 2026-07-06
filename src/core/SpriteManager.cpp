@@ -16,11 +16,11 @@
 
 namespace fs = std::filesystem;
 
-const std::array<u32, 4> indexColors = {
-	0xffffffff,
-	0xaaaaaaff,
-	0x555555ff,
-	0x000000ff,
+const std::array<Color, 4> indexColors = {
+	0xffffff,
+	0xaaaaaa,
+	0x555555,
+	u32(0x000000),
 };
 
 SpriteManager::SpriteManager(PPU& ppu, bool& bios) : ppu(ppu), inBios(bios) {
@@ -32,33 +32,32 @@ void SpriteManager::loadRom(const std::string& romName) {
 	loadManifest(gameManifest, gameFolder);
 }
 
-void SpriteManager::render(std::array<u32, 160 * 144>& display) {
+void SpriteManager::render(std::array<u8, 160 * 144 * 4>& display) {
 	for (size_t p = 0; p < (160 * 144); ++p) {
-		auto& pixel = ppu.getBuffer().pixels[p];
+		auto& pixel = ppu.getBuffer().metainfo[p];
+
+
+		// fallback if both the hash is invalid or the tile is raw
+		const Color* col = &ppu.paletteColors[ppu.getBuffer().pixels[p]];
 
 		if (pixel.hash != Pixel::INVALID_ID) {
 			// todo: either clear the screen when bios -> game or use the bios as a fallback
 			auto& tile = ppu.spriteManager.getTile(pixel);
 			if (!tile.rawData) {
-				size_t pixelIndex = (pixel.x + (pixel.y * 8)) * sizeof(u32);
-				u32 color = Color::toInt(tile.data[pixelIndex], tile.data[pixelIndex + 1], tile.data[pixelIndex + 2]) | tile.data[pixelIndex + 3];
+				col = &tile.data[pixel.x + (pixel.y * 8)];
 
 				if (tile.usesIndexColors) {
 					for (u8 i = 0; i < indexColors.size(); ++i) {
-						if (indexColors[i] == color) {
-							color = ppu.paletteColors[pixel.palette[i]];
+						if (indexColors[i] == *col) {
+							col = &ppu.paletteColors[pixel.palette[i]];
 							break;
 						}
 					}
 				}
-
-				display[p] = color;
-				continue;
 			}
 		}
 
-		// fallback if both the hash is invalid or the tile is raw
-		display[p] = ppu.paletteColors[pixel.color];
+		std::copy_n((const u8*)col, 4, display.begin() + (p * 4));
 	}
 }
 
@@ -87,7 +86,7 @@ size_t SpriteManager::getTileHash(u16 tileOffset) {
 
 SpriteManager::Tile SpriteManager::getTilePixels(u16 tileOffset) {
 	Tile tile;
-	tile.data.resize(8 * 8 * sizeof(u32));
+	tile.data.resize(8 * 8);
 	tile.usesIndexColors = true;
 	tile.rawData = true;
 
@@ -99,14 +98,9 @@ SpriteManager::Tile SpriteManager::getTilePixels(u16 tileOffset) {
 		for (u8 x = 0; x < 8; ++x) {
 			u8 bit = 7 - x;
 			u8 colorIdx = (getBit(top, bit) << 1) | getBit(bottom, bit);
-			u32 color = indexColors[colorIdx];
 
-			u8 y = (i / 2) * 8 * sizeof(u32);
-			u8 x_ = x * sizeof(u32);
-			tile.data[y + x_ + 0] = color >> 24;
-			tile.data[y + x_ + 1] = color >> 16;
-			tile.data[y + x_ + 2] = color >> 8;
-			tile.data[y + x_ + 3] = 0xFF; // alpha should be 0xFF in color;
+			u8 y = (i / 2) * 8;
+			tile.data[x + y] = indexColors[colorIdx];
 		}
 	}
 
@@ -144,7 +138,7 @@ void SpriteManager::dumpTile(u16 tileOffset, TileMap& tileMap) {
 
 		// write vector to png
 		std::string folder = "profiles/raw/" + ((inBios) ? "bios/" : gameFolder);
-		unsigned error = lodepng::encode(folder + tileHashStr + ".png", tilePixels.data, 8, 8);
+		unsigned error = lodepng::encode(folder + tileHashStr + ".png", (std::vector<u8>&)tilePixels.data, 8, 8);
 
 		// if there's an error, display it
 		if (error)
@@ -176,9 +170,7 @@ void SpriteManager::writeIntercept(u16 offsetIdx) {
 // todo: change logic? assumes 8x8 tile
 bool imageIndexColors(const SpriteManager::PixelData& image) {
 	for (int i = 0; i < (8 * 8); ++i) {
-		u32 color = Color::toInt(image[i * 4], image[(i * 4) + 1], image[(i * 4) + 2]) | 0xFF;
-
-		if (std::find(indexColors.begin(), indexColors.end(), color) == indexColors.end()) {
+		if (std::find(indexColors.begin(), indexColors.end(), image[i]) == indexColors.end()) {
 			return false;
 		}
 	}
@@ -187,7 +179,7 @@ bool imageIndexColors(const SpriteManager::PixelData& image) {
 }
 
 bool loadImage(SpriteManager::PixelData& image, u32& width, u32& height, const std::string& path) {
-	unsigned error = lodepng::decode(image, width, height, path);
+	unsigned error = lodepng::decode((std::vector<u8>&)image, width, height, path);
 
 	// if there's an error, display it and skip
 	if (error) {
@@ -228,14 +220,14 @@ bool loadSprites(const nlohmann::json& manifest, SpriteManager::Skin& skin, cons
 		}
 		else if (sprite.is_object()) {
 			SpriteManager::PixelData uvImage;
-			uvImage.resize(8 * 8 * sizeof(u32));
+			uvImage.resize(8 * 8);
 
 			for (auto& [hash, uv] : sprite.items()) {
 				size_t x = uv[0] * 8;
 				size_t y = uv[1] * 8;
 				for (size_t i = 0; i < 8; i++) {
-					auto& it = image.begin() + (x * sizeof(u32)) + ((i + y) * width * sizeof(u32));
-					std::copy(it, it + (8 * sizeof(u32)), uvImage.begin() + (i * 8 * sizeof(u32)));
+					auto& it = image.begin() + (x) + ((i + y) * width);
+					std::copy_n(it, 8, uvImage.begin() + (i * 8));
 				}
 
 				addTile(skin.map, hash, uvImage);

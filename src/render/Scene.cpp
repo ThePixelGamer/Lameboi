@@ -1,16 +1,16 @@
-#include "ViewportWindow.h"
+#include "Scene.h"
 
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
+#include <SDL3/SDL.h>
 #include <stb_image.h>
 
-#include <SDL3/SDL.h>
+Scene::Scene() : 
+	//boxTexture("D:/Pixel/Pictures/Dev Stuff/container.jpg"),
+	//faceTexture("D:/Pixel/Pictures/Dev Stuff/awesomeface.png"),
 
-namespace ui {
-
-ViewportWindow::ViewportWindow() : shader("shaders/cube.vert", "shaders/cube.frag") {
-	registerInputHandlers();
-
+	shader("shaders/cube.vert", "shaders/cube.frag")
+{
 	float vertices[] = {
 		-0.5f, -0.5f, -0.5f,  0.0f, 0.0f,
 		 0.5f, -0.5f, -0.5f,  1.0f, 0.0f,
@@ -72,11 +72,6 @@ ViewportWindow::ViewportWindow() : shader("shaders/cube.vert", "shaders/cube.fra
 	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
 	glEnableVertexAttribArray(1);
 
-	stbi_set_flip_vertically_on_load(true); // tell stb_image.h to flip loaded texture's on the y-axis.
-
-	boxTexture = std::make_unique<ImageTexture>("D:/Pixel/Pictures/Dev Stuff/container.jpg");
-	faceTexture = std::make_unique<ImageTexture>("D:/Pixel/Pictures/Dev Stuff/awesomeface.png");
-
 	shader.use();
 	shader.setInt("boxTexture", 0);
 	shader.setInt("faceTexture", 1);
@@ -95,7 +90,7 @@ ViewportWindow::ViewportWindow() : shader("shaders/cube.vert", "shaders/cube.fra
 	// create a color attachment texture
 	glGenTextures(1, &textureColorbuffer);
 	glBindTexture(GL_TEXTURE_2D, textureColorbuffer);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, internalWidth, internalHeight, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, Width, Height, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, textureColorbuffer, 0);
@@ -103,7 +98,7 @@ ViewportWindow::ViewportWindow() : shader("shaders/cube.vert", "shaders/cube.fra
 	unsigned int rbo;
 	glGenRenderbuffers(1, &rbo);
 	glBindRenderbuffer(GL_RENDERBUFFER, rbo);
-	glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, internalWidth, internalHeight); // use a single renderbuffer object for both a depth AND stencil buffer.
+	glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, Width, Height); // use a single renderbuffer object for both a depth AND stencil buffer.
 	glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, rbo); // now actually attach it
 
 	// now that we actually created the framebuffer and added all attachments we want to check if it is actually complete now
@@ -113,28 +108,7 @@ ViewportWindow::ViewportWindow() : shader("shaders/cube.vert", "shaders/cube.fra
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
-void ViewportWindow::drawOptions() {
-	if (ImGui::Button("Options")) {
-		ImGui::OpenPopup("##options_context");
-	}
-
-	if (ImGui::BeginPopup("##options_context")) {
-		ImGui::Checkbox("Wireframe", &wireframe);
-		ImGui::SliderFloat("FOV", &fov, 30.0f, 150.0f, "%.0f");
-
-		ImGui::EndPopup();
-	}
-}
-
-void ViewportWindow::render() {
-	if (!show) {
-		return;
-	}
- 
-	float footer_height = ImGui::GetStyle().ItemSpacing.y + ImGui::GetFrameHeightWithSpacing();
-
-	ImGui::Begin("##Viewport", &show, ImGuiWindowFlags_AlwaysAutoResize);
-
+GLuint Scene::render() {
 	glPolygonMode(GL_FRONT_AND_BACK, (wireframe) ? GL_LINE : GL_FILL);
 
 	// bind to framebuffer and draw scene as we normally would to color texture 
@@ -142,73 +116,16 @@ void ViewportWindow::render() {
 	glEnable(GL_DEPTH_TEST); // enable depth testing (is disabled for rendering screen-space quad)
 
 	// make sure we clear the framebuffer's content
-	glViewport(0, 0, internalWidth, internalHeight);
+	glViewport(0, 0, Width, Height);
 	//glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, boxTexture->id);
+	//boxTexture.use();
 	glActiveTexture(GL_TEXTURE1);
-	glBindTexture(GL_TEXTURE_2D, faceTexture->id);
+	//faceTexture.use();
 
 	shader.use();
-
-	if (inFocus) {
-		const bool* state = SDL_GetKeyboardState(NULL);
-		const float cameraSpeed = 0.05f; // adjust accordingly
-		if (state[SDL_SCANCODE_W])
-			cameraPos += cameraSpeed * cameraFront;
-		if (state[SDL_SCANCODE_S])
-			cameraPos -= cameraSpeed * cameraFront;
-		if (state[SDL_SCANCODE_A])
-			cameraPos -= glm::normalize(glm::cross(cameraFront, cameraUp)) * cameraSpeed;
-		if (state[SDL_SCANCODE_D])
-			cameraPos += glm::normalize(glm::cross(cameraFront, cameraUp)) * cameraSpeed;
-
-		if (state[SDL_SCANCODE_ESCAPE]) {
-			SDL_SetWindowRelativeMouseMode(NULL, false);
-			ImGui::GetIO().ConfigFlags &= ~ImGuiConfigFlags_NoMouseCursorChange;
-			inFocus = false;
-		}
-		else {
-			float xpos = 0, ypos = 0;
-			SDL_GetRelativeMouseState(&xpos, &ypos);
-
-			if (avoidReset) {
-				avoidReset = false;
-			}
-			else {
-				const float sensitivity = 0.1f;
-				yaw += xpos * sensitivity;
-				pitch += -ypos * sensitivity;
-
-				const float maxAngle = 89.0f;
-				if (pitch > maxAngle)
-					pitch = maxAngle;
-				if (pitch < -maxAngle)
-					pitch = -maxAngle;
-			}
-
-			/*
-			if (xpos != lastX || ypos != lastY) {
-				float xoffset = xpos - lastX;
-				float yoffset = lastY - ypos; // reversed since y-coordinates range from bottom to top
-				lastX = xpos;
-				lastY = ypos;
-
-				const float sensitivity = 0.1f;
-				yaw += xoffset * sensitivity;
-				pitch += yoffset * sensitivity;
-
-				const float maxAngle = 89.0f;
-				if (pitch > maxAngle)
-					pitch = maxAngle;
-				if (pitch < -maxAngle)
-					pitch = -maxAngle;
-			}
-			*/
-		}
-	}
 
 	glm::vec3 direction;
 	direction.x = std::cos(glm::radians(yaw)) * std::cos(glm::radians(pitch));
@@ -220,7 +137,7 @@ void ViewportWindow::render() {
 	view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
 	shader.setMat4("view", view);
 
-	glm::mat4 projection = glm::perspective(glm::radians(fov), (float)internalWidth / (float)internalHeight, 0.1f, 100.0f);
+	glm::mat4 projection = glm::perspective(glm::radians(fov), (float)Width / (float)Height, 0.1f, 100.0f);
 	shader.setMat4("projection", projection);
 
 	glBindVertexArray(VAO); // seeing as we only have a single VAO there's no need to bind it every time, but we'll do so to keep things a bit more organized
@@ -243,18 +160,61 @@ void ViewportWindow::render() {
 	glDisable(GL_DEPTH_TEST); // disable depth test so screen-space quad isn't discarded due to depth test.
 	glBindTexture(GL_TEXTURE_2D, textureColorbuffer);
 
-	ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, { 0, 0 });
-	if (ImGui::ImageButton("##viewport", (ImTextureID)textureColorbuffer, ImVec2(internalWidth / 2.0f, internalHeight / 2.0f), ImVec2(0, 1), ImVec2(1, 0))) {
-		SDL_SetWindowRelativeMouseMode(NULL, true);
-		ImGui::GetIO().ConfigFlags |= ImGuiConfigFlags_NoMouseCursorChange;
-		avoidReset = true;
-		inFocus = true;
-	}
-	ImGui::PopStyleVar();
-
-	drawOptions();
-
-	ImGui::End();
+	return textureColorbuffer;
 }
 
-} // namespace ui
+bool Scene::handleInput(bool& avoidReset) {
+	const bool* state = SDL_GetKeyboardState(NULL);
+	const float cameraSpeed = 0.05f; // adjust accordingly
+	if (state[SDL_SCANCODE_W])
+		cameraPos += cameraSpeed * cameraFront;
+	if (state[SDL_SCANCODE_S])
+		cameraPos -= cameraSpeed * cameraFront;
+	if (state[SDL_SCANCODE_A])
+		cameraPos -= glm::normalize(glm::cross(cameraFront, cameraUp)) * cameraSpeed;
+	if (state[SDL_SCANCODE_D])
+		cameraPos += glm::normalize(glm::cross(cameraFront, cameraUp)) * cameraSpeed;
+
+	if (state[SDL_SCANCODE_ESCAPE]) {
+		return false;
+	}
+
+	float xpos = 0, ypos = 0;
+	SDL_GetRelativeMouseState(&xpos, &ypos);
+
+	if (avoidReset) {
+		avoidReset = false;
+	}
+	else {
+		const float sensitivity = 0.1f;
+		yaw += xpos * sensitivity;
+		pitch += -ypos * sensitivity;
+
+		const float maxAngle = 89.0f;
+		if (pitch > maxAngle)
+			pitch = maxAngle;
+		if (pitch < -maxAngle)
+			pitch = -maxAngle;
+	}
+
+	/*
+	if (xpos != lastX || ypos != lastY) {
+		float xoffset = xpos - lastX;
+		float yoffset = lastY - ypos; // reversed since y-coordinates range from bottom to top
+		lastX = xpos;
+		lastY = ypos;
+
+		const float sensitivity = 0.1f;
+		yaw += xoffset * sensitivity;
+		pitch += yoffset * sensitivity;
+
+		const float maxAngle = 89.0f;
+		if (pitch > maxAngle)
+			pitch = maxAngle;
+		if (pitch < -maxAngle)
+			pitch = -maxAngle;
+	}
+	*/
+
+	return true;
+}

@@ -1,19 +1,11 @@
 #include "MainMenu.h"
 
-#include "App.h"
+#include "core/Gameboy.h"
+#include "MainWindow.h"
 
 namespace ui {
 
-// todo: run on a separate thread to not be affected by UI performance?
-void MainMenu::updateFPS() {
-	perf = std::chrono::duration_cast<second>(clock::now() - perfTimer);
-	if (perf.count() >= 1) {
-		perfTimer = clock::now();
-		fps = gb.ppu.framesPresented;
-		gb.ppu.framesPresented = 0;
-	}
-}
-MainMenu::MainMenu(App& app) : gb(app.gb), app(app) {}
+MainMenu::MainMenu(UI& app) : gb(app.gb), app(app) {}
 
 const std::vector<std::string> gbFileTypes{
 	"Gameboy ROMs (.gb)", "*.gb",
@@ -79,7 +71,7 @@ void MainMenu::renderFile() {
 
 		ImGui::Separator();
 		if (ImGui::MenuItem("Quit")) {
-			app.requestExit = true;
+			//app.requestExit = true;
 		}
 
 		ImGui::EndMenu();
@@ -140,26 +132,15 @@ void MainMenu::render() {
 		renderGameboy();
 		renderDebug();
 
+		if (ImGui::BeginMenu("Tools")) {
+			ImGui::MenuItem("Show ImGui DemoWindow", nullptr, &showDemoWindow);
+			ImGui::EndMenu();
+		}
+
 		ImGui::EndMainMenuBar();
 	}
 
-	// Render status bar over entire window
-	// todo: should the "status bar" be tied to the display window?
-	ImGuiViewportP* viewport = (ImGuiViewportP*)(void*)ImGui::GetMainViewport();
-	ImGuiWindowFlags window_flags = ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_MenuBar;
-	if (ImGui::BeginViewportSideBar("##MainStatusBar", viewport, ImGuiDir_Down, ImGui::GetFrameHeight(), window_flags)) {
-		if (ImGui::BeginMenuBar()) {
-			updateFPS();
-
-			char v_str[64]{};
-			ImFormatString(v_str, IM_ARRAYSIZE(v_str), "%lld FPS", fps);
-
-			ImGui::SetCursorPosX(ImGui::GetWindowSize().x - ImGui::CalcTextSize(v_str).x - ImGui::GetStyle().ItemInnerSpacing.x);
-			ImGui::Text(v_str);
-			ImGui::EndMenuBar();
-		}
-		ImGui::End();
-	}
+	ImGui::ShowDemoWindow(&showDemoWindow);
 }
 
 } // namespace ui

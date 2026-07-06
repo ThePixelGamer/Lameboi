@@ -2,8 +2,7 @@
 
 #include "util/Common.h"
 #include "util/Color.h"
-#include "util/ImGuiHeaders.h"
-#include "util/RenderTexture.h"
+#include "frontend/widgets/Image.h"
 
 class Gameboy;
 
@@ -12,9 +11,8 @@ namespace ui {
 class OAMWindow {
 	Gameboy& gb;
 		
-	std::array<u32, 64 * 40> pixels;
-	Color invisColor;
-	RenderTexture tex;
+	ImVec4 invisColor = ImColor(IM_COL32_WHITE);
+	Image<64, 40> tex{};
 
 	u32 zoom = 3;
 	bool grid = true;
@@ -24,10 +22,9 @@ public:
 	bool show = false;
 
 	OAMWindow(Gameboy& gb) :
-		gb(gb),
-		tex(64, 40, pixels.data())
+		gb(gb)
 	{
-		pixels.fill(0xFFFFFFFF);
+		tex.data().fill(0xFFFFFFFF);
 	}
 
 	void render();
