@@ -75,6 +75,11 @@ public:
 		}
 
 		Tile& getTile(u64 hash) {
+			static Tile fallbackTile = { PixelData(8 * 8 * sizeof(u32), 0xFF), true };
+			if (profiles.empty()) {
+				return fallbackTile;
+			}
+		
 			auto tile = getCurrentProfile().getTile(hash);
 			if (tile) {
 				return *tile;
@@ -85,7 +90,6 @@ public:
 				return rawTile->second;
 			}
 
-			static Tile fallbackTile = { PixelData(8 * 8 * sizeof(u32), 0xFF), true };
 			return fallbackTile;
 		}
 	};
@@ -93,8 +97,7 @@ public:
 private:
 	PPU& ppu;
 	bool& inBios;
-	Manifest biosManifest;
-	Manifest gameManifest;
+	Manifest biosManifest, gameManifest, *currentManifest;
 	std::string gameFolder;
 	u16 lastWrite = 0xFFFF;
 	
@@ -105,7 +108,7 @@ public:
 
 	void loadRom(const std::string& romName);
 
-	void render(std::array<u8, 160 * 144 * 4>& display);
+	const Color* renderPixel(const Pixel& pixel);
 	size_t getTileHash(u16 tileOffset);
 	Tile getTilePixels(u16 tileOffset);
 	const Tile& getTile(u64 hash, bool inBios);

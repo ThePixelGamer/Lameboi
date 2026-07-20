@@ -112,6 +112,7 @@ public:
 		}
 
 		emuRun = false;
+		cpu.quit = true;
 		std::unique_lock lk(m);
 		cv.wait(lk);
 	}
@@ -132,6 +133,8 @@ public:
 			cv.notify_one();
 		}
 	}
+
+	void step();
 
 private:
 	void run();

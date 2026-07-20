@@ -32,33 +32,26 @@ void SpriteManager::loadRom(const std::string& romName) {
 	loadManifest(gameManifest, gameFolder);
 }
 
-void SpriteManager::render(std::array<u8, 160 * 144 * 4>& display) {
-	for (size_t p = 0; p < (160 * 144); ++p) {
-		auto& pixel = ppu.getBuffer().metainfo[p];
+const Color* SpriteManager::renderPixel(const Pixel& pixel) {
+	if (pixel.hash == Pixel::INVALID_ID) {
+		return nullptr;
+	}
 
+	// todo: either clear the screen when bios -> game or use the bios as a fallback
+	auto& tile = ppu.spriteManager.getTile(pixel);
+	if (tile.rawData) {
+		return nullptr;
+	}
 
-		// fallback if both the hash is invalid or the tile is raw
-		const Color* col = &ppu.paletteColors[ppu.getBuffer().pixels[p]];
-
-		if (pixel.hash != Pixel::INVALID_ID) {
-			// todo: either clear the screen when bios -> game or use the bios as a fallback
-			auto& tile = ppu.spriteManager.getTile(pixel);
-			if (!tile.rawData) {
-				col = &tile.data[pixel.x + (pixel.y * 8)];
-
-				if (tile.usesIndexColors) {
-					for (u8 i = 0; i < indexColors.size(); ++i) {
-						if (indexColors[i] == *col) {
-							col = &ppu.paletteColors[pixel.palette[i]];
-							break;
-						}
-					}
-				}
+	auto col = &tile.data[pixel.x + (pixel.y * 8)];
+	if (tile.usesIndexColors) {
+		for (u8 i = 0; i < indexColors.size(); ++i) {
+			if (indexColors[i] == *col) {
+				return &ppu.paletteColors[pixel.palette[i]];
 			}
 		}
-
-		std::copy_n((const u8*)col, 4, display.begin() + (p * 4));
 	}
+	return col;
 }
 
 inline size_t rotate_by_at_least_1(size_t __val, int __shift) {
@@ -226,7 +219,7 @@ bool loadSprites(const nlohmann::json& manifest, SpriteManager::Skin& skin, cons
 				size_t x = uv[0] * 8;
 				size_t y = uv[1] * 8;
 				for (size_t i = 0; i < 8; i++) {
-					auto& it = image.begin() + (x) + ((i + y) * width);
+					auto it = image.begin() + (x) + ((i + y) * width);
 					std::copy_n(it, 8, uvImage.begin() + (i * 8));
 				}
 

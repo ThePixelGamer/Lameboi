@@ -46,7 +46,7 @@ void MainMenu::renderFile() {
 		// "remove" last element by replacing it with new file
 		else {
 			std::move_backward(recentRoms.begin(), std::prev(recentRoms.end()), recentRoms.end());
-			recentRoms[0] = filename;
+			recentRoms.insert(recentRoms.begin(), filename);
 		}
 	};
 
@@ -60,7 +60,7 @@ void MainMenu::renderFile() {
 		if (ImGui::BeginMenu("Open Recent", config.recentRoms->size())) {
 			auto& recentRoms = *config.recentRoms;
 			for (size_t i = 0; i < config.maxRecentSize && i < recentRoms.size(); ++i) {
-				auto& rom = recentRoms[i];
+				auto& rom = *std::next(recentRoms.begin(), i);
 				if (!rom.empty() && ImGui::MenuItem(rom.c_str())) {
 					openFile(rom);
 				}

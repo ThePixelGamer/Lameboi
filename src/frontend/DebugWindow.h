@@ -1,6 +1,5 @@
 #pragma once
 
-#include "debug/CPUWindow.h"
 #include "debug/MemoryWindow.h"
 #include "debug/BreakpointsWindow.h"
 
@@ -9,9 +8,9 @@ class Debugger;
 namespace ui {
 
 class DebugWindow {
-	Debugger& debug;
+	Gameboy& gb;
 
-	CPUWindow cpu;
+	bool showCPU;
 	MemoryWindow mem;
 	BreakpointsWindow breakpoints;
 

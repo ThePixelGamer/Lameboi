@@ -73,10 +73,6 @@ void DisplayWindow::render() {
 	ImVec2 windowMinSize = oldCursor + ImVec2(Display::W, Display::H) + ImGui::GetStyle().WindowPadding;
 	//ImGui::SetNextWindowSizeConstraints(windowMinSize, ImVec2(FLT_MAX, FLT_MAX), square, &oldCursor);
 
-	auto dockid = ImGui::DockSpaceOverViewport(ImGui::GetID("DockSpace"), nullptr, ImGuiDockNodeFlags_NoDockingOverCentralNode | ImGuiDockNodeFlags_PassthruCentralNode);
-	auto centralNode = ImGui::DockBuilderGetCentralNode(dockid);
-	ImGui::SetNextWindowDockID(centralNode->ID, ImGuiCond_Always);
-
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, { 0, 0 });
 	ImGui::Begin("Lameboi", &show, ImGuiWindowFlags_NoDecoration);
 	ImGui::PopStyleVar();
@@ -145,14 +141,23 @@ void DisplayWindow::render() {
 
 void DisplayWindow::updateBuffer() {
 	auto& ppu = context.gb.ppu;
-	std::unique_lock lock(ppu.vblank_m);
 
-	if (useCG) {
-		ppu.spriteManager.render(display);
-	}
-	else {
-		ppu.render(display);
-	}
+	ppu.render([&](PPU::Framebuffer& buffer)  {
+		for (size_t p = 0; p < (display.W * display.H); ++p) {
+			const Color* pixel = &ppu.paletteColors[buffer.pixels[p]];
+
+			if (useCG) {
+				auto cgPixel = ppu.spriteManager.renderPixel(buffer.metainfo[p]);
+				if (cgPixel) pixel = cgPixel;
+			}
+
+			size_t idx = p * 4;
+			display.data()[idx] = pixel->r;
+			display.data()[idx + 1] = pixel->g;
+			display.data()[idx + 2] = pixel->b;
+			display.data()[idx + 3] = pixel->a;
+		}
+	});
 }
 
 } // namespace ui 

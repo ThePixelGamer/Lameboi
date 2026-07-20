@@ -35,6 +35,7 @@ public:
 
 	void step(u64 step = 1) {
 		steps = step;
+		resume();
 	}
 
 	bool shouldBreak(addr PC);

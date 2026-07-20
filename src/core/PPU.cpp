@@ -14,9 +14,7 @@ PPU::PPU(Gameboy& gb) :
 	mem(gb.mem),
 	debug(gb.debug),
 	interrupt(gb.interrupt),
-	spriteManager(gb.spriteManager),
-	currentBuffer(&buffers[0]),
-	nextBuffer(&buffers[1]) {
+	spriteManager(gb.spriteManager) {
 	clean();
 }
 
@@ -138,10 +136,6 @@ void PPU::update() {
 	last_stat = stat_state;
 }
 
-const PPU::Framebuffer& PPU::getBuffer() {
-	return *currentBuffer;
-}
-
 u8 PPU::read(u8 reg) {
 	switch (reg) {
 		case 0x40: //LCDC
@@ -209,7 +203,7 @@ void PPU::write(u8 reg, u8 value) {
 	}
 }
 
-#define VRAM_BLOCKING
+//#define VRAM_BLOCKING
 
 u8 PPU::readVRAM(u16 offset) {
 #ifdef VRAM_BLOCKING
@@ -415,12 +409,12 @@ void PPU::scanline() {
 			PaletteData& palette = (palettes[x]) ? *palettes[x] : BGP;
 
 			size_t offset = (LY * 160) + (tileX * 8) + x;
-			auto& pixel = nextBuffer->metainfo[offset];
+			auto& pixel = buffers[backIdx].metainfo[offset];
 			// custom graphics shenanigans
 			pixel = line[x];
 			pixel.palette = palette;
 
-			nextBuffer->pixels[offset] = palette[color];
+			buffers[backIdx].pixels[offset] = palette[color];
 		}
 	}
 
@@ -476,9 +470,7 @@ void PPU::vblank() {
 
 		interrupt.request.vblank = true;
 
-		std::unique_lock lock(vblank_m);
-
-		std::swap(currentBuffer, nextBuffer);
+		backIdx = spare.exchange({backIdx, true}, std::memory_order_acq_rel).idx;
 
 		++framesPresented;
 	}
@@ -504,19 +496,17 @@ bool PPU::_nextLine() {
 	return false;
 }
 
-void PPU::render(std::array<u8, 160 * 144 * 4>& display) {
-	for (size_t p = 0; p < 160 * 144; ++p) {
-		auto& pixel = paletteColors[currentBuffer->pixels[p]];
-		size_t idx = p * 4;
-		display[idx] = pixel.r;
-		display[idx + 1] = pixel.g;
-		display[idx + 2] = pixel.b;
-		//display[idx + 3] = pixel.a;
+void PPU::render(std::function<void (Framebuffer&)> callback) {
+	if (spare.load(std::memory_order_relaxed).update) {
+		frontIdx = spare.exchange({frontIdx, false}, std::memory_order_acq_rel).idx;
 	}
+
+	callback(buffers[frontIdx]);
 }
 
+static PaletteData basic = {0, 1, 2, 3};
 template<size_t N>
-void rowHelper(std::array<u8, N>& outData, size_t index, u8 bottom, u8 top, bool color0Invis = false, PaletteData& pallete = PaletteData(0, 1, 2, 3)) {
+void rowHelper(std::array<u8, N>& outData, size_t index, u8 bottom, u8 top, bool color0Invis = false, PaletteData& pallete = basic) {
 	for (int x = 0; x < 8; ++x) {
 		u8 bit = 7 - x;
 		u8 color = (getBit(top, bit) << 1) | getBit(bottom, bit);
@@ -525,9 +515,8 @@ void rowHelper(std::array<u8, N>& outData, size_t index, u8 bottom, u8 top, bool
 		std::copy_n((u8*)&pixel, 4, outData.begin() + ((index + x) * 4));
 	}
 }
-
-template <size_t N>
-void dumpTiles(std::array<u8, N>& outData, const size_t outW, const size_t tW, const size_t tH, const size_t baseOffset) {
+/*
+void PPU::dumpTiles(u8* outData, const size_t outW, const size_t tW, const size_t tH, const size_t baseOffset) {
 	size_t tileOffset = baseOffset;
 
 	for (size_t tX = 0, tY = 0; (tX * tY) < (tW * tH); ++tX) {
@@ -554,13 +543,13 @@ void dumpTiles(std::array<u8, N>& outData, const size_t outW, const size_t tW, c
 			}
 		}
 	}
-}
+}*/
 
 void PPU::dumpTile(u8* out, const size_t outW, const u16 tile) {
 	if (tile > 0x17F) return;
 
 	for (int y = 0; y < PPU::T; ++y) {
-		auto& line = VRAM.begin() + (tile * 0x10) + (y * 2);
+		auto line = VRAM.begin() + (tile * 0x10) + (y * 2);
 
 		for (int x = 0; x < T; ++x) {
 			u8 bit = T - x - 1;

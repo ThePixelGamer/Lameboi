@@ -2,6 +2,7 @@
  
 #include "core/Gameboy.h"
 
+#include <imgui.h>
 #include <imgui_memory_editor.h>
 
 inline ImU8 MemEditorRead(const ImU8* mem_, size_t offset, void* user_data) {

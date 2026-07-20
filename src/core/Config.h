@@ -2,7 +2,6 @@
 
 #include <map>
 #include <string>
-#include <vector>
 
 #include "util/Color.h"
 #include "util/Settings.h"
@@ -16,7 +15,7 @@ struct Config {
 	// General
 	Setting<bool> inputOverlay{ true };
 	Setting<std::string> biosPath{ "dmg_boot.bin" }; // should resolve to a full directory when saving
-	Setting<std::vector<std::string>> recentRoms{ {} }; // todo: use set?
+	Setting<std::vector<std::string>> recentRoms{ {} };
 
 	// Video
 	Setting<std::string> currentPalette{ "default" };

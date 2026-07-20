@@ -1,8 +1,11 @@
 #pragma once
 
+#include <cstdio>
+
 #include "util/Types.h"
 
 class SerialPort {
+private:
 	u8 data;
 	bool useInternalClock;
 	bool requestTransfer;

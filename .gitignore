@@ -1,6 +1,7 @@
 .vs/
 build/
 bin/
+vcpkg_installed/
 
 # Gameboy ROMS
 *.bin

@@ -1,10 +1,13 @@
 #include "Gameboy.h"
 
 #include <filesystem>
+#include <iostream>
 
 #include <fmt/printf.h>
 
 namespace fs = std::filesystem;
+
+#define OUTPUT_CPU false
 
 // todo: verify the file provided is 0xFF bytes?
 bool Gameboy::loadBios(const std::string& biosPath) {
@@ -46,20 +49,32 @@ bool Gameboy::loadRom(const std::string& romPath, bool start, bool power) {
 }
 
 void Gameboy::run() {
+	std::ofstream bootlog("bootrom.txt");
+	std::ofstream romlog("rom.txt");
+
 	while (emuRun) {
 		if (debug.shouldBreak(cpu.PC)) {
 			continue;
 		}
 
-		cpu.ExecuteOpcode();
+		// calls step() every m cycle within each instruction
+		cpu.update();
 
-		/*
-		if (mem.serialControl.transferStart) {
-			std::cout << mem.serialData;
-			mem.serialControl.transferStart = 0;
+		if (OUTPUT_CPU) {
+			auto& log = (mem.boot) ? bootlog : romlog;
+			log << fmt::format("A: {:02X} F: {:02X} B: {:02X} C: {:02X} D: {:02X} E: {:02X} H: {:02X} L: {:02X} SP: {:04X} PC: {:02X}:{:04X} ({:02X} {:02X} {:02X} {:02X})\n",
+				cpu.A, u8(cpu.F), cpu.B, cpu.C, cpu.D, cpu.E, cpu.H, cpu.L, cpu.SP, 0, cpu.PC - 1, cpu.IR, mem.cpu_read(cpu.PC), mem.cpu_read(cpu.PC + 1), mem.cpu_read(cpu.PC + 2));
 		}
-		*/
 	}
+}
+
+void Gameboy::step() {
+	mem.update();
+	apu.update();
+	ppu.update();
+	timer.update();
+
+	serial.print();
 }
 
 void Gameboy::clean() {
@@ -67,7 +82,7 @@ void Gameboy::clean() {
 	cart.unload();
 
 	mem.clean();
-	cpu.clean();
+	cpu.reset();
 	ppu.clean();
 	apu.clean();
 	interrupt.clean();

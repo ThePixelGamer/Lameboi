@@ -1,4 +1,3 @@
-#include <algorithm>
 #include <filesystem>
 
 #include <glad/glad.h>
@@ -55,9 +54,6 @@ public:
 
 		LB_INFO(App, "Working directory is {}", std::filesystem::current_path().string());
 		gb.loadBios(config.biosPath);
-
-		glEnable(GL_DEBUG_OUTPUT);
-		glDebugMessageCallback(GL_DebugOutput, 0);
 	}
 
 	~App() {
@@ -97,6 +93,9 @@ public:
 			LB_ERROR(App, "Failed to initialize OpenGL context");
 			return nullptr;
 		}
+
+		glEnable(GL_DEBUG_OUTPUT);
+		glDebugMessageCallback(GL_DebugOutput, 0);
 
 		return new App(window, gl_context);
 	}

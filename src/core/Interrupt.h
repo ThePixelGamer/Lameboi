@@ -9,7 +9,8 @@ public:
 		LCD_STAT,
 		Timer,
 		Serial,
-		Joypad
+		Joypad,
+		_Count
 	};
 
 	struct Flags {
@@ -19,7 +20,7 @@ public:
 		bool serial = false;
 		bool joypad = false;
 
-		bool operator[](Type idx) {
+		bool& operator[](Type idx) {
 			switch (idx) {
 				case VBlank: return vblank;
 				case LCD_STAT: return lcdStat;
@@ -27,7 +28,8 @@ public:
 				case Serial: return serial;
 				case Joypad: return joypad;
 				
-				default: return false;
+				// shouldn't happen
+				default: return vblank;
 			}
 		}
 
@@ -71,6 +73,6 @@ public:
 	}
 
 	bool pending() {
-		return request.read() != 0xE0;
+		return enable.read() != 0xE0 && request.read() != 0xE0;
 	}
 };

@@ -6,14 +6,14 @@ bool Debugger::shouldBreak(addr PC) {
 		return true;
 	}
 
-	// does the current instruction have a breakpoint?
-	if (breakpoints.find(PC) != breakpoints.end()) {
-		pause();
-		return true;
-	}
-
 	// have we finished stepping?
 	if (steps != 0 && --steps == 0) {
+		pause();
+		return false; 
+	}
+
+	// does the current instruction have a breakpoint?
+	if (breakpoints.find(PC) != breakpoints.end()) {
 		pause();
 		return true;
 	}

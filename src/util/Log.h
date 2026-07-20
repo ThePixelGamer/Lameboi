@@ -90,7 +90,7 @@ struct Entry {
 };
 
 // todo: move this to a source file
-inline std::string FormatMessage(const Entry& entry) {
+inline auto FormatMessage(const Entry& entry) {
     return fmt::format("[{}] [{}] {}:{}:{}: {}\n", entry.level_name, entry.class_name,
                        entry.filename, entry.line, entry.function, entry.message);
 }
@@ -109,13 +109,13 @@ void Write(Class log_class, Level log_level, const char* filename, u32 line,
         filename,
         line,
         function,
-        fmt::format(format, args...) // message
+        fmt::format(fmt::runtime(format), args...) // message
     };
 
-    std::string str = FormatMessage(entry);
+    auto str = FormatMessage(entry);
 
     // add printing to a file and add color support for console
-    fmt::print(str);
+    fmt::print("{}", str);
 }
 
 } // namespace Log

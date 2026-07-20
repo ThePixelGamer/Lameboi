@@ -2,6 +2,7 @@
 
 #include <array> // std::array
 #include <condition_variable>
+#include <functional>
 #include <mutex>
 #include <vector>
 
@@ -195,9 +196,16 @@ private:
 	u16 windowLines;
 
 	// 2-bit pixel display
-	std::array<Framebuffer, 2> buffers;
-	Framebuffer* currentBuffer;
-	Framebuffer* nextBuffer;
+	std::array<Framebuffer, 3> buffers;
+	u8 frontIdx = 0;
+	
+	struct Spare {
+		u8 idx;
+		bool update;
+	};
+
+	std::atomic<Spare> spare {{1, false}};
+	u8 backIdx = 2;
 
 	bool vblankHelper;
 
@@ -231,8 +239,6 @@ public:
 
 	void clean();
 	void update();
-
-	const Framebuffer& getBuffer();
 	
 	u8 read(u8 reg);
 	void write(u8 reg, u8 value);
@@ -243,9 +249,10 @@ public:
 	u8 readOAM(u8 offset);
 	void writeOAM(u8 offset, u8 value, bool force = false);
 
+	void dumpTiles(u8* outData, const size_t outW, const size_t tW, const size_t tH, const size_t baseOffset);
 	void dumpTile(u8* out, const size_t outW, const u16 tileOffset);
 
-	void render(std::array<u8, 160 * 144 * 4>& display);
+	void render(std::function<void (Framebuffer&)> callback);
 	void dumpBGMap(std::array<u8, 256 * 256 * 4>& bgmap, bool bgMap, bool tileSet);
 	void dumpTileMap(std::array<u8, 128 * 64 * 3 * 4>& tilemap);
 	void dumpBGMapTiles(std::array<u8, 32 * 8 * 32 * 8 * 4>& tiles, Pos2 min, Pos2 max, bool bgMap, bool tileSet);
