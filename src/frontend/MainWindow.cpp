@@ -21,6 +21,7 @@ bool UI::render() {
 	bgmapWindow.render();
 	tileDataWindow.render();
 	oamWindow.render();
+	apuWindow.render();
 
 	return requestExit;
 }

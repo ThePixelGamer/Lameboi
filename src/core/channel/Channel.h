@@ -1,34 +1,41 @@
 #pragma once
 
-#include <util/Types.h>
+#include "util/Log.h"
+#include "util/Types.h"
+
+struct LengthCounter {
+private:
+	bool& soundOn;
+
+public:
+	u16 size = 64;
+	u16 counter;
+	bool enable;
+
+	LengthCounter(bool& soundOn) : soundOn(soundOn) {
+		reset();
+	}
+
+	void reset() {
+		counter = 0;
+		enable = false;
+	}
+
+	void tick() {
+		if (enable && counter) {
+			if (--counter == 0) {
+				soundOn = false;
+			}
+		}
+	}
+
+	u8 read() { return size - 1; }
+	void write(u8 v) { counter = size - (v & (size - 1)); }
+};
 
 class Channel {
 public:
-	struct LengthCounter {
-	private:
-		bool& soundOn;
-
-	public:
-		u16 counter;
-		bool enable;
-
-		LengthCounter(bool& soundOn) : soundOn(soundOn) {
-			reset();
-		}
-
-		void reset() {
-			counter = 0;
-			enable = false;
-		}
-
-		void tick() {
-			if (enable) {
-				if (counter && --counter == 0) {
-					soundOn = false;
-				}
-			}
-		}
-	} length;
+	LengthCounter length;
 
 	bool left, right;
 	bool soundOn;
@@ -53,10 +60,14 @@ protected:
 
 public:
 	float sample() const {
-		if (!soundOn) {
-			return 0.0f;
-		}
+		return (soundOn) ? float(15 - (output * 2)) / 15.0f : 0.0f;
+	}
 
-		return static_cast<float>(15 - (output * 2)) / 15.0f;
+	float getL() {
+		return (left) ? sample() : 0.0f;
+	}
+
+	float getR() {
+		return (right) ? sample() : 0.0f;
 	}
 };

@@ -8,16 +8,18 @@
 #include "channel/Noise.h"
 #include "util/Types.h"
 
+class Memory;
+
 class APU {
 private:
 	constexpr static int clock = 1048576;
 	constexpr static int frequency = 44100;
-	constexpr static int samples = 512;
+	constexpr static int samples = 4096;
 	constexpr static u8 channels = 2;
 	constexpr static float volumeModifier = 0.5f; 
 
 	constexpr static int maxSampleCycles = clock / frequency;
-	constexpr static int maxSequencerCycles = clock / samples;
+	constexpr static int maxSequencerCycles = clock / 512;
 
 	u16 sequencerCycles;
 	u8 sampleCycles;
@@ -35,11 +37,6 @@ private:
 	u8 leftVolume; // left headphone
 	bool vinLeft;
 
-	SquareSweep squareSweep;
-	Square square;
-	Wave wave;
-	Noise noise;
-
 	bool soundOn;
 	u8 sequencerStep;
 
@@ -50,7 +47,12 @@ private:
 	bool channel4On;
 
 public:
-	APU();
+	SquareSweep squareSweep;
+	Square square;
+	Wave wave;
+	Noise noise;
+
+	APU(Memory& bus);
 	~APU();
 
 	void clean();
@@ -58,73 +60,15 @@ public:
 	//called in Scheduler::newMCycle
 	void update();
 
-	u8 read_reg(u8 reg);
-	void write_reg(u8 reg, u8 value);
-
-	u8 read_wave(u8 offset) { return wave.readPattern(offset); }
-	void write_wave(u8 offset, u8 value) { return wave.writePattern(offset, value); }
+	u8 read(u8 reg);
+	void write(u8 reg, u8 value);
 
 private:
-	void resetRegs() {
-		rightVolume = 0;
-		vinRight = false;
-		leftVolume = 0;
-		vinLeft = false;
-
-		squareSweep.reset();
-		square.reset();
-		wave.reset();
-		noise.reset();
-	}
-
-	void sequence() {
-		if ((sequencerStep & 1) == 0) {
-			// Sweep 2/6
-			if (sequencerStep & 2) {
-				squareSweep.sweep();
-			}
-
-			// Length Control 0/2/4/6
-			squareSweep.length.tick();
-			square.length.tick();
-			wave.length.tick();
-			noise.length.tick();
-		}
-
-		// Volume Envelope
-		if (sequencerStep == 7) {
-			squareSweep.envelope.tick();
-			square.envelope.tick();
-			noise.envelope.tick();
-		}
-
-		if (++sequencerStep == 8) {
-			sequencerStep = 0;
-		}
-	}
-
-	void step() {
-		squareSweep.update();
-		square.update();
-		wave.update();
-		noise.update();
-	}
-
 	float getL() {
-		float output = 0.0f;
-		if (channel1On && squareSweep.left) output += squareSweep.sample();
-		if (channel2On && square.left)      output += square.sample();
-		if (channel3On && wave.left)        output += wave.sample();
-		if (channel4On && noise.left)       output += noise.sample();
-		return output;
+		return squareSweep.getL() + square.getL() + wave.getL() + noise.getL();
 	}
 
 	float getR() {
-		float output = 0.0f;
-		if (channel1On && squareSweep.right) output += squareSweep.sample();
-		if (channel2On && square.right)      output += square.sample();
-		if (channel3On && wave.right)        output += wave.sample();
-		if (channel4On && noise.right)       output += noise.sample();
-		return output;
+		return squareSweep.getR() + square.getR() + wave.getR() + noise.getR();
 	}
 };

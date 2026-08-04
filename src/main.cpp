@@ -9,6 +9,7 @@
 #include <imgui.h>
 #include <imgui_impl_sdl3.h>
 #include <imgui_impl_opengl3.h>
+#include <implot.h>
 
 #include "core/Gameboy.h"
 #include "core/Input.h"
@@ -24,6 +25,7 @@
 void GLAPIENTRY GL_DebugOutput(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, const GLchar* message, const void* userParam) {
 	LB_GL_LOG(type == GL_DEBUG_TYPE_ERROR, "type: 0x{:x}, severity: 0x{:x}, message = {}", type, severity, message);
 }
+
 
 class App {
 public:
@@ -45,6 +47,8 @@ public:
 		//io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
 		io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;         // Enable Docking
 		io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;       // Enable Multi-Viewport / Platform Windows
+
+		ImPlot::CreateContext();
 
 		// Setup Dear ImGui style
 		ImGui::StyleColorsDark();
@@ -104,6 +108,7 @@ public:
 		ImGui_ImplOpenGL3_Shutdown();
 		ImGui_ImplSDL3_Shutdown();
 
+		ImPlot::DestroyContext();
 		ImGui::DestroyContext();
 
 		LB_INFO(App, "App terminated");

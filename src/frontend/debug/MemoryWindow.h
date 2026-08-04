@@ -8,12 +8,12 @@
 inline ImU8 MemEditorRead(const ImU8* mem_, size_t offset, void* user_data) {
 	// maybe should make read const
 	auto* mem = reinterpret_cast<Memory*>(const_cast<ImU8*>(mem_));
-	return mem->cpu_read(static_cast<u16>(offset & 0xFFFF));
+	return mem->read(static_cast<u16>(offset & 0xFFFF));
 }
 
 inline void MemEditorWrite(ImU8* mem_, size_t offset, ImU8 data, void* user_data) {
 	auto* mem = reinterpret_cast<Memory*>(mem_);
-	mem->cpu_write(static_cast<u16>(offset & 0xFFFF), data);
+	mem->write(static_cast<u16>(offset & 0xFFFF), data);
 }
 
 namespace ui {
@@ -34,7 +34,7 @@ public:
 
 	void render() {
 		if (show) {
-			mem_edit.DrawWindow("Memory", &gb.mem, 0x10000);
+			mem_edit.DrawWindow("Memory", &gb.bus, 0x10000);
 		}
 	}
 };

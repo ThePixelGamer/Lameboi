@@ -1,6 +1,5 @@
 #pragma once
 
-#include <array>
 #include <chrono>
 
 #include "widgets/Image.h"
@@ -23,6 +22,7 @@ class DisplayWindow {
 	using clock = std::chrono::high_resolution_clock;
 	clock::time_point perfTimer = clock::now();
 	u16 fps = 0;
+	u64 instrCount = 0;
 
 public:
 	bool show = true;
@@ -31,10 +31,7 @@ public:
 	// maybe move this into Input?
 	static inline bool focused = false;
 
-	DisplayWindow(UI& context) :
-		context(context),
-		display() {}
-
+	DisplayWindow(UI& context);
 	void render();
 
 private:

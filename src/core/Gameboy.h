@@ -2,7 +2,6 @@
 
 #include <atomic>
 #include <condition_variable>
-#include <fstream>
 #include <mutex>
 #include <string>
 
@@ -19,7 +18,6 @@
 #include "io/Timer.h"
 #include "io/SerialPort.h"
 
-#include "util/Log.h"
 #include "util/FileUtil.h"
 
 class Gameboy {
@@ -41,37 +39,34 @@ public:
 	};
 
 	// Internal
-	Memory mem;
-	std::array<u8, 0x100> bios;
+	Memory bus;
 	Cartridge cart;
-	
-	Interrupt interrupt;
-	SpriteManager spriteManager;
 
 	CPU cpu;
 	PPU ppu;
 	APU apu;
 
 	// I/O
+	Interrupt interrupt;
 	Joypad joypad;
 	Timer timer;
 	SerialPort serial;
 
 	Debugger debug;
+	SpriteManager spriteManager;
 
 	Gameboy() :
-		mem(*this),
-		interrupt(),
-		spriteManager(ppu, mem.boot),
+		bus(*this),
+		cart(bus),
+		interrupt(bus),
+		spriteManager(ppu, cpu.inBios),
 		cpu(*this),
 		ppu(*this),
-		apu(),
-		joypad(interrupt),
-		timer(interrupt),
-		serial(),
-		debug(mem) {
-
-		bios.fill(0xFF);
+		apu(bus),
+		joypad(bus, interrupt),
+		timer(bus, interrupt),
+		serial(bus),
+		debug(bus) {
 		createDirectory("saves");
 		emuThread = std::thread(&Gameboy::thread, this);
 	}

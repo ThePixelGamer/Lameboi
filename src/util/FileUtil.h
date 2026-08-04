@@ -1,7 +1,7 @@
 #pragma once
 
-#include <string>
 #include <filesystem>
+#include <string>
 
 inline void createDirectory(std::string folder) {
 	if (!std::filesystem::exists(folder)) {

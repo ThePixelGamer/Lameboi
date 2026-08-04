@@ -20,6 +20,7 @@ find_package(fmt CONFIG REQUIRED)
 find_package(glad CONFIG REQUIRED)
 find_package(glm CONFIG REQUIRED)
 find_package(imgui CONFIG REQUIRED)
+find_package(implot CONFIG REQUIRED)
 find_package(lodepng CONFIG REQUIRED)
 find_package(nlohmann_json CONFIG REQUIRED)
 find_package(SDL3 CONFIG REQUIRED)
@@ -61,6 +62,7 @@ target_link_libraries(lameboi PRIVATE
     glad::glad
     glm::glm
     imgui::imgui 
+	implot::implot
     lodepng
     nlohmann_json nlohmann_json::nlohmann_json
     opengl32

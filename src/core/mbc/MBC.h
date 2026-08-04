@@ -1,5 +1,6 @@
 #pragma once
 
+#include "util/MemoryMap.h"
 #include "util/Types.h"
 
 #include <array>
@@ -7,6 +8,8 @@
 #include <fstream>
 #include <filesystem>
 #include <cstddef>
+
+class Memory;
 
 constexpr std::size_t ROM_BANK_SIZE = 0x4000;
 constexpr std::size_t RAM_BANK_SIZE = 0x2000;
@@ -135,17 +138,25 @@ public:
 
 	Hardware components = BARE;
 
-	u8* rom = nullptr;
+	MemoryMap rom_backing;
+	MemoryMap::Section rom;
 	std::size_t romSize = 0;
-	u8* ram = nullptr;
+	
+	MemoryMap ram_backing;
+	MemoryMap::Section ram;
 	std::size_t ramSize = 0;
+	
+	MemoryMap::ReservedSection rom0, rom1;
+	MemoryMap::ReservedSection ram0_tag, ram1_tag;
+	MemoryMap::ReservedSection ram0;
 
+	Memory& bus;
 	std::unique_ptr<class MBC> mbc;
-
+	
 	bool connected = false;
 	std::string romName;
 
-	Cartridge() = default;
+	Cartridge(Memory& bus) : bus(bus) {}
 
 	~Cartridge() {
 		unload();
@@ -154,17 +165,9 @@ public:
 	bool load(const std::filesystem::path& romPath);
 	void unload();
 
-	void writeBank0(u16 offset, u8 data);
-	void writeBank1(u16 offset, u8 data);
-	void writeRam(u16 offset, u8 data);
-
-	u8 readBank0(u16 offset);
-	u8 readBank1(u16 offset);
-	u8 readRam(u16 offset);
-
 	// helper functions
 	operator bool() {
-		return rom;
+		return rom.get();
 	}
 
 	bool has(const Hardware part) {
@@ -176,16 +179,13 @@ public:
 	}
 
 	Header* getHeader() {
-		return reinterpret_cast<Header*>(rom + Header::BASE);
+		return reinterpret_cast<Header*>(rom.get() + Header::BASE);
 	}
 
-	u8* getRomBank(u16 bank) {
-		return reinterpret_cast<u8*>(rom + (bank * ROM_BANK_SIZE));
-	}
-
-	u8* getRamBank(u8 bank) {
-		return reinterpret_cast<u8*>(ram + (bank * RAM_BANK_SIZE));
-	}
+	void switchBank0(u8 bank);
+	void switchBank1(u8 bank);
+	void enableRam(bool enable);
+	void switchRam(u8 bank);
 
 private:
 	const std::filesystem::path getSavePath() {
@@ -200,48 +200,19 @@ class MBC {
 protected:
 	Cartridge& hw;
 
-	bool ramEnabled = false;
-	u16 romBank = 1;
-	u8 ramBank = 0;
-
 public:
 	MBC(Cartridge& hw) : hw(hw) {}
-
-	virtual void writeBank0(u16 offset, u8 data) {}
-	virtual void writeBank1(u16 offset, u8 data) {}
-
-	virtual void writeRam(u16 offset, u8 data) {
-		assert(offset < RAM_BANK_SIZE);
-
-		if (ramEnabled && hw.ram) {
-			hw.getRamBank(ramBank)[offset] = data;
-		}
-	}
-
-	virtual u8 readBank0(u16 offset) {
-		assert(offset < ROM_BANK_SIZE);
-		return hw.getRomBank(0)[offset];
-	}
-
-	virtual u8 readBank1(u16 offset) {
-		assert(offset < ROM_BANK_SIZE);
-		return hw.getRomBank(romBank)[offset];
-	}
-
-	virtual u8 readRam(u16 offset) {
-		assert(offset < RAM_BANK_SIZE);
-
-		if (ramEnabled && hw.ram) {
-			return hw.getRamBank(ramBank)[offset];
-		}
-
-		return 0xFF;
-	}
+	virtual ~MBC() = default;
 };
 
 class Bare : public MBC {
+	MemoryMap tag_backing;
+	MemoryMap::ReservedSection rom_tag;
+
 public:
-	Bare(Cartridge& hw) : MBC(hw) {
-		ramEnabled = hw.has(Cartridge::RAM);
+	Bare(Cartridge& hw);
+	virtual ~Bare() {
+		rom_tag = {};
+		tag_backing = {};
 	}
 };

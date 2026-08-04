@@ -53,10 +53,10 @@ void Noise::reset() {
 
 u8 Noise::read(u8 reg) {
 	switch (reg) {
-		case 0x20: return 0xFF;
-		case 0x21: return envelope.read();
-		case 0x22: return (clockShift << 4) | (lfsrWidth << 3) | (divisorCode);
-		case 0x23: return 0x80 | (length.enable << 6) | 0x3F;
+		case 1: return 0xFF;
+		case 2: return envelope.read();
+		case 3: return (clockShift << 4) | (lfsrWidth << 3) | (divisorCode);
+		case 4: return 0x80 | (length.enable << 6) | 0x3F;
 
 		default:
 			std::cout << "Reading from unknown Noise register: NRx" << +reg << std::endl;
@@ -65,35 +65,34 @@ u8 Noise::read(u8 reg) {
 }
 
 void Noise::write(u8 reg, u8 value) {
-	if (!controlPower && reg != 0x20) {
-		return;
-	}
-
 	switch (reg) {
-		case 0x20:
+		case 1:
 			length.counter = 64 - (value & 0x3F);
 			break;
 
-		case 0x21:
-			envelope.write(value);
-
-			dacOn = envelope.dacOn();
-			if (!dacOn) {
-				soundOn = false;
+		case 2:
+			if (controlPower) {
+				envelope.write(value);
+				dacOn = value & 0xF8;
+				if (!dacOn) {
+					soundOn = false;
+				}
 			}
 			break;
 
-		case 0x22:
-			divisorCode = (value & 0x7);
-			lfsrWidth = (value & 0x8);
-			clockShift = (value >> 4);
+		case 3:
+			if (controlPower) {
+				divisorCode = (value & 0x7);
+				lfsrWidth = (value & 0x8);
+				clockShift = (value >> 4);
+			}
 			break;
 
-		case 0x23:
-			length.enable = (value & 0x40);
+		case 4:
+			if (controlPower) {
+				length.enable = (value & 0x40);
 
-			if (value & 0x80) {
-				trigger();
+				if (value & 0x80) trigger();
 			}
 			break;
 

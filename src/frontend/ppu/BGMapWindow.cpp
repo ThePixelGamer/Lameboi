@@ -140,20 +140,7 @@ void BGMapWindow::render() {
 			if (ImGui::BeginPopupModal(popupName, nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
 				dump.render(zoom);
 
-				auto& manifest = gb.spriteManager.getCurrentManifest();
-				auto& currentProfile = manifest.getCurrentProfile();
-				if (ImGui::BeginCombo("##current_profile", currentProfile.name.c_str())) {
-					for (int i = 0; i < manifest.profiles.size(); ++i) {
-						auto& profile = manifest.profiles[i];
-
-						if (ImGui::Selectable(profile.name.c_str())) {
-							manifest.currentProfile = i;
-						}
-					}
-
-					ImGui::EndCombo();
-				}
-				ImGui::SameLine();
+				auto& manifest = gb.spriteManager.getManifest();
 
 				ImGui::InputText("##file", &dumpFile);
 
@@ -164,7 +151,7 @@ void BGMapWindow::render() {
 						pixelData.resize(width * height * 4);
 						std::copy_n(dump.data().begin(), pixelData.size(), pixelData.begin());
 
-						const std::string folder = manifest.rootPath + currentProfile.name + "/";
+						const std::string folder = manifest.getPath();
 						if (auto error = lodepng::encode(folder + dumpFile + ".png", pixelData, width, height)) {
 							LB_ERROR(PPU, "encoder error {}: {}", error, lodepng_error_text(error));
 						}

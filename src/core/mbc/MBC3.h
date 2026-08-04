@@ -1,16 +1,13 @@
 #pragma once
 
 #include "MBC.h"
-
-#include <cassert>
+#include "../Memory.h"
 
 class MBC3 : public MBC {
 public:
 	constexpr static std::size_t RTC_REGS = 0x5;
 
 private:
-	bool useRtc = false; 
-
 	// unimplemented, use std::chrono?
 	struct RTC {
 		// latched data
@@ -61,56 +58,83 @@ private:
 		}
 	} rtc;
 
+    enum TAG_TYPES : size_t {
+        RAM_ENABLE = Memory::PAGE_SIZE * 0, 
+		ROM_SELECT = Memory::PAGE_SIZE * 2, 
+		RAM_SELECT = Memory::PAGE_SIZE * 4, 
+		RTC_LATCH  = Memory::PAGE_SIZE * 6,
+		RTC_RW = Memory::PAGE_SIZE * 8,
+		SIZE = Memory::PAGE_SIZE * 9
+    };
+
+	MemoryMap tag_backing{SIZE};
+	MemoryMap::ReservedSection rom_tags[4];
+
 public:
+	MBC3(Cartridge& hw) : MBC(hw) {
+		auto& bus = hw.bus;
+		{
+			auto tag_data = tag_backing.map();
 
-	MBC3(Cartridge& hw) : MBC(hw) {}
+			auto ram_enable_tag = bus.register_bus(nullptr, enableRam, this);
+			auto rom_bank_number_tag = bus.register_bus(nullptr, selectRom, this);
+			auto ram_bank_number_tag = bus.register_bus(nullptr, selectRam, this);
+			auto rtc_latch_select_tag = bus.register_bus(nullptr, rtcLatch, this);
+			auto rtc_rw_tag = bus.register_bus(
+				[](void* d, addr a) -> u8 {
+					auto r = static_cast<RTC*>(d);
+					return r->read();
+				}, 
+				[](void* d, addr a, u8 v) {
+					auto r = static_cast<RTC*>(d);
+					r->write(v);
+				}, &rtc);
+			
+			auto bus_tag = tag_data.get<Memory::BusTag>();
+			std::ranges::fill(std::span(bus_tag + RAM_ENABLE, Memory::PAGE_SIZE * 2), ram_enable_tag);
+			std::ranges::fill(std::span(bus_tag + ROM_SELECT, Memory::PAGE_SIZE * 2), rom_bank_number_tag);
+			std::ranges::fill(std::span(bus_tag + RAM_SELECT, Memory::PAGE_SIZE * 2), ram_bank_number_tag);
+			std::ranges::fill(std::span(bus_tag + RTC_LATCH, Memory::PAGE_SIZE * 2), rtc_latch_select_tag);
+			std::ranges::fill(std::span(bus_tag + RTC_RW, Memory::PAGE_SIZE), rtc_rw_tag);
+		}
 
-	virtual void writeBank0(u16 offset, u8 data) {
-		if (offset & 0x2000) {
-			romBank = (data & 0x7F);
-			if (romBank == 0) {
-				romBank = 1;
-			}
-		}
-		else { // 0x0000 - 0x1FFF
-			ramEnabled = (data & 0xF) == 0xA;
-		}
-	};
-
-	virtual void writeBank1(u16 offset, u8 data) {
-		if (offset & 0x2000) {
-			rtc.latch(data);
-		}
-		else if (data & 0x8) {
-			if (hw.has(hw.TIMER)) {
-				useRtc = true;
-				rtc.use(data & 0x7);
-			}
-		}
-		else if (hw.has(hw.RAM)) {
-			useRtc = false;
-			ramBank = data; // handle potential case of ramBank set higher than available RAM_BANKS
-		}
-	};
-
-	virtual void writeRam(u16 offset, u8 data) {
-		if (useRtc) {
-			rtc.write(data);
-		}
-		else {
-			MBC::writeRam(offset, data);
+		for (u8 i = 0; i < 4; ++i) {
+			size_t size = Memory::PAGE_SIZE * 2;
+			size_t offset = i * size;
+			bus.addressSpace.split(Memory::ADDRESS_SPACE + offset, size);
+			rom_tags[i] = tag_backing.map(bus.Tags() + offset, offset, size);
 		}
 	}
 
-	virtual u8 readRam(u16 offset) {
-		if (!ramEnabled) {
-			return 0xFF;
-		}
+	static void enableRam(void* d, addr a, u8 v) {
+		auto m = static_cast<MBC3*>(d);
+		m->hw.enableRam((v & 0xF) == 0xA);
+	}
 
-		if (useRtc) {
-			return rtc.read();
-		}
+	static void selectRom(void* d, addr a, u8 v) {
+		auto m = static_cast<MBC3*>(d);
+		u8 bank = (v & 0x7F);
+		m->hw.switchBank1((bank == 0) ? 1 : bank);
+	}
 
-		return MBC::readRam(offset);
+	static void selectRam(void* d, addr a, u8 v) {
+		auto m = static_cast<MBC3*>(d);
+		
+		if (v & 0x8) {
+			if (m->hw.has(m->hw.TIMER)) {
+				m->rtc.use(v & 0x7);
+				m->hw.ram0_tag = m->tag_backing.map(m->hw.bus.Tags() + Memory::PAGE_SIZE * 0xA, RTC_RW, Memory::PAGE_SIZE);
+				m->hw.ram1_tag = m->tag_backing.map(m->hw.bus.Tags() + Memory::PAGE_SIZE * 0xB, RTC_RW, Memory::PAGE_SIZE);
+			}
+		}
+		else if (m->hw.has(m->hw.RAM)) {
+			// todo: handle potential case of ramBank set higher than available RAM_BANKS
+			m->hw.switchRam(v & 0x7);
+		}
+	}
+
+	static void rtcLatch(void* d, addr, u8 v) {
+		auto m = static_cast<MBC3*>(d);
+		m->rtc.latch(v);
 	}
 };

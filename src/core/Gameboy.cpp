@@ -16,7 +16,7 @@ bool Gameboy::loadBios(const std::string& biosPath) {
 		return false;
 	}
 
-	if (fs::file_size(biosPath) != bios.size()) {
+	if (fs::file_size(biosPath) != cpu.bios.size()) {
 		LB_WARN(Frontend, "{} file is not a valid DMG bios", biosPath);
 		return false;
 	}
@@ -28,7 +28,7 @@ bool Gameboy::loadBios(const std::string& biosPath) {
 		return false;
 	}
 
-	biosFile.read((char*)bios.data(), bios.size());
+	biosFile.read((char*)cpu.bios.data(), cpu.bios.size());
 	biosFile.close();
 	return true;
 }
@@ -61,27 +61,25 @@ void Gameboy::run() {
 		cpu.update();
 
 		if (OUTPUT_CPU) {
-			auto& log = (mem.boot) ? bootlog : romlog;
-			log << fmt::format("A: {:02X} F: {:02X} B: {:02X} C: {:02X} D: {:02X} E: {:02X} H: {:02X} L: {:02X} SP: {:04X} PC: {:02X}:{:04X} ({:02X} {:02X} {:02X} {:02X})\n",
-				cpu.A, u8(cpu.F), cpu.B, cpu.C, cpu.D, cpu.E, cpu.H, cpu.L, cpu.SP, 0, cpu.PC - 1, cpu.IR, mem.cpu_read(cpu.PC), mem.cpu_read(cpu.PC + 1), mem.cpu_read(cpu.PC + 2));
+			auto& log = (cpu.inBios) ? bootlog : romlog;
+			log << cpu.log();
 		}
 	}
 }
 
 void Gameboy::step() {
-	mem.update();
 	apu.update();
 	ppu.update();
 	timer.update();
 
-	serial.print();
+	//serial.print();
 }
 
 void Gameboy::clean() {
 	// save any battery backed components to a file
 	cart.unload();
 
-	mem.clean();
+	bus.clean();
 	cpu.reset();
 	ppu.clean();
 	apu.clean();

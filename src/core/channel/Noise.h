@@ -35,6 +35,6 @@ private:
 	void reloadFrequency() {
 		u8 divisor = (divisorCode == 0) ? 8 : (divisorCode * 16);
 		frequencyTimer = divisor << clockShift;
-		frequencyTimer /= 2;
+		//frequencyTimer /= 2;
 	}
 };

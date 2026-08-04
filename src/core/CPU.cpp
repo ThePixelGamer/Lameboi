@@ -4,7 +4,17 @@
 #include "Memory.h"
 #include "util/Log.h"
 
-CPU::CPU(Gameboy& core) : bus(core.mem), stepComponents(std::bind(&Gameboy::step, &core)), interrupt(core.interrupt) {
+std::array<std::function<void (CPU*)>, 256> opcodeTable; 
+
+CPU::CPU(Gameboy& core) : bus(core.bus), stepComponents(std::bind(&Gameboy::step, &core)), interrupt(core.interrupt), spriteManager(core.spriteManager) {
+	auto bios_tag = core.bus.register_bus(
+		[](void* d, addr) { return (static_cast<CPU*>(d)->inBios) ? u8(0) : u8(1); },
+		[](void* d, addr, u8 v) { if (v != 0) static_cast<CPU*>(d)->inBios = false; },
+		this
+	);
+
+	core.bus.register_io(0x50, bios_tag);
+	
 	// setup opcode table
 	opcodeTable.fill(&CPU::invalid);
 	
@@ -31,9 +41,12 @@ CPU::CPU(Gameboy& core) : bus(core.mem), stepComponents(std::bind(&Gameboy::step
 	// LD (nn), SP
 	opcodeTable[0x08] = [](CPU* cpu) {
 		cpu->loadZW();
-		cpu->write(cpu->W, cpu->Z, low(cpu->SP)); 
+		Register tmp;
+		tmp = low(cpu->SP);
+		cpu->write(cpu->W, cpu->Z, tmp); 
 		cpu->inc16(cpu->W, cpu->Z);
-		cpu->write(cpu->W, cpu->Z, high(cpu->SP));
+		tmp = high(cpu->SP);
+		cpu->write(cpu->W, cpu->Z, tmp);
 	};
 	// LD rr, n16
 	opcodeTable[0x01] = [](CPU* cpu) { cpu->loadZW(); cpu->B = cpu->W; cpu->C = cpu->Z; };
@@ -153,10 +166,10 @@ CPU::CPU(Gameboy& core) : bus(core.mem), stepComponents(std::bind(&Gameboy::step
 	opcodeTable[0xD8] = &CPU::ret;
 
 	// LDH 
-	opcodeTable[0xE0] = [](CPU* cpu) { cpu->Z = cpu->readN(); cpu->writeHigh(cpu->Z); };
-	opcodeTable[0xE2] = [](CPU* cpu) { cpu->writeHigh(cpu->C); };
-	opcodeTable[0xF0] = [](CPU* cpu) { cpu->Z = cpu->readN(); cpu->readHigh(cpu->Z); };
-	opcodeTable[0xF2] = [](CPU* cpu) { cpu->readHigh(cpu->C); };
+	opcodeTable[0xE0] = [](CPU* cpu) { cpu->Z = cpu->readN(); cpu->write(0xFF00 + cpu->Z, cpu->A); };
+	opcodeTable[0xE2] = [](CPU* cpu) { cpu->write(0xFF00 + cpu->C, cpu->A); };
+	opcodeTable[0xF0] = [](CPU* cpu) { cpu->Z = cpu->readN(); cpu->A = cpu->read(0xFF00 + cpu->Z); };
+	opcodeTable[0xF2] = [](CPU* cpu) { cpu->A = cpu->read(0xFF00 + cpu->C); };
 
 	// LD
 	opcodeTable[0xEA] = [](CPU* cpu) { 
@@ -215,7 +228,8 @@ CPU::CPU(Gameboy& core) : bus(core.mem), stepComponents(std::bind(&Gameboy::step
 
 void CPU::update() {
 	// execute
-	if (currentInstruction) [[likely]] currentInstruction(this);
+	++instrCount;
+	opcodeTable[IR](this);
 	
 	// handle interrupts/halt
 	if (interrupt.pending()) {
@@ -241,8 +255,7 @@ void CPU::update() {
 	}
 
 	// fetch
-	IR = read(PC++);
-	currentInstruction = opcodeTable[IR];
+	IR = read(PC++).first;
 }
 
 void CPU::reset() {
@@ -250,36 +263,43 @@ void CPU::reset() {
 	F = 0;
 	SP = PC = 0;
 	IR = 0;
-	currentInstruction = nullptr;
 	lowPower = false;
+	instrCount = 0;
+	inBios = true;
+}
+
+std::string CPU::log() {
+	return fmt::format("A: {:02X} F: {:02X} B: {:02X} C: {:02X} D: {:02X} E: {:02X} H: {:02X} L: {:02X} SP: {:04X} PC: {:02X}:{:04X} ({:02X} {:02X} {:02X} {:02X})\n",
+			u8(A), u8(F), u8(B), u8(C), u8(D), u8(E), u8(H), u8(L), SP, 0, PC - 1, IR, bus.read(PC), bus.read(PC + 1), bus.read(PC + 2));
 }
 
 // IL functions
 
-u8 CPU::read(addr a) {
+CPU::ReferenceData CPU::read(addr a) {
 	stepComponents();
-	return bus.cpu_read(a);
+	return { (inBios && a < 0x100) ? bios.at(a) : bus.read(a), a };
 }
 
 void CPU::write(addr a, u8 data) {
 	stepComponents();
-	bus.cpu_write(a, data); 
+	bus.write(a, data);
 }
 
-void CPU::readHigh(u8 loc) { 
-	stepComponents();
-	A = bus.read_high(loc); 
-}
+void CPU::write(u8 a_h, u8 a_l, Register& data) {
+	addr a = to16(a_h, a_l);
 
-void CPU::writeHigh(u8 loc) { 
-	stepComponents();
-	bus.write_high(loc, A); 
+	// check if we're in 0x8000-0x9fff
+	if ((a_h >> 5) == 0x4) {
+		spriteManager.writeIntercept(a, data.second, data);
+	}
+	
+	write(a, data); 
 }
 
 void CPU::cb() {
-	IR = read(PC++);
+	IR = read(PC++).first;
 
-	u8& r = reg(IR & 0x7);
+	Register& r = reg(IR & 0x7);
 	bool isZ = &r == &Z;
 	
 	if (isZ) Z = readHL();
@@ -316,7 +336,7 @@ void CPU::invalid() {
 }
 
 void CPU::alu() {
-	u8& r = reg(IR & 0x7);
+	Register& r = reg(IR & 0x7);
 	if (&r == &Z) {
 		// block 2: read [HL], block 3: read n8
 		Z = (IR & 0x40) ? readN() : readHL();

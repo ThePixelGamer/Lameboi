@@ -96,15 +96,15 @@ void SettingsWindow::renderGeneralTab() {
 
 void SettingsWindow::renderVideoTab() {
 	auto& c = PPU::paletteColors[paletteIdx];
-	ImVec4 col = ImColor(c.r, c.g, c.b);
-	if (ImGui::ColorEdit3("##ColorEditor", (float*)&col)) {
-		PPU::paletteColors[paletteIdx] = (float*)&col;
+	ImVec4 selCol = ImColor(c.r, c.g, c.b);
+	if (ImGui::ColorEdit3("##ColorEditor", (float*)&selCol)) {
+		PPU::paletteColors[paletteIdx] = (float*)&selCol;
 	}
 
 	for (u8 i = 0; i < 4; ++i) {
 		std::string name = "##Color" + std::to_string(i);
 
-		auto& c = PPU::paletteColors[paletteIdx];
+		auto& c = PPU::paletteColors[i];
 		ImVec4 col = ImColor(c.r, c.g, c.b);
 		if (ImGui::ColorButton(name.c_str(), col))
 			paletteIdx = i;
@@ -117,7 +117,7 @@ void SettingsWindow::renderVideoTab() {
 		for (auto& [name, palette] : *config.paletteProfiles) {
 			if (ImGui::Selectable(name.c_str())) {
 				config.currentPalette = name;
-				PPU::paletteColors = palette;
+				gb.ppu.setPalette(palette);
 			}
 		}
 
@@ -233,53 +233,36 @@ void SettingsWindow::renderInputTab() {
 	ImGui::PopFont();
 }
 
-void manifestCombo(SpriteManager& spriteMgr, bool inBios) {
-	auto& manifest = spriteMgr.getManifest(inBios);
-	const char* combo = (inBios) ? "Bios Profile" : "Game Profile";
-
-	if (manifest.profiles.empty())
-		return;
-
-	auto& currentProfile = manifest.getCurrentProfile();
-	if (ImGui::BeginCombo(combo, currentProfile.name.c_str())) {
-		for (int i = 0; i < manifest.profiles.size(); ++i) {
-			auto& profile = manifest.profiles[i];
-
-			if (ImGui::Selectable(profile.name.c_str())) {
-				manifest.currentProfile = i;
-			}
-		}
-
-		ImGui::EndCombo();
-	}
-
-	combo = (inBios) ? "Bios Skin" : "Game Skin";
-
-	if (currentProfile.loadedSkins.empty())
-		return;
-
-	auto& skinName = currentProfile.getCurrentSkin().name;
-	if (skinName.empty())
-		return;
-	
-	if (ImGui::BeginCombo(combo, skinName.c_str())) {
-		for (int i = 0; i < currentProfile.loadedSkins.size(); ++i) {
-			auto& skin = currentProfile.loadedSkins[i];
-
-			if (ImGui::Selectable(skin.name.c_str())) {
-				currentProfile.currentSkin = i;
-			}
-		}
-
-		ImGui::EndCombo();
-	}
-}
-
 void SettingsWindow::renderGfxTab() {
 	auto& spriteMgr = gb.spriteManager;
+		
+	auto& bios = spriteMgr.getManifest(true);
+	if (!bios.skins.empty()) {
+		if (ImGui::BeginCombo("Bios Skin", bios.selSkin.c_str())) {
+			for (auto& skin : bios.skins) {
+				if (ImGui::Selectable(skin.c_str())) {
+					bios.selSkin = skin;
+					gb.ppu.forceUpdate();
+				}
+			}
 
-	manifestCombo(spriteMgr, true);
-	manifestCombo(spriteMgr, false);
+			ImGui::EndCombo();
+		}
+	}
+
+	auto& game = spriteMgr.getManifest(false);
+	if (!game.skins.empty()) {
+		if (ImGui::BeginCombo("Game Skin", game.selSkin.c_str())) {
+			for (auto& skin : game.skins) {
+				if (ImGui::Selectable(skin.c_str())) {
+					game.selSkin = skin;
+					gb.ppu.forceUpdate();
+				}
+			}
+
+			ImGui::EndCombo();
+		}
+	}
 }
 
 } // namespace ui

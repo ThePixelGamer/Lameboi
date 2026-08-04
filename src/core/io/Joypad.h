@@ -4,6 +4,7 @@
 #include "util/Types.h"
 
 class Interrupt;
+class Memory;
 
 class Joypad {
 public:
@@ -25,7 +26,7 @@ private:
 	bool selectDirect, selectButton;
 
 public:
-	Joypad(Interrupt& interrupt);
+	Joypad(Memory& bus, Interrupt& interrupt);
 
 	void clean();
 

@@ -3,6 +3,8 @@
 #include "core/Gameboy.h"
 #include "MainWindow.h"
 
+#include <implot.h>
+
 namespace ui {
 
 MainMenu::MainMenu(UI& app) : gb(app.gb), app(app) {}
@@ -122,6 +124,8 @@ void MainMenu::renderDebug() {
 			ImGui::EndMenu();
 		}
 
+		ImGui::MenuItem("APU", nullptr, &app.apuWindow.show);
+
 		ImGui::EndMenu();
 	}
 }
@@ -134,6 +138,7 @@ void MainMenu::render() {
 
 		if (ImGui::BeginMenu("Tools")) {
 			ImGui::MenuItem("Show ImGui DemoWindow", nullptr, &showDemoWindow);
+			ImGui::MenuItem("Show ImPlot DemoWindow", nullptr, &showPlotDemoWindow);
 			ImGui::EndMenu();
 		}
 
@@ -141,6 +146,7 @@ void MainMenu::render() {
 	}
 
 	ImGui::ShowDemoWindow(&showDemoWindow);
+	ImPlot::ShowDemoWindow(&showPlotDemoWindow);
 }
 
 } // namespace ui

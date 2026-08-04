@@ -1,5 +1,7 @@
 #include "MBC.h"
 
+#include "core/Memory.h"
+
 #include "MBC1.h"
 #include "MBC3.h"
 #include "MBC5.h"
@@ -51,8 +53,8 @@ void Cartridge::_initHW() {
 			case Header::MBC1_RAM: return Hardware::MBC1 | RAM;
 			case Header::MBC1_RAM_BATTERY: return Hardware::MBC1 | RAM | BATTERY;
 
-			case Header::MBC2_ROM: return MBC2;
-			case Header::MBC2_BATTERY: return MBC2 | BATTERY;
+			case Header::MBC2_ROM: return MBC2 | RAM;
+			case Header::MBC2_BATTERY: return MBC2 | RAM | BATTERY;
 
 			case Header::MMM01_ROM: return MMM01;
 			case Header::MMM01_RAM: return MMM01 | RAM;
@@ -115,18 +117,15 @@ bool Cartridge::load(const std::filesystem::path& romPath) {
 
 	romName = romPath.stem().string();
 
-	// todo: memorymap the rom
-	std::ifstream romFile(romPath, std::ifstream::binary);
-
-	if (!romFile) {
-		LB_ERROR(MBC, "Failed to open {}", romPath.string());
-		return false;
-	}
-
 	romSize = std::filesystem::file_size(romPath);
-	rom = new u8[romSize];
-	romFile.read((char*)rom, romSize);
+	rom_backing = MemoryMap{romPath, Access::RW, 0};
+	rom = rom_backing.map(); 
+    bus.addressSpace.split(0, Memory::PAGE_SIZE * 4);
+    bus.addressSpace.split(0x4000, Memory::PAGE_SIZE * 4);
 	
+	switchBank0(0);
+	switchBank1(1);
+
 	std::size_t maxRomSize = getHeader()->getMaxRomBanks() * ROM_BANK_SIZE;
 	if (romSize != maxRomSize) {
 		LB_WARN(MBC, "Rom filesize mismatch with cartridge header size: {}", maxRomSize);
@@ -139,20 +138,21 @@ bool Cartridge::load(const std::filesystem::path& romPath) {
 
 		// hack: hijack end of ram to save MBC3's RTC Registers 
 		if (has(TIMER)) {
-			ramSize += MBC3::RTC_REGS;
+			//ramSize += MBC3::RTC_REGS;
 		}
-
-		ram = new u8[ramSize];
 	}
 
 	// todo: memorymap the ram
 	if (has(BATTERY)) {
 		auto savePath = getSavePath();
-		if (std::filesystem::exists(savePath)) {
-			std::size_t savSize = std::filesystem::file_size(savePath);
+		if (!std::filesystem::exists(savePath)) {
+			{ std::ofstream{savePath}; }
+			std::filesystem::resize_file(savePath, ramSize);
+		}
 
-			std::ifstream ramFile(savePath, std::ifstream::binary);
-			ramFile.read((char*)ram, ramSize);
+		if (std::filesystem::exists(savePath)) {
+			ram_backing = MemoryMap{savePath, Access::RW, ramSize};
+			ram = ram_backing.map();
 
 			if (has(TIMER)) {
 				// todo: update rtc registers since last game run
@@ -161,32 +161,83 @@ bool Cartridge::load(const std::filesystem::path& romPath) {
 			}
 		}
 	}
+	else if (ramSize != 0) {
+		ram_backing = MemoryMap{ramSize};
+		ram = ram_backing.map();
+	}
 	
 	connected = true;
 	return true;
 }
 
+void Cartridge::switchBank0(u8 bank) {
+	rom0 = {};
+	rom0 = rom_backing.map(bus.Mem(), Memory::PAGE_SIZE * 4 * bank, Memory::PAGE_SIZE * 4);
+}
+
+void Cartridge::switchBank1(u8 bank) {
+	bank &= u8(getHeader()->getMaxRomBanks() - 1);
+	rom1 = {};
+	rom1 = rom_backing.map(bus.Mem() + Memory::PAGE_SIZE * 4, Memory::PAGE_SIZE * 4 * bank, Memory::PAGE_SIZE * 4);
+}
+
+void Cartridge::enableRam(bool enable) {
+	size_t offset = (enable) ? Memory::PASS_THROUGH : Memory::NOP;
+	ram0_tag = {};
+	ram1_tag = {};
+	ram0_tag = bus.tag_backing.map(bus.Tags() + Memory::PAGE_SIZE * 0xA, offset, Memory::PAGE_SIZE);
+	ram1_tag = bus.tag_backing.map(bus.Tags() + Memory::PAGE_SIZE * 0xB, offset, Memory::PAGE_SIZE);
+}
+
+void Cartridge::switchRam(u8 bank) {
+	bank &= u8(getHeader()->getMaxRamBanks() - 1);
+	ram0 = {};
+	ram0 = ram_backing.map(bus.Mem() + Memory::PAGE_SIZE * 0xA, Memory::PAGE_SIZE * 2 * bank, Memory::PAGE_SIZE * 2);
+}
+
 void Cartridge::unload() {
 	// only unload if load() has been called, rom should be non-null after that call
 	if (connected) {
+		/*
 		if (has(BATTERY)) {
 			std::ofstream ramFile(getSavePath(), std::ofstream::binary);
 			ramFile.write((char*)ram, ramSize);
 		}
+		*/
 
-		delete ram;
+		//delete ram;
 		ramSize = 0;
-		delete rom;
+		ram_backing.close();
+		ram = {};
+		ram0 = {};
+		ram0_tag = {};
+		ram1_tag = {};
+
+		//delete rom;
 		romSize = 0;
+
+		rom_backing.close();
+		rom = {};
+		rom0 = {};
+		rom1 = {};
+		mbc = {};
 
 		connected = false;
 	}
 }
 
-void Cartridge::writeBank0(u16 offset, u8 data) { if (mbc) mbc->writeBank0(offset, data); }
-void Cartridge::writeBank1(u16 offset, u8 data) { if (mbc) mbc->writeBank1(offset, data); }
-void Cartridge::writeRam(u16 offset, u8 data) { if (mbc) mbc->writeRam(offset, data); }
+Bare::Bare(Cartridge& hw) : MBC(hw), tag_backing(Memory::PAGE_SIZE * 8) {
+	auto& bus = hw.bus;
 
-u8 Cartridge::readBank0(u16 offset) { return (mbc) ? mbc->readBank0(offset) : 0x00; }
-u8 Cartridge::readBank1(u16 offset) { return (mbc) ? mbc->readBank1(offset) : 0x00; }
-u8 Cartridge::readRam(u16 offset) { return (mbc) ? mbc->readRam(offset) : 0x00; }
+	{
+		auto tag_data = tag_backing.map();
+		std::ranges::fill(tag_data.get<Memory::BusTag>(), tag_data.get<Memory::BusTag>() + Memory::PAGE_SIZE * 8, Memory::BusTag{.read = false, .write = true});
+	}
+
+	bus.addressSpace.split(Memory::ADDRESS_SPACE, Memory::PAGE_SIZE * 8);
+	rom_tag = tag_backing.map(bus.Tags(), 0, Memory::PAGE_SIZE * 8);
+	
+	bus.addressSpace.split(Memory::ADDRESS_SPACE + 0xA000, Memory::PAGE_SIZE);
+	bus.addressSpace.split(Memory::ADDRESS_SPACE + 0xB000, Memory::PAGE_SIZE);
+	hw.enableRam(hw.has(Cartridge::RAM));
+}

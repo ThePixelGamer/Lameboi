@@ -3,7 +3,7 @@
 #include "util/Types.h"
 
 struct Envelope {
-	// interal
+	// internal
 	bool run;
 	s32 timer;
 	u8 volume;
@@ -28,11 +28,7 @@ struct Envelope {
 	}
 
 	void tick() {
-		if (!run) {
-			return;
-		}
-
-		if (timer && --timer == 0) {
+		if (run && timer && --timer == 0) {
 			reloadTimer();
 
 			if (sweep == 0) {
@@ -64,10 +60,6 @@ struct Envelope {
 			timer = 8;
 	}
 
-	bool dacOn() {
-		return initialVolume || increase;
-	}
-
 	void reload() {
 		reloadTimer();
 		run = true;
@@ -95,9 +87,9 @@ struct Envelope {
 		if (increase != newIncrease) {
 			volume = 16 - volume;
 		}
+		*/
 
 		volume &= 0xF;
-		*/
 
 		// regs write
 		sweep = (value & 0x7);

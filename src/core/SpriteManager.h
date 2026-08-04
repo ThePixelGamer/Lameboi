@@ -4,6 +4,9 @@
 #include <string>
 #include <vector>
 #include <utility>
+#include <array>
+
+#include <nlohmann/json_fwd.hpp>
 
 #include "util/Color.h"
 #include "util/Types.h"
@@ -14,113 +17,109 @@ struct Pixel;
 // name is a bit confusing; handles dumping sprites as png and loading pngs to override sprite data
 class SpriteManager {
 public:
-	using PixelData = std::vector<Color>;
+	using json = nlohmann::json;
+
+	inline static const std::string rootFolder = "cg/";
 
 	struct Tile {
-		PixelData data;
+		using Data = std::vector<Color>;
+
+		Data data;
 		bool usesIndexColors;
-		bool rawData;
+
+		void set(Data&& image, bool index) {
+			data = std::move(image);
+			usesIndexColors = index;
+		}
 	};
 
-	using TileMap = std::map<u64, Tile>;
+	using SkinMap = std::map<std::string, Tile>;
 
-	struct Sprite {
+	struct Manifest {
+		std::string name;
+		std::string folder;
 
-	};
+		std::map<addr, SkinMap> tiles;
+		std::map<std::pair<addr, addr>, SkinMap> sprites;
+		std::vector<std::string> skins;
+		std::string selSkin = "";
 
-	struct Skin {
-		const std::string name;
+		Manifest() = default;
 
-		TileMap map;
-		std::vector<Sprite> sprites;
-
-		Skin(const std::string& _name) : name(_name) {}
-	};
-
-	struct Profile {
-		const std::string name;
-
-		std::vector<Skin> loadedSkins;
-		size_t currentSkin = 0;
-
-		Profile(const std::string& _name) : name(_name) {}
-
-		Skin& getCurrentSkin() {
-			return loadedSkins[currentSkin];
+		std::string getRawPath() {
+			return rootFolder + "raw/" + folder;
 		}
 
-		TileMap& getCurrentTileMap() {
-			return getCurrentSkin().map;
+		std::string getPath() {
+			return rootFolder + folder;
 		}
 
-		Tile* getTile(u64 hash) {
-			auto& tiles = getCurrentTileMap();
-			auto tile = tiles.find(hash);
-			if (tile != tiles.end()) {
-				return &tile->second;
+		Tile* get(addr a) {
+			auto tile = tiles.lower_bound(a);
+			if (tile != tiles.end() && a >= tile->first) {
+				if (a > 8 && (a - tile->first) > 8) {
+					return nullptr;
+				}
+
+				auto it = tile->second.find(selSkin);
+				if (it != tile->second.end()) {
+					return &it->second;
+				} 
+
+				it = tile->second.find("");
+				if (it != tile->second.end()) {
+					return &it->second;
+				}
 			}
 
 			return nullptr;
 		}
+		
+		void load(const std::string& name);
+		void loadTilemap(const std::string& skin, const std::string& name, const json& tilemap);
+		bool validate(json& manifest,const std::string& manifestPath);
 	};
 
-	struct Manifest {
-		TileMap rawTiles;
-		std::string rootPath;
-		std::vector<Profile> profiles;
-		size_t currentProfile = 0;
+	struct Sprite {
+		addr TL;
+		u8 W, H;
 
-		Profile& getCurrentProfile() {
-			return profiles[currentProfile];
-		}
-
-		Tile& getTile(u64 hash) {
-			static Tile fallbackTile = { PixelData(8 * 8 * sizeof(u32), 0xFF), true };
-			if (profiles.empty()) {
-				return fallbackTile;
-			}
-		
-			auto tile = getCurrentProfile().getTile(hash);
-			if (tile) {
-				return *tile;
-			}
-
-			auto rawTile = rawTiles.find(hash);
-			if (rawTile != rawTiles.end()) {
-				return rawTile->second;
-			}
-
-			return fallbackTile;
-		}
+		addr tileCond;
 	};
 
 private:
 	PPU& ppu;
-	bool& inBios;
-	Manifest biosManifest, gameManifest, *currentManifest;
-	std::string gameFolder;
-	u16 lastWrite = 0xFFFF;
-	
-	bool autoDumping = false;
+	bool& inBoot;
+	Manifest bios;
+	Manifest game;
+
+	std::vector<Sprite> sprites;
+	std::array<addr, 0x2000> vram_src_locations{};
+	std::array<u8, 0x2000> vram;
 
 public:
 	SpriteManager(PPU& ppu, bool& bios);
 
 	void loadRom(const std::string& romName);
+	Manifest& getManifest() { return getManifest(inBoot); }
+	Manifest& getManifest(bool boot) { return boot ? bios : game; }
 
 	const Color* renderPixel(const Pixel& pixel);
-	size_t getTileHash(u16 tileOffset);
-	Tile getTilePixels(u16 tileOffset);
-	const Tile& getTile(u64 hash, bool inBios);
-	const Tile& getTile(const Pixel& pixel);
-	void dumpTile(u16 tileOffset, TileMap& tileMap);
-	void writeIntercept(u16 offsetIdx);
 
-	Manifest& getCurrentManifest();
-	Manifest& getManifest(bool bios);
-	void dumpSprite();
+	Tile* getTile(bool inBios, addr a) {
+		if (auto tile = game.get(a))
+			return tile;
 
-private:
-	void loadProfile(Profile& profile, const std::string& path);
-	void loadManifest(Manifest& manifest, const std::string& path);
+		if (auto tile = bios.get(a)) {
+			return tile;
+		}
+
+		return nullptr;
+	}
+
+	Tile::Data getTilePixels(u16 tileOffset);
+	void dumpTile(addr offset);
+	void writeIntercept(addr dst, addr src, u8 data);
+
+	static bool imageIndexColors(const Tile::Data& image);
 };

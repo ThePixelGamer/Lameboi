@@ -6,14 +6,15 @@
     {
       "name": "imgui",
       "features": [
+        "docking-experimental",
         "opengl3-binding",
-        "sdl3-binding",
-        "docking-experimental"
+        "sdl3-binding"
       ]
     },
-    "lodepng",
+	"implot",
     "nlohmann-json",
     "sdl3",
-    "stb"
+    "stb",
+    "lodepng"
   ]
 }

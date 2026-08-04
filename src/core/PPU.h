@@ -6,6 +6,7 @@
 #include <mutex>
 #include <vector>
 
+#include "Memory.h"
 #include "util/Color.h"
 #include "util/Types.h"
 #include "util/Common.h"
@@ -20,47 +21,26 @@ class Debugger;
 class SpriteManager;
 class Interrupt;
 
-struct Sprite {
-	u8 xPos = 0, yPos = 0, tile = 0;
-	bool useOBP1 = false;
-	bool xFlip = false, yFlip = false;
-	bool behindBG = false;
-	u8 lowerX3Byte = 0;
+struct alignas(1) Sprite {
+	u8 yPos, xPos, tile, flags;
 
-	u8 read(u8 reg) {
-		switch (reg) {
+	bool useOBP1() { return flags & 0x10; }
+	bool xFlip() { return flags & 0x20; }
+	bool yFlip() { return flags & 0x40; }
+	bool behindBG() { return flags & 0x80; }
+
+	u8& operator[](size_t i) {
+		switch(i) {
+			default:
 			case 0: return yPos;
 			case 1: return xPos;
 			case 2: return tile;
-			case 3: return (behindBG << 7) | (yFlip << 6) | (xFlip << 5) | (useOBP1 << 4) | lowerX3Byte;
-
-			default:
-				//log
-				return 0xFF;
-		}
-	}
-
-	void write(u8 reg, u8 value) {
-		switch (reg) {
-			case 0: yPos = value; break;
-			case 1: xPos = value; break;
-			case 2: tile = value; break;
-			case 3:
-				behindBG = (value & 0x80);
-				yFlip = (value & 0x40);
-				xFlip = (value & 0x20);
-				useOBP1 = (value & 0x10);
-				lowerX3Byte = (value & 0xF);
-				break;
-
-			default:
-				//log
-				break;
+			case 3: return flags;
 		}
 	}
 };
 
-struct PaletteData {
+struct alignas(1) PaletteData {
 	u8 color0 : 2;
 	u8 color1 : 2;
 	u8 color2 : 2;
@@ -113,14 +93,17 @@ struct PaletteData {
 };
 
 struct Pixel {
-	static constexpr u64 INVALID_ID = static_cast<u64>(-1);
+	static constexpr addr LB_BLANK = 0;
 
 	// gb paletted color
+	addr src : 11;
+	addr tile : 13;
+	u8 x : 3 = 0;
+	u8 y : 3 = 0;
+	bool inBios : 1 = false;
+	bool obj : 1 = false;
+
 	PaletteData palette;
-	u64 hash = INVALID_ID; // 8-bytes
-	u8 x = 0; // 4-bit
-	u8 y = 0; // 4-bit
-	bool inBios = false;
 };
 
 class PPU {
@@ -128,11 +111,9 @@ public:
 	constexpr static size_t W = 160, H = 144;
 	constexpr static size_t T = 8;
 
-
 	static Pixel DefaultPixel;
 
 	struct Framebuffer {
-		std::vector<u64> hashes;
 		std::array<Pixel, W * H> metainfo;
 
 		// todo: separate cg and raw color displays
@@ -142,24 +123,31 @@ public:
 	SpriteManager& spriteManager;
 
 private:
-	Memory& mem;
+	Memory& bus;
 	Debugger& debug;
 	Interrupt& interrupt;
 
-public:
-	//regs
-	std::array<u8, 0x2000> VRAM; //0x8000
-	std::array<Sprite, 40> sprites; //0xFE00
+	Memory::BusTag vram_bus;
+	Memory::BusTag oam_bus;
 
+	MemoryMap vram_backing, vram_tag_backing;
+	MemoryMap::ReservedSection vram_tag;
+
+public:
+	// RAM
+	MemoryMap::ReservedSection vram; //0x8000
+	Sprite sprites[40]; //0xFE00
+
+	// I/O Registers
 	struct { //0xFF40 LCDC
-		u8 displayPriority : 1;		//(0=Off, 1=On)
-		u8 objDisplay : 1;	//(0=Off, 1=On)
-		u8 objSize : 1;		//(0=8x8, 1=8x16)
+		u8 displayPriority : 1;	//(0=Off, 1=On)
+		u8 objDisplay : 1;		//(0=Off, 1=On)
+		u8 objSize : 1;			//(0=8x8, 1=8x16)
 		u8 bgMap : 1;			//(0=9800-9BFF, 1=9C00-9FFF)
-		u8 tileSet : 1;		//(0=8800-97FF, 1=8000-8FFF)
-		u8 windowDisplay : 1; //(0=Off, 1=On)
+		u8 tileSet : 1;			//(0=8800-97FF, 1=8000-8FFF)
+		u8 windowDisplay : 1; 	//(0=Off, 1=On)
 		u8 windowMap : 1;		//(0=9800-9BFF, 1=9C00-9FFF)
-		u8 lcdDisplay : 1;	//(0=Off, 1=On)
+		u8 lcdDisplay : 1;		//(0=Off, 1=On)
 	} LCDC;
 	struct { //0xFF41 LCDC Status
 		u8 mode : 2;
@@ -176,6 +164,11 @@ public:
 private:
 	u8 LY; //0xFF44 LCDC Y-Coord
 	u8 LYC; //0xFF45 LY Compare
+
+	constexpr static u8 DMA_SIZE = 40 * 4;
+	u8 DMA_START; //0xFF46 DMA Transfer and Start Address
+	u8 dma = 0; //which byte we're currently copying
+
 	PaletteData BGP; //0xFF47 BG Palette Data
 	PaletteData OBP0; //0xFF48 Object Palette 0 Data
 	PaletteData OBP1; //0xFF49 Object Palette 1 Data
@@ -204,10 +197,11 @@ private:
 		bool update;
 	};
 
-	std::atomic<Spare> spare {{1, false}};
+	std::atomic<Spare> spare {{1, true}};
 	u8 backIdx = 2;
 
 	bool vblankHelper;
+	bool redraw;
 
 public:
 	// Display Palette
@@ -242,12 +236,16 @@ public:
 	
 	u8 read(u8 reg);
 	void write(u8 reg, u8 value);
+	
+	void forceUpdate() {
+		redraw = true;
+	}
 
-	u8 readVRAM(u16 offset);
-	void writeVRAM(u16 offset, u8 value);
-
-	u8 readOAM(u8 offset);
-	void writeOAM(u8 offset, u8 value, bool force = false);
+	void setMode(Mode mode);
+	void setPalette(Palette p) {
+		paletteColors = p;
+		forceUpdate();
+	}
 
 	void dumpTiles(u8* outData, const size_t outW, const size_t tW, const size_t tH, const size_t baseOffset);
 	void dumpTile(u8* out, const size_t outW, const u16 tileOffset);

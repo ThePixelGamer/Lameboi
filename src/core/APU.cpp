@@ -1,10 +1,11 @@
 #include "APU.h"
 
 #include "Config.h"
+#include "Memory.h"
 
 #include "util/Log.h"
 
-APU::APU() :
+APU::APU(Memory& bus) :
 	squareSweep(soundOn, sequencerStep),
 	square(soundOn, sequencerStep),
 	wave(soundOn, sequencerStep),
@@ -12,8 +13,20 @@ APU::APU() :
 {
 	clean();
 
-	//noiseWav.setNumChannels(channels);
-	//noiseWav.setNumSamplesPerChannel(samples);
+	auto audio_tag = bus.register_bus(
+		[](void* d, addr a) -> u8 { return static_cast<APU*>(d)->read(a & 0xFF); },
+		[](void* d, addr a, u8 v) { static_cast<APU*>(d)->write(a & 0xFF, v); },
+		this
+	);
+
+	auto wave_tag = bus.register_bus(
+		[](void* d, addr a) -> u8 { return static_cast<Wave*>(d)->readPattern(a & 0xFF); },
+		[](void* d, addr a, u8 v) { static_cast<Wave*>(d)->writePattern(a & 0xFF, v); },
+		&wave
+	);
+
+	for (u8 i = 0x10; i < 0x27; ++i) bus.register_io(i, audio_tag);
+	for (u8 i = 0x30; i < 0x40; ++i) bus.register_io(i, wave_tag);
 
 	const SDL_AudioSpec spec{ SDL_AUDIO_F32, channels, frequency };
 	audio_device = SDL_OpenAudioDeviceStream(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &spec, nullptr, nullptr);
@@ -35,7 +48,15 @@ void APU::clean() {
 	bufferOffset = 0;
 	sampleBuffer.fill(0.0f);
 
-	resetRegs();
+	rightVolume = 0;
+	vinRight = false;
+	leftVolume = 0;
+	vinLeft = false;
+
+	squareSweep.reset();
+	square.reset();
+	wave.reset();
+	noise.reset();
 
 	soundOn = false;
 	sequencerStep = 0;
@@ -44,9 +65,6 @@ void APU::clean() {
 	channel2On = true;
 	channel3On = true;
 	channel4On = true;
-
-	//noiseWav.save("gb-ch4.wav");
-	//wavePos = 0;
 }
 
 // called every 1mhz by the cpu
@@ -54,18 +72,37 @@ void APU::update() {
 	if (--sequencerCycles == 0) {
 		sequencerCycles = maxSequencerCycles;
 
-		sequence();
+		if ((sequencerStep & 1) == 0) {
+			// Sweep 2/6
+			if (sequencerStep & 2) {
+				squareSweep.sweep();
+			}
+
+			// Length Control 0/2/4/6
+			squareSweep.length.tick();
+			square.length.tick();
+			wave.length.tick();
+			noise.length.tick();
+		}
+		
+		// Volume Envelope
+		if (++sequencerStep == 8) {
+			squareSweep.envelope.tick();
+			square.envelope.tick();
+			noise.envelope.tick();
+
+			sequencerStep = 0;
+		}
 	}
 
-	// 2mhz
-	for (int i = 0; i < 2; i++) {
-		step();
-	}
+	squareSweep.update();
+	square.update();
+	wave.update();
+	noise.update();
 
 	// mix samples and push it to the buffer
-	{
-		size_t offset = bufferOffset * channels;
-		//size_t wavOffset = bufferOffset + (wavePos * samples);
+	if (--sampleCycles == 0) {
+		sampleCycles = maxSampleCycles;
 
 		float volume = 0.0f;
 		u8 activeChannelCount = channel1On + channel2On + channel3On + channel4On;
@@ -74,25 +111,14 @@ void APU::update() {
 			return (sample / channelCount) * ((volume + 1.0f) / 8.0f) * volumeModifier * (config.volume / 100.0f);
 		};
 
-		sampleBuffer[offset] += adjustVolume(leftVolume, getL(), activeChannelCount);
-		sampleBuffer[offset + 1] += adjustVolume(rightVolume, getR(), activeChannelCount);
-	}
-
-	if (--sampleCycles == 0) {
-		sampleCycles = maxSampleCycles;
-
 		size_t offset = bufferOffset * channels;
-		sampleBuffer[offset] /= float(maxSampleCycles);
-		sampleBuffer[offset + 1] /= float(maxSampleCycles);
-
+		sampleBuffer[offset] = adjustVolume(leftVolume, getL(), activeChannelCount);
+		sampleBuffer[offset + 1] = adjustVolume(rightVolume, getR(), activeChannelCount);
 		++bufferOffset;
 	}
 
 	if (bufferOffset >= samples) {
 		bufferOffset = 0;
-
-		//++wavePos;
-		//noiseWav.setNumSamplesPerChannel((wavePos + 1) * samples);
 
 		uint32_t len = samples * channels * sizeof(float);
 		if (config.audioSync) {
@@ -109,19 +135,19 @@ void APU::update() {
 	}
 }
 
-u8 APU::read_reg(u8 reg) {
+u8 APU::read(u8 reg) {
 	switch (reg) {
 		case 0x10: case 0x11: case 0x12: case 0x13: case 0x14:
-			return squareSweep.read(reg);
+			return squareSweep.read(reg - 0x10);
 
 		case 0x16: case 0x17: case 0x18: case 0x19:
-			return square.read(reg);
+			return square.read(reg - 0x15);
 
 		case 0x1A: case 0x1B: case 0x1C: case 0x1D: case 0x1E:
-			return wave.read(reg);
+			return wave.read(reg - 0x1A);
 
 		case 0x20: case 0x21: case 0x22: case 0x23:
-			return noise.read(reg);
+			return noise.read(reg - 0x1F);
 
 		case 0x24: // NR50
 			return (vinLeft << 7) | (leftVolume << 4) | (vinRight << 3) | (rightVolume);
@@ -139,22 +165,22 @@ u8 APU::read_reg(u8 reg) {
 	}
 }
 
-void APU::write_reg(u8 reg, u8 value) {
+void APU::write(u8 reg, u8 value) {
 	switch (reg) {
 		case 0x10: case 0x11: case 0x12: case 0x13: case 0x14:
-			squareSweep.write(reg, value);
+			squareSweep.write(reg - 0x10, value);
 			break;
 
 		case 0x16: case 0x17: case 0x18: case 0x19:
-			square.write(reg, value);
+			square.write(reg - 0x15, value);
 			break;
 
 		case 0x1A: case 0x1B: case 0x1C: case 0x1D: case 0x1E:
-			wave.write(reg, value);
+			wave.write(reg - 0x1A, value);
 			break;
 
 		case 0x20: case 0x21: case 0x22: case 0x23:
-			noise.write(reg, value);
+			noise.write(reg - 0x1F, value);
 			break;
 
 		case 0x24: // NR50
@@ -188,10 +214,18 @@ void APU::write_reg(u8 reg, u8 value) {
 				wave.resetWaveBuffer();
 			}
 			else {
-				resetRegs();
+				rightVolume = 0;
+				vinRight = false;
+				leftVolume = 0;
+				vinLeft = false;
+
+				squareSweep.reset();
+				square.reset();
+				wave.reset();
+				noise.reset();
 			}
 			break;
-
+			
 		default:
 			LB_ERROR(Audio, "Writing to unknown SoundControl register: {}", reg);
 			break;

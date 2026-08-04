@@ -1,16 +1,22 @@
 #pragma once
 
 #include <array>
+#include <atomic>
 #include <functional>
+
+#include <fmt/format.h>
 
 #include "util/Types.h"
 
 class Memory;
 class Gameboy;
 class Interrupt;
+class SpriteManager;
 
 class CPU {
 public:
+	using ReferenceData = std::pair<u8, u32>;
+
 	struct Flags {
 		u8 nibble = 0;
 		bool Z, N, H, C;
@@ -26,9 +32,27 @@ public:
 		}
 	};
 
+	struct Register : public ReferenceData {
+		Register& operator=(const Register& rhs) = default;
+		Register& operator=(const ReferenceData& rhs) {
+			ReferenceData::operator=(rhs);
+			return *this;
+		}
+
+		Register& operator=(u8 v) {
+			first = v;
+			second = 0;
+			return *this;
+		}
+		
+		operator u8&() {
+			return first;
+		}
+	};
+
 	Flags F;
-	u8 B, C, D, E, H, L, A;
-	u8 Z, W;
+	Register B, C, D, E, H, L, A;
+	Register Z, W;
 
 	addr PC, SP;
 	u8 IR;
@@ -37,28 +61,28 @@ public:
 	bool lowPower;
 
 	bool quit;
+	std::atomic<uint64_t> instrCount;
 
-	using OP = void (CPU::*)();
+	std::array<u8, 0x100> bios;
+	bool inBios;
 
 private:
-	using Handler = std::function<void (CPU*)>;
-	using OpcodeTable = std::array<Handler, 256>;
-	OpcodeTable opcodeTable, cbTable;
-	Handler currentInstruction;
-
 	std::function<void ()> stepComponents;
 	Memory& bus;
 	Interrupt& interrupt;
+	SpriteManager& spriteManager;
 
 public:
 	CPU(Gameboy& core);
 	void update();
 	void reset();
 
+	std::string log();
+
 private:
 	// Helper functions
-	constexpr u8& reg(u8 r) {
-		u8* regs[] = { &B, &C, &D, &E, &H, &L, &Z, &A };
+	constexpr Register& reg(u8 r) {
+		Register* regs[] = { &B, &C, &D, &E, &H, &L, &Z, &A };
 		return *regs[r];
 	}
 
@@ -66,11 +90,11 @@ private:
 	constexpr static u8 low(u16 hl) { return hl & 0xFF; }
 	constexpr static u16 to16(u8 h, u8 l) { return (h << 8) | l; }
 	constexpr static void store16(u8& h, u8& l, u16 d) { h = high(d); l = low(d); }
-	
-	u8 read(addr a);
-	u8 read(u8 a_h, u8 a_l) { return read(to16(a_h, a_l)); }
-	u8 readHL() { return read(H, L); }
-	u8 readN() { return read(PC++); }
+
+	ReferenceData read(addr a);
+	ReferenceData read(u8 a_h, u8 a_l) { return read(to16(a_h, a_l)); }
+	ReferenceData readHL() { return read(H, L); }
+	ReferenceData readN() { return read(PC++); }
 
 	void loadZW() {
 		Z = readN();
@@ -78,11 +102,8 @@ private:
 	}
 	
 	void write(addr a, u8 data);
-	void write(u8 a_h, u8 a_l, u8 data) { write(to16(a_h, a_l), data); }
-	void writeHL(u8 data) { write(H, L, data); }
-
-	void readHigh(u8 loc);
-	void writeHigh(u8 loc);
+	void write(u8 a_h, u8 a_l, Register& data);
+	void writeHL(Register& data) { write(H, L, data); }
 
 	void invalid();
 	void cb();
@@ -97,7 +118,7 @@ private:
 		write(--SP, l);
 	}
 
-	void pop(u8& h, u8& l) {
+	void pop(Register& h, Register& l) {
 		l = read(SP++);
 		h = read(SP++);
 	}
@@ -109,8 +130,8 @@ private:
 
 	// 8-bit load
 	void load() {
-		u8& dst = reg((IR >> 3) & 0x7);
-		u8& src = reg(IR & 0x7);
+		Register& dst = reg((IR >> 3) & 0x7);
+		Register& src = reg(IR & 0x7);
 
 		if (&src == &Z && (IR & 0x40)) Z = readHL();
 		dst = src;
@@ -231,7 +252,7 @@ private:
 	}
 
 	void cpl() {
-		A = ~A;
+		A = u8(~A);
 		F.N = true;
 		F.H = true;
 	}
@@ -248,24 +269,24 @@ private:
 		F.H = false;
 	}
 
-	void _add(u8& r, u8 val, bool carry = false) {
+	void _add(Register& r, u8 val, bool carry = false) {
 		u16 res = r + val + carry;
 		F.H = (r ^ val ^ res) & 0x10; 
 		F.C = res > 0xFF;
-		r = res;
+		r = u8(res);
 		F.N = false;
 	}
 
-	void _sub(u8& r, u8 val, bool carry = false) {
+	void _sub(Register& r, u8 val, bool carry = false) {
 		s16 res = r - val - carry;
 		F.H = (r ^ val ^ res) & 0x10;
 		F.C = res < 0;
-		r = res;
+		r = u8(res);
 		F.N = true;
 	}
 
 	void inc() {
-		u8& r = reg((IR >> 3) & 0x7);
+		Register& r = reg((IR >> 3) & 0x7);
 		bool isZ = &r == &Z;
 		if (isZ) Z = readHL();
 
@@ -278,7 +299,7 @@ private:
 	}
 
 	void dec() { 
-		u8& r = reg((IR >> 3) & 0x7);
+		Register& r = reg((IR >> 3) & 0x7);
 		bool isZ = &r == &Z;
 		if (isZ) Z = readHL();
 

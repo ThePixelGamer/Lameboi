@@ -12,6 +12,7 @@ class MainMenu {
 	// file menu
 	std::unique_ptr<pfd::open_file> romFile = nullptr;
 	bool showDemoWindow = false;
+	bool showPlotDemoWindow = false;
 
 	UI& app;
 	Gameboy& gb;

@@ -1,5 +1,7 @@
 #pragma once
 
+#include "Memory.h"
+
 #include "util/Types.h"
 
 class Interrupt {
@@ -59,8 +61,22 @@ public:
 		}
 	} enable, request;
 
-	Interrupt() {
+	Interrupt(Memory& bus) {
 		clean();
+
+		auto i_tag = bus.register_bus(
+			[](void* d, addr a) -> u8 { 
+				auto interrupt = static_cast<Interrupt*>(d);
+				return ((a & 0x80) ? interrupt->enable : interrupt->request).read();
+			},
+			[](void* d, addr a, u8 v) { 
+				auto interrupt = static_cast<Interrupt*>(d);
+				((a & 0x80) ? interrupt->enable : interrupt->request).write(v);
+			},
+			this
+		);
+		bus.register_io(0x0F, i_tag);
+		bus.register_io(0xFF, i_tag);
 	}
 
 	void clean() {

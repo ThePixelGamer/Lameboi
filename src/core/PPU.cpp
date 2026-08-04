@@ -11,11 +11,41 @@
 Pixel PPU::DefaultPixel;
 
 PPU::PPU(Gameboy& gb) :
-	mem(gb.mem),
+	bus(gb.bus),
 	debug(gb.debug),
 	interrupt(gb.interrupt),
-	spriteManager(gb.spriteManager) {
+	spriteManager(gb.spriteManager),
+	
+	vram_backing(Memory::PAGE_SIZE * 2),
+	vram_tag_backing(Memory::PAGE_SIZE * 2) {
 	clean();
+
+	bus.addressSpace.split(0x8000, Memory::PAGE_SIZE * 2);
+	vram = vram_backing.map(bus.Mem() + 0x8000, 0x0000, Memory::PAGE_SIZE * 2);
+	
+	vram_bus = bus.register_bus(nullptr, nullptr, nullptr);
+	
+	bus.addressSpace.split(Memory::ADDRESS_SPACE + 0x8000, Memory::PAGE_SIZE * 2);
+	vram_tag = vram_tag_backing.map(bus.Tags() + 0x8000, 0, Memory::PAGE_SIZE * 2);
+	std::ranges::fill(std::span(vram_tag.get<Memory::BusTag>(), Memory::PAGE_SIZE * 2), vram_bus);
+	
+	auto oam_read = [](void* d, addr a) -> u8 {
+		return static_cast<PPU*>(d)->sprites[(a & 0xFF) >> 2][a & 0x3]; 
+	};
+	auto oam_write = [](void* d, addr a, u8 v) {
+		static_cast<PPU*>(d)->sprites[(a & 0xFF) >> 2][a & 0x3] = v;
+	};
+
+	oam_bus = bus.register_bus(oam_read, oam_write, this);
+	std::ranges::fill(std::span(bus.Tags() + 0xFE00, 0xA0), oam_bus);
+
+	auto io = bus.register_bus(
+		[](void* d, addr a) { return static_cast<PPU*>(d)->read(a & 0xFF); },
+		[](void* d, addr a, u8 v) { static_cast<PPU*>(d)->write(a & 0xFF, v); },
+		this
+	);
+
+	for (u8 i = 0x40; i < 0x4C; ++i) bus.register_io(i, io);
 }
 
 void PPU::clean() {
@@ -23,9 +53,6 @@ void PPU::clean() {
 	std::unique_lock lock(vblank_m);
 
 	// GB Registers
-	VRAM.fill(0);
-	sprites.fill({});
-
 	LCDC.displayPriority = 0;
 	LCDC.objDisplay = 0;
 	LCDC.objSize = 0;
@@ -35,7 +62,7 @@ void PPU::clean() {
 	LCDC.windowMap = 0;
 	LCDC.lcdDisplay = 0;
 
-	STAT.mode = Mode::Searching;
+	setMode(HBlank);
 	STAT.coincidence = 0;
 	STAT.hblankInterrupt = 0;
 	STAT.vblankInterrupt = 0;
@@ -50,10 +77,10 @@ void PPU::clean() {
 
 	// Internal
 	for (auto& displayBuf : buffers) {
-		displayBuf.hashes.resize(((160 / 8) + 2) * ((144 / 8) + 2)); // reserve enough space for a full screen of multiple tiles
 		displayBuf.metainfo.fill(DefaultPixel); // white
 		displayBuf.pixels.fill(0); // white
 	}
+	forceUpdate();
 
 	renderSprites.fill(0);
 
@@ -75,14 +102,16 @@ void PPU::clean() {
 
 // Called every CPU m-cycle
 void PPU::update() {
-	if (LCDC.lcdDisplay == 0) {
-		return;
+	// DMA Transfer, 1 byte per M Cycle
+	if (dma != 0 && dma <= DMA_SIZE) {
+		u8 idx = (DMA_SIZE - dma);
+		u16 dmaAddr = (DMA_START << 8) | idx;
+		bus.write(0xFE00 + idx, bus.read(dmaAddr));
+		--dma;
 	}
 
-	// hack to return the mode back to searching from vblank
-	if (cycles == 0 && LY == 0) {
-		STAT.mode = Mode::Searching;
-		vblankHelper = false;
+	if (LCDC.lcdDisplay == 0) {
+		return;
 	}
 
 	++cycles;
@@ -119,9 +148,7 @@ void PPU::update() {
 			}
 			break;
 
-		default: {
-			throw std::runtime_error("Unknown mode");
-		} break;
+		default: break;
 	}
 
 	STAT.coincidence = LY == LYC;
@@ -143,13 +170,19 @@ u8 PPU::read(u8 reg) {
 				(LCDC.bgMap << 3) | (LCDC.objSize << 2) | (LCDC.objDisplay << 1) | (LCDC.displayPriority);
 
 		case 0x41: //LCDC Status
-			return 0x80 | (STAT.lycInterrupt << 6) | (STAT.oamInterrupt << 5) | (STAT.vblankInterrupt << 4) |
-				(STAT.hblankInterrupt << 3) | (STAT.coincidence << 2) | (STAT.mode);
+			return 0x80 | 
+				(STAT.lycInterrupt << 6) | 
+				(STAT.oamInterrupt << 5) | 
+				(STAT.vblankInterrupt << 4) |
+				(STAT.hblankInterrupt << 3) | 
+				(STAT.coincidence << 2) | 
+				(LCDC.lcdDisplay) ? (STAT.mode) : 0;
 
 		case 0x42: return SCY;
 		case 0x43: return SCX;
 		case 0x44: return LY;
 		case 0x45: return LYC;
+		case 0x46: return DMA_START;
 		case 0x47: return BGP.read();
 		case 0x48: return OBP0.read();
 		case 0x49: return OBP1.read();
@@ -176,7 +209,7 @@ void PPU::write(u8 reg, u8 value) {
 			
 			if (LCDC.lcdDisplay == 0) {
 				LY = 0;
-				STAT.mode = 0;
+				setMode(HBlank);
 				cycles = 0;
 			}
 			break;
@@ -191,6 +224,12 @@ void PPU::write(u8 reg, u8 value) {
 		case 0x42: SCY = value;	break;
 		case 0x43: SCX = value;	break;
 		case 0x45: LYC = value;	break;
+		case 0x46: 
+			if (dma == 0) {
+				DMA_START = value;
+				dma = DMA_SIZE;
+			}
+			break;
 		case 0x47: BGP = value; break;
 		case 0x48: OBP0 = value; break;
 		case 0x49: OBP1 = value; break;
@@ -203,50 +242,29 @@ void PPU::write(u8 reg, u8 value) {
 	}
 }
 
-//#define VRAM_BLOCKING
+void PPU::setMode(Mode mode) {
+	STAT.mode = mode;
 
-u8 PPU::readVRAM(u16 offset) {
-#ifdef VRAM_BLOCKING
-	if (STAT.mode == PPU::Drawing) {
-		return 0xFF;
+	// HBlank -> Searching turn off OAM
+	// Searching -> Drawing turn off VRAM
+	// Drawing -> HBlank turn on everything
+	// HBlank -> VBlank do nothing
+	if (false) {
+		switch (STAT.mode) {
+			case Drawing: 
+				bus.buses[vram_bus.id].enable = false;
+				case Searching:
+				bus.buses[oam_bus.id].enable = false;
+				break;
+				
+				case HBlank:
+				bus.buses[vram_bus.id].enable = true;
+				bus.buses[oam_bus.id].enable = true;
+				break;
+
+			default: break;
+		}
 	}
-#endif // VRAM_BLOCKING
-
-	return VRAM[offset];
-}
-
-void PPU::writeVRAM(u16 offset, u8 value) {
-#ifdef VRAM_BLOCKING
-	if (STAT.mode == PPU::Drawing) {
-		return;
-	}
-#endif // VRAM_BLOCKING
-
-	VRAM[offset] = value;
-
-	spriteManager.writeIntercept(offset);
-}
-
-u8 PPU::readOAM(u8 offset) {
-#ifdef VRAM_BLOCKING
-	// only allow reads during hblank and vblank 
-	if (STAT.mode > 1) {
-		return 0xFF;
-	}
-#endif // VRAM_BLOCKING
-
-	return sprites[offset >> 2].read(offset & 0x3);
-}
-
-void PPU::writeOAM(u8 offset, u8 value, bool force) {
-#ifdef VRAM_BLOCKING
-	// only allow writes during hblank and vblank 
-	if (STAT.mode > 1 && !force) { 
-		return;
-	}
-#endif // VRAM_BLOCKING
-	
-	sprites[offset >> 2].write(offset & 0x3, value);
 }
 
 u16 PPU::_fetchTileAddr(bool method8000, u8 tileoffset) {
@@ -264,7 +282,7 @@ u16 PPU::_fetchTileAddr(bool method8000, u8 tileoffset) {
 
 std::array<u8, 2> PPU::_fetchTileLine(bool method8000, u8 yoffset, u8 tileoffset) {
 	size_t loc = _fetchTileAddr(method8000, tileoffset) + (yoffset * 2);
-	return { VRAM[loc], VRAM[loc + 1] };
+	return { vram[loc], vram[loc + 1] };
 }
 
 void PPU::scanline() {
@@ -275,35 +293,26 @@ void PPU::scanline() {
 	std::array<u8, 2> rawLine = { 0, 0 };
 
 	std::array<Pixel, 8> line = {};
-	const auto map0 = VRAM.begin() + 0x1800;
-	const auto map1 = VRAM.begin() + 0x1C00;
+	const auto map0 =  0x1800;
+	const auto map1 =  0x1C00;
 	constexpr u8 tileMaxX = (256 / T);
 
 	for (u8 tileX = 0; tileX < (W / T); ++tileX) {
-
 		if (LCDC.displayPriority) {
 			// Background
 			u8 x = ((tileX * 8) + SCX) & 0xFF;
 			u8 y = (LY + SCY) & 0xFF;
 
-			auto map = (LCDC.bgMap) ? map1 : map0;
+			auto map = vram.get() + ((LCDC.bgMap) ? map1 : map0);
 			u16 tileOffset = (x / T) + ((y / T) * tileMaxX);
 			u8 yOffset = y % T;
 			u8 xShift = SCX % T;
 
-			rawLine = _fetchTileLine(LCDC.tileSet, yOffset, map[tileOffset]);
+			addr tileAddr = _fetchTileAddr(LCDC.tileSet, map[tileOffset]);
+			addr lineAddr = tileAddr + yOffset * 2;
+			rawLine = { vram[lineAddr], vram[lineAddr + 1] };
 			rawLine[0] <<= xShift;
 			rawLine[1] <<= xShift;
-			
-			size_t hash = spriteManager.getTileHash(_fetchTileAddr(LCDC.tileSet, map[tileOffset]));
-			for (u8 lineX = 0; lineX < 8; ++lineX) {
-				auto& pixel = line[lineX];
-				pixel.hash = hash;
-				pixel.x = lineX;
-				pixel.y = yOffset;
-				// this doesn't fix the issue, todo: track the writes in writeVRAM
-				pixel.inBios = mem.boot;
-			}
 			
 			if (xShift != 0) {
 				if (x >= 248) {
@@ -323,7 +332,7 @@ void PPU::scanline() {
 			if (windowEnabled && LCDC.windowDisplay) {
 				s16 adjustedX = (WX - 7) / 8;
 				if (tileX >= adjustedX && LY >= WY) {
-					auto map = (LCDC.windowMap) ? map1 : map0;
+					auto map = vram.get() + ((LCDC.windowMap) ? map1 : map0);
 					u16 tileOffset = (tileX - adjustedX) + ((windowLines / 8) * tileMaxX);
 
 					rawLine = _fetchTileLine(LCDC.tileSet, windowLines % 8, map[tileOffset]);
@@ -341,7 +350,8 @@ void PPU::scanline() {
 			bottomSpriteLine.fill(u8(-1));
 
 			for (u8 i = 0; i < loadedSprites; ++i) {
-				Sprite sprite = sprites[renderSprites[i]];
+				u8 spriteIndex = renderSprites[i];
+				Sprite& sprite = sprites[spriteIndex];
 
  				u8 x = tileX * 8;
 				if (!inRange(sprite.xPos - 8, x, x + 7) && !inRange(sprite.xPos - 1, x, x + 7)) {
@@ -349,7 +359,7 @@ void PPU::scanline() {
 				}
 
 				u8 y = (LY + 16 - sprite.yPos) % 16;
-				if (sprite.yFlip) {
+				if (sprite.yFlip()) {
 					y = ((LCDC.objSize) ? 15 : 7) - y;
 				}
 
@@ -360,7 +370,10 @@ void PPU::scanline() {
 				else { // 8x8
 					tileOffset = sprite.tile;
 				}
-				std::array<u8, 2> spriteLine = _fetchTileLine(true, y % 8, tileOffset);
+
+				addr tileAddr = _fetchTileAddr(true, tileOffset);
+				addr lineAddr = tileAddr + (y % 8) * 2;
+				std::array<u8, 2> spriteLine = { vram[lineAddr], vram[lineAddr + 1] };
 
 				u8 spX, itX, endX;
 				if (x <= (sprite.xPos - 8)) {
@@ -376,28 +389,32 @@ void PPU::scanline() {
 
 				for (; itX < endX; ++itX, ++spX) {
 					u8 bitX = spX;
-					if (sprite.xFlip) {
+					if (sprite.xFlip()) {
 						bitX = 7 - bitX;
 					}
 
 					u8 s_c0 = getBit(spriteLine[1], 7 - bitX);
 					u8 s_c1 = getBit(spriteLine[0], 7 - bitX);
 
-					if (sprite.behindBG) {
+					if (sprite.behindBG()) {
 						// check if bg/window color is not 0
 						if (getBit(rawLine[1], 7 - itX) || getBit(rawLine[0], 7 - itX)) {
 							continue;
 						}
 					}
 
+					auto& pixel = line[itX];
+					pixel.src = spriteIndex;
+					pixel.tile = tileAddr;
+					//pixel.x = x;
+					//pixel.y = (y % 8);
+					pixel.obj = true;
+
 					if ((bottomSpriteLine[itX] > sprite.xPos) && (s_c0 || s_c1)) {
-						palettes[itX] = &((sprite.useOBP1) ? OBP1 : OBP0);
+						palettes[itX] = &((sprite.useOBP1()) ? OBP1 : OBP0);
 						bottomSpriteLine[itX] = sprite.xPos;
 						setBit(rawLine[1], 7 - itX, s_c0);
 						setBit(rawLine[0], 7 - itX, s_c1);
-
-						// invalidate the pixel till we support sprites
-						line[itX].hash = Pixel::INVALID_ID;
 					}
 				}
 			}
@@ -418,27 +435,25 @@ void PPU::scanline() {
 		}
 	}
 
-	STAT.mode = Mode::HBlank;
+	setMode(HBlank);
 }
 
 void PPU::oamScan() {
 	//scan 2 sprites for every cycle
 	while (spritesScanned < (cycles * 2) && spritesScanned != 40 && loadedSprites != 10) {
-		Sprite sprite = sprites[spritesScanned];
+		Sprite& sprite = sprites[spritesScanned];
 
-		if (sprite.xPos != 0 &&
-			(LY + 16) >= sprite.yPos &&
+		if ((LY + 16) >= sprite.yPos &&
 			(LY + 16) < (sprite.yPos + ((LCDC.objSize) ? 16 : 8))) {
 
-			renderSprites[loadedSprites] = spritesScanned;
-			++loadedSprites;
+			renderSprites[loadedSprites++] = spritesScanned;
 		}
 
 		++spritesScanned;
 	}
 
 	if (cycles == 20) {
-		STAT.mode = Mode::Drawing;
+		setMode(Drawing);
 		spritesScanned = 0;
 	}
 }
@@ -454,12 +469,7 @@ void PPU::hblank() {
 
 		loadedSprites = 0;
 
-		if (LY == 144) {
-			STAT.mode = Mode::VBlank; 
-		}
-		else {
-			STAT.mode = Mode::Searching;
-		}
+		setMode((LY == 144) ? VBlank : Searching);
 	}
 }
 
@@ -469,7 +479,6 @@ void PPU::vblank() {
 		debug.inVblank = true;
 
 		interrupt.request.vblank = true;
-
 		backIdx = spare.exchange({backIdx, true}, std::memory_order_acq_rel).idx;
 
 		++framesPresented;
@@ -480,7 +489,9 @@ void PPU::vblank() {
 		frameCycles = 0;
 		windowLines = 0;
 		LY = 0;
-		STAT.mode = Mode::Searching;
+		vblankHelper = false;
+
+		setMode(Searching);
 	}
 }
 
@@ -497,11 +508,15 @@ bool PPU::_nextLine() {
 }
 
 void PPU::render(std::function<void (Framebuffer&)> callback) {
-	if (spare.load(std::memory_order_relaxed).update) {
+	bool update = spare.load(std::memory_order_relaxed).update;
+	if (update) {
 		frontIdx = spare.exchange({frontIdx, false}, std::memory_order_acq_rel).idx;
 	}
 
-	callback(buffers[frontIdx]);
+	if (update || redraw) {
+		redraw = false;
+		callback(buffers[frontIdx]);
+	}
 }
 
 static PaletteData basic = {0, 1, 2, 3};
@@ -549,7 +564,7 @@ void PPU::dumpTile(u8* out, const size_t outW, const u16 tile) {
 	if (tile > 0x17F) return;
 
 	for (int y = 0; y < PPU::T; ++y) {
-		auto line = VRAM.begin() + (tile * 0x10) + (y * 2);
+		auto line = vram.get() + (tile * 0x10) + (y * 2);
 
 		for (int x = 0; x < T; ++x) {
 			u8 bit = T - x - 1;
@@ -559,7 +574,7 @@ void PPU::dumpTile(u8* out, const size_t outW, const u16 tile) {
 			*(out++) = pixel.r;
 			*(out++) = pixel.g;
 			*(out++) = pixel.b;
-			*(out++);// = pixel.a;
+			(void)*(out++);// = pixel.a;
 		}
 
 		out += outW;
@@ -568,7 +583,7 @@ void PPU::dumpTile(u8* out, const size_t outW, const u16 tile) {
 
 //maybe add support for an auto option?
 void PPU::dumpBGMap(std::array<u8, 256 * 256 * 4>& outData, bool bgMap, bool tileSet) {
-	auto map = VRAM.begin() + ((bgMap) ? 0x1C00 : 0x1800);
+	auto map = vram.get() + ((bgMap) ? 0x1C00 : 0x1800);
 
 	for (int t = 0; t < 0x400; ++t) {
 		for (int y = 0; y < 8; ++y) {
@@ -583,8 +598,8 @@ void PPU::dumpBGMap(std::array<u8, 256 * 256 * 4>& outData, bool bgMap, bool til
 void PPU::dumpTileMap(std::array<u8, 128 * 64 * 3 * 4>& outData) {
 	for (int t = 0; t < 0x180; ++t) {
 		for (int i = 0; i < 8; ++i) {
-			u8 top = VRAM[(t * 16ll) + (i * 2ll)];
-			u8 bottom = VRAM[(t * 16ll) + (i * 2ll) + 1];
+			u8 top = vram[(t * 16ll) + (i * 2ll)];
+			u8 bottom = vram[(t * 16ll) + (i * 2ll) + 1];
 
 			size_t rgbIndex = ((t / 16) * 128 * 8) + ((t % 16) * 8) + (i * 128);
 			rowHelper(outData, rgbIndex, top, bottom);
@@ -593,7 +608,7 @@ void PPU::dumpTileMap(std::array<u8, 128 * 64 * 3 * 4>& outData) {
 }
 
 void PPU::dumpBGMapTiles(std::array<u8, 32 * 8 * 32 * 8 * 4>& outData, Pos2 min, Pos2 max, bool bgMap, bool tileSet) {
-	auto map = VRAM.begin() + ((bgMap) ? 0x1C00 : 0x1800);
+	auto map = vram.get() + ((bgMap) ? 0x1C00 : 0x1800);
 
 	for (int ty = min.y; ty != max.y + 1; ++ty) {
 		for (int tx = min.x; tx != max.x + 1; ++tx) {
@@ -616,8 +631,8 @@ void PPU::dumpTiles(std::array<u8, 32 * 8 * 32 * 8 * 4>& outData, u32 x1, u32 y1
 	for (int t = x1 + (y1 * 16); t < tileEnd; ++t) {
 		size_t rgbTileIndex = (8 * tileOffset) + (32 * 8 * 8 * rowOffset);
 		for (int i = 0; i < 8; ++i) {
-			u8 top = VRAM[(t * 16ll) + (i * 2ll)];
-			u8 bottom = VRAM[(t * 16ll) + (i * 2ll) + 1];
+			u8 top = vram[(t * 16ll) + (i * 2ll)];
+			u8 bottom = vram[(t * 16ll) + (i * 2ll) + 1];
 
 			size_t rgbIndex = rgbTileIndex + (32 * 8 * i);
 			rowHelper(outData, rgbIndex, top, bottom);
@@ -638,7 +653,7 @@ void PPU::dumpSprites(std::array<u8, 64 * 40 * 4>& outData) {
 			auto tile = _fetchTileLine(true, y, sprites[obj].tile);
 
 			size_t rgbIndex = ((obj / 8) * 64 * 8) + ((obj % 8) * 8) + (y * 64);
-			rowHelper(outData, rgbIndex, tile[0], tile[1], true, (sprites[obj].useOBP1) ? OBP1 : OBP0);
+			rowHelper(outData, rgbIndex, tile[0], tile[1], true, (sprites[obj].useOBP1()) ? OBP1 : OBP0);
 		}
 	}
 }

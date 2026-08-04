@@ -1,6 +1,7 @@
 #pragma once
 
 #include <arraY>
+#include <format>
 #include <functional>
 
 #include <imgui.h>
@@ -51,7 +52,9 @@ public:
 
         // todo: use ImageButton or Image based on clickCallback? 
         ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, { 0, 0 });
-        bool clicked = ImGui::ImageButton("##render", tex.as<ImTextureID>(), ImVec2(adjWidth, adjHeight), u, v);
+		auto texid = tex.as<ImTextureID>();
+		std::string imageid = std::format("##render{}", texid);
+        bool clicked = ImGui::ImageButton(imageid.c_str(), texid, ImVec2(adjWidth, adjHeight), u, v);
         ImGui::PopStyleVar();
 
         // exit early if we're rendering a simple image
@@ -66,7 +69,7 @@ public:
         float region_sz = 8.0f * zoom; //region = 8x8 area
         auto& mouse = ImGui::GetIO().MousePos;
         u32 region_x = std::clamp((mouse.x - tl.x) / region_sz, 0.0f, adjWidth);
-        u32 region_y = std::clamp((mouse.y - br.y) / region_sz, 0.0f, adjHeight);
+        u32 region_y = std::clamp((mouse.y - tl.y) / region_sz, 0.0f, adjHeight);
 
         // todo: relook over this and verify the logic is sane 💀
         if (grid) {

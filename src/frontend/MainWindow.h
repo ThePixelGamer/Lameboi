@@ -5,6 +5,9 @@
 #include "SettingsWindow.h"
 #include "ViewportWindow.h"
 #include "MainMenu.h"
+
+#include "APUWindow.h"
+
 #include "ppu/BGMapWindow.h"
 #include "ppu/OAMWindow.h"
 #include "ppu/TileDataWindow.h"
@@ -26,6 +29,8 @@ struct UI {
 	ui::TileDataWindow tileDataWindow;
 	ui::OAMWindow oamWindow;
 
+	ui::APUWindow apuWindow;
+
 	UI(Gameboy& gb) :
 		gb(gb),
 		display(*this),
@@ -35,7 +40,8 @@ struct UI {
 		menubar(*this),
 		bgmapWindow(gb),
 		tileDataWindow(gb),
-		oamWindow(gb) {
+		oamWindow(gb),
+		apuWindow(gb) {
 
 	}
 

@@ -7,10 +7,17 @@
 
 namespace ui {
 
+DisplayWindow::DisplayWindow(UI& context) :
+	context(context),
+	display() {
+}
+
 void DisplayWindow::render() {
 	if (!show) {
 		return;
 	}
+
+	auto& gb = context.gb;
 
 	// todo: combine this with the bgmapwindow one (both are the same currently)
 	auto square = [](ImGuiSizeCallbackData* data) {
@@ -83,9 +90,11 @@ void DisplayWindow::render() {
 		context.gb.stop();
 	}
 
-	ImGui::SameLine(); ImGui::Checkbox("Use Custom Graphics", &useCG);
+	ImGui::SameLine(); 
+	if (ImGui::Checkbox("Use Custom Graphics", &useCG)) {
+		gb.ppu.forceUpdate();
+	}
 
-	auto& gb = context.gb;
 	// Update FPS counter
 	// todo: run on a separate thread to not be affected by UI performance?
 	using namespace std::chrono_literals;
@@ -101,12 +110,15 @@ void DisplayWindow::render() {
 		else {
 			fps = 0;
 		}
+
+		instrCount = gb.cpu.instrCount;
+		gb.cpu.instrCount = 0;
 	}
 
 	// Not a fan of this
 	std::string status{};
 	if (gb.emuRun) {
-		status = (gb.debug.running) ? fmt::format("{} fps", fps) : "Paused";
+		status = (gb.debug.running) ? fmt::format("{} ips {} fps", instrCount, fps) : "Paused";
 	}
 	
 	if (!status.empty()) {

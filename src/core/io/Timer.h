@@ -1,5 +1,9 @@
 #pragma once
 
+#include <array>
+
+#include "../Memory.h"
+
 #include "util/Types.h"
 
 class Interrupt;
@@ -24,8 +28,16 @@ class Timer {
 	bool reloaded;
 
 public:
-	Timer(Interrupt& interrupt) : interrupt(interrupt) {
+	Timer(Memory& bus, Interrupt& interrupt) : interrupt(interrupt) {
 		clean();
+
+		auto timer_tag = bus.register_bus(
+			[](void* d, addr a) -> u8 { return static_cast<Timer*>(d)->read(a & 0xFF); },
+			[](void* d, addr a, u8 v) { static_cast<Timer*>(d)->write(a & 0xFF, v); },
+			this
+		);
+
+		for (u8 io = 0x04; io <= 0x07; ++io) bus.register_io(io, timer_tag);
 	}
 
 	void clean() {
