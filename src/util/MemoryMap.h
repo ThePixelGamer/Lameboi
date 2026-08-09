@@ -60,13 +60,17 @@ public:
 	
 	void split(size_t offset, size_t s) {
 #ifdef _WIN32
-		VirtualFree(static_cast<u8*>(data) + offset, s, MEM_RELEASE | MEM_PRESERVE_PLACEHOLDER);
+		if (!VirtualFree(static_cast<u8*>(data) + offset, s, MEM_RELEASE | MEM_PRESERVE_PLACEHOLDER)) {
+			LogError();
+		}
 #endif
 	}
 	
 	void unsplit(size_t offset, size_t s) {
 #ifdef _WIN32
-		VirtualFree(static_cast<u8*>(data) + offset, s, MEM_RELEASE | MEM_COALESCE_PLACEHOLDERS);
+		if (!VirtualFree(static_cast<u8*>(data) + offset, s, MEM_RELEASE | MEM_COALESCE_PLACEHOLDERS)) {
+			LogError();
+		}
 #endif
 	}
 

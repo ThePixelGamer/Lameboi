@@ -12,7 +12,7 @@ set(LB_SHADER_DIR "${PROJECT_SOURCE_DIR}/src/frontend/shaders")
 
 # todo: apply it for clang/gcc windows builds?
 # NO MIN MAX MACROS >:(
-if (MSVC)
+if (WIN32)
     add_compile_definitions(NOMINMAX)
 endif()
 

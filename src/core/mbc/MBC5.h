@@ -1,7 +1,6 @@
 #pragma once
 
 #include "MBC.h"
-#include "../Memory.h"
 
 class MBC5 : public MBC {
 	bool rumbleEnabled = false;
@@ -9,11 +8,10 @@ class MBC5 : public MBC {
 
     enum TAG_TYPES : size_t {
         RAM_ENABLE = Memory::PAGE_SIZE * 0, 
-		ROM_SELECT = Memory::PAGE_SIZE * 2, 
-		ROM9_SELECT = Memory::PAGE_SIZE * 3, 
-		RAM_SELECT = Memory::PAGE_SIZE * 4,
-		NOP = Memory::PAGE_SIZE * 6,
-		SIZE = Memory::PAGE_SIZE * 8
+		ROM_SELECT = Memory::PAGE_SIZE * 1, 
+		ROM9_SELECT = Memory::PAGE_SIZE * 2, 
+		RAM_SELECT = Memory::PAGE_SIZE * 3,
+		SIZE = Memory::PAGE_SIZE * 4
     };
 
 	MemoryMap tag_backing{SIZE};
@@ -35,24 +33,16 @@ public:
 			std::ranges::fill(std::span(bus_tag + ROM_SELECT, Memory::PAGE_SIZE), rom_bank_number_tag);
 			std::ranges::fill(std::span(bus_tag + ROM9_SELECT, Memory::PAGE_SIZE), rom_bank9_tag);
 			std::ranges::fill(std::span(bus_tag + RAM_SELECT, Memory::PAGE_SIZE * 2), ram_bank_number_tag);
-			std::ranges::fill(std::span(bus_tag + NOP, Memory::PAGE_SIZE * 2), Memory::BusTag { .read = false, .write = true });
-			
 		}
 
 		for (u8 i = 0; i < 4; ++i) {
-			size_t size = Memory::PAGE_SIZE * 2;
+			size_t size = Memory::PAGE_SIZE;
 			size_t offset = i * size;
-			bus.addressSpace.split(Memory::ADDRESS_SPACE + offset, size);
-			rom_tags[i] = tag_backing.map(bus.Tags() + offset, offset, size);
+			rom_tags[i * 2] = tag_backing.map(bus.Tags() + (offset * 2), offset, size);
+			rom_tags[(i * 2) + 1] = tag_backing.map(bus.Tags() + (offset * 2) + size, offset, size);
 		}
 		
-		bus.addressSpace.split(Memory::ADDRESS_SPACE + 0xA000, Memory::PAGE_SIZE);
-		bus.addressSpace.split(Memory::ADDRESS_SPACE + 0xB000, Memory::PAGE_SIZE);
 		hw.enableRam(false);
-	}
-
-	virtual ~MBC5() {
-		hw.bus.addressSpace.unsplit(Memory::ADDRESS_SPACE, Memory::PAGE_SIZE * 2 * 4);
 	}
 
 	static void enableRam(void* d, addr a, u8 v) {

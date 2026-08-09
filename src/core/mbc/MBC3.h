@@ -60,11 +60,11 @@ private:
 
     enum TAG_TYPES : size_t {
         RAM_ENABLE = Memory::PAGE_SIZE * 0, 
-		ROM_SELECT = Memory::PAGE_SIZE * 2, 
-		RAM_SELECT = Memory::PAGE_SIZE * 4, 
-		RTC_LATCH  = Memory::PAGE_SIZE * 6,
-		RTC_RW = Memory::PAGE_SIZE * 8,
-		SIZE = Memory::PAGE_SIZE * 9
+		ROM_SELECT = Memory::PAGE_SIZE * 1, 
+		RAM_SELECT = Memory::PAGE_SIZE * 2, 
+		RTC_LATCH  = Memory::PAGE_SIZE * 3,
+		RTC_RW = Memory::PAGE_SIZE * 4,
+		SIZE = Memory::PAGE_SIZE * 5
     };
 
 	MemoryMap tag_backing{SIZE};
@@ -91,18 +91,18 @@ public:
 				}, &rtc);
 			
 			auto bus_tag = tag_data.get<Memory::BusTag>();
-			std::ranges::fill(std::span(bus_tag + RAM_ENABLE, Memory::PAGE_SIZE * 2), ram_enable_tag);
-			std::ranges::fill(std::span(bus_tag + ROM_SELECT, Memory::PAGE_SIZE * 2), rom_bank_number_tag);
-			std::ranges::fill(std::span(bus_tag + RAM_SELECT, Memory::PAGE_SIZE * 2), ram_bank_number_tag);
-			std::ranges::fill(std::span(bus_tag + RTC_LATCH, Memory::PAGE_SIZE * 2), rtc_latch_select_tag);
+			std::ranges::fill(std::span(bus_tag + RAM_ENABLE, Memory::PAGE_SIZE), ram_enable_tag);
+			std::ranges::fill(std::span(bus_tag + ROM_SELECT, Memory::PAGE_SIZE), rom_bank_number_tag);
+			std::ranges::fill(std::span(bus_tag + RAM_SELECT, Memory::PAGE_SIZE), ram_bank_number_tag);
+			std::ranges::fill(std::span(bus_tag + RTC_LATCH, Memory::PAGE_SIZE), rtc_latch_select_tag);
 			std::ranges::fill(std::span(bus_tag + RTC_RW, Memory::PAGE_SIZE), rtc_rw_tag);
 		}
 
 		for (u8 i = 0; i < 4; ++i) {
-			size_t size = Memory::PAGE_SIZE * 2;
+			size_t size = Memory::PAGE_SIZE;
 			size_t offset = i * size;
-			bus.addressSpace.split(Memory::ADDRESS_SPACE + offset, size);
-			rom_tags[i] = tag_backing.map(bus.Tags() + offset, offset, size);
+			rom_tags[i * 2] = tag_backing.map(bus.Tags() + (offset * 2), offset, size);
+			rom_tags[(i * 2) + 1] = tag_backing.map(bus.Tags() + (offset * 2) + size, offset, size);
 		}
 	}
 

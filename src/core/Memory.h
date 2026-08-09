@@ -63,11 +63,21 @@ public:
 		};
 
 		// gb address space
+		addressSpace.split(0x0000, PAGE_SIZE * 4);
+		addressSpace.split(0x4000, PAGE_SIZE * 4);
+		addressSpace.split(0x8000, PAGE_SIZE * 2);
+		addressSpace.split(0xA000, PAGE_SIZE * 2);
 		addressSpace.split(0xC000, PAGE_SIZE * 2);
 		addressSpace.split(0xE000, PAGE_SIZE);
 		addressSpace.split(0xF000, PAGE_SIZE);
 		
 		// tag space
+		for (u8 i = 1; i < 7; ++i)
+			addressSpace.split(ADDRESS_SPACE + PAGE_SIZE * i, PAGE_SIZE);
+			
+		addressSpace.split(ADDRESS_SPACE + 0x8000, PAGE_SIZE * 2);
+		addressSpace.split(ADDRESS_SPACE + 0xA000, PAGE_SIZE);
+		addressSpace.split(ADDRESS_SPACE + 0xB000, PAGE_SIZE);
 		addressSpace.split(ADDRESS_SPACE + 0xC000, PAGE_SIZE);
 		addressSpace.split(ADDRESS_SPACE + 0xD000, PAGE_SIZE);
 		addressSpace.split(ADDRESS_SPACE + 0xE000, PAGE_SIZE);

@@ -72,6 +72,7 @@ inline const char* ClassToString(Class log_class) {
         CLS(CG);
         CLS(Input);
         CLS(Util);
+        CLS(GL);
         case Class::Count:
             break;
     }

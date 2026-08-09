@@ -20,12 +20,10 @@ PPU::PPU(Gameboy& gb) :
 	vram_tag_backing(Memory::PAGE_SIZE * 2) {
 	clean();
 
-	bus.addressSpace.split(0x8000, Memory::PAGE_SIZE * 2);
 	vram = vram_backing.map(bus.Mem() + 0x8000, 0x0000, Memory::PAGE_SIZE * 2);
 	
 	vram_bus = bus.register_bus(nullptr, nullptr, nullptr);
 	
-	bus.addressSpace.split(Memory::ADDRESS_SPACE + 0x8000, Memory::PAGE_SIZE * 2);
 	vram_tag = vram_tag_backing.map(bus.Tags() + 0x8000, 0, Memory::PAGE_SIZE * 2);
 	std::ranges::fill(std::span(vram_tag.get<Memory::BusTag>(), Memory::PAGE_SIZE * 2), vram_bus);
 	
@@ -249,7 +247,7 @@ void PPU::setMode(Mode mode) {
 	// Searching -> Drawing turn off VRAM
 	// Drawing -> HBlank turn on everything
 	// HBlank -> VBlank do nothing
-	if (false) {
+	if (true) {
 		switch (STAT.mode) {
 			case Drawing: 
 				bus.buses[vram_bus.id].enable = false;
@@ -313,6 +311,14 @@ void PPU::scanline() {
 			rawLine = { vram[lineAddr], vram[lineAddr + 1] };
 			rawLine[0] <<= xShift;
 			rawLine[1] <<= xShift;
+			
+			for (u8 lineX = 0; lineX < 8; ++lineX) {
+				auto& pixel = line[lineX];
+				pixel.src = tileOffset;
+				pixel.tile = tileAddr;
+				pixel.x = lineX;
+				pixel.y = yOffset;
+			}
 			
 			if (xShift != 0) {
 				if (x >= 248) {
@@ -511,9 +517,10 @@ void PPU::render(std::function<void (Framebuffer&)> callback) {
 	bool update = spare.load(std::memory_order_relaxed).update;
 	if (update) {
 		frontIdx = spare.exchange({frontIdx, false}, std::memory_order_acq_rel).idx;
+		redraw = true;
 	}
-
-	if (update || redraw) {
+	
+	if (redraw) {
 		redraw = false;
 		callback(buffers[frontIdx]);
 	}

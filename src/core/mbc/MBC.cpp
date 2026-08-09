@@ -1,4 +1,4 @@
-#include "MBC.h"
+#include "Cartridge.h"
 
 #include "core/Memory.h"
 
@@ -109,6 +109,9 @@ void Cartridge::_initHW() {
 	}();
 }
 
+Cartridge::Cartridge(Memory& bus) : bus(bus) {
+}
+
 bool Cartridge::load(const std::filesystem::path& romPath) {
 	if (!std::filesystem::exists(romPath)) {
 		LB_ERROR(MBC, "File {} does not exist", romPath.string());
@@ -118,11 +121,11 @@ bool Cartridge::load(const std::filesystem::path& romPath) {
 	romName = romPath.stem().string();
 
 	romSize = std::filesystem::file_size(romPath);
-	rom_backing = MemoryMap{romPath, Access::RW, 0};
+	rom_backing = MemoryMap{romPath, Access::Read, 0};
 	rom = rom_backing.map(); 
-    bus.addressSpace.split(0, Memory::PAGE_SIZE * 4);
-    bus.addressSpace.split(0x4000, Memory::PAGE_SIZE * 4);
 	
+	bank0 = 0xFF;
+	bank1 = 0xFFFF;
 	switchBank0(0);
 	switchBank1(1);
 
@@ -171,12 +174,21 @@ bool Cartridge::load(const std::filesystem::path& romPath) {
 }
 
 void Cartridge::switchBank0(u8 bank) {
+	bank &= u8(getHeader()->getMaxRomBanks() - 1);
+
+	if (bank0 == bank) return;
+	bank0 = bank;
+
 	rom0 = {};
 	rom0 = rom_backing.map(bus.Mem(), Memory::PAGE_SIZE * 4 * bank, Memory::PAGE_SIZE * 4);
 }
 
-void Cartridge::switchBank1(u8 bank) {
+void Cartridge::switchBank1(u16 bank) {
 	bank &= u8(getHeader()->getMaxRomBanks() - 1);
+
+	if (bank1 == bank) return;
+	bank1 = bank;
+
 	rom1 = {};
 	rom1 = rom_backing.map(bus.Mem() + Memory::PAGE_SIZE * 4, Memory::PAGE_SIZE * 4 * bank, Memory::PAGE_SIZE * 4);
 }
@@ -190,9 +202,14 @@ void Cartridge::enableRam(bool enable) {
 }
 
 void Cartridge::switchRam(u8 bank) {
-	bank &= u8(getHeader()->getMaxRamBanks() - 1);
-	ram0 = {};
-	ram0 = ram_backing.map(bus.Mem() + Memory::PAGE_SIZE * 0xA, Memory::PAGE_SIZE * 2 * bank, Memory::PAGE_SIZE * 2);
+	if (has(RAM)) {
+		if (bankRam == bank) return;
+		bankRam = bank;
+
+		bank &= u8(getHeader()->getMaxRamBanks() - 1);
+		ram0 = {};
+		ram0 = ram_backing.map(bus.Mem() + Memory::PAGE_SIZE * 0xA, Memory::PAGE_SIZE * 2 * bank, Memory::PAGE_SIZE * 2);
+	}
 }
 
 void Cartridge::unload() {
@@ -224,20 +241,4 @@ void Cartridge::unload() {
 
 		connected = false;
 	}
-}
-
-Bare::Bare(Cartridge& hw) : MBC(hw), tag_backing(Memory::PAGE_SIZE * 8) {
-	auto& bus = hw.bus;
-
-	{
-		auto tag_data = tag_backing.map();
-		std::ranges::fill(tag_data.get<Memory::BusTag>(), tag_data.get<Memory::BusTag>() + Memory::PAGE_SIZE * 8, Memory::BusTag{.read = false, .write = true});
-	}
-
-	bus.addressSpace.split(Memory::ADDRESS_SPACE, Memory::PAGE_SIZE * 8);
-	rom_tag = tag_backing.map(bus.Tags(), 0, Memory::PAGE_SIZE * 8);
-	
-	bus.addressSpace.split(Memory::ADDRESS_SPACE + 0xA000, Memory::PAGE_SIZE);
-	bus.addressSpace.split(Memory::ADDRESS_SPACE + 0xB000, Memory::PAGE_SIZE);
-	hw.enableRam(hw.has(Cartridge::RAM));
 }

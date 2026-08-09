@@ -129,6 +129,9 @@ bool SpriteManager::imageIndexColors(const Tile::Data& image) {
 void SpriteManager::Manifest::load(const std::string& n) {
 	name = n;
 	folder = name + "/";
+	if (!fs::exists(getPath())) {
+		return;
+	}
 
 	json manifest;
 	if (validate(manifest, getPath() + "manifest.json")) {

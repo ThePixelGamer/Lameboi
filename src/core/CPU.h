@@ -58,6 +58,8 @@ public:
 	u8 IR;
 	bool IME;
 
+	bool haltBug;
+	bool handler;
 	bool lowPower;
 
 	bool quit;
@@ -67,7 +69,7 @@ public:
 	bool inBios;
 
 private:
-	std::function<void ()> stepComponents;
+	Gameboy& core;
 	Memory& bus;
 	Interrupt& interrupt;
 	SpriteManager& spriteManager;
@@ -81,6 +83,8 @@ public:
 
 private:
 	// Helper functions
+	void stepComponents();
+
 	constexpr Register& reg(u8 r) {
 		Register* regs[] = { &B, &C, &D, &E, &H, &L, &Z, &A };
 		return *regs[r];
@@ -96,8 +100,10 @@ private:
 	ReferenceData readHL() { return read(H, L); }
 	ReferenceData readN() { return read(PC++); }
 
+	void loadZ() { Z = readN(); }
+
 	void loadZW() {
-		Z = readN();
+		loadZ();
 		W = readN();
 	}
 	
@@ -114,6 +120,7 @@ private:
 
 	// 16-bit load
 	void push(u8 h, u8 l) {
+		stepComponents();
 		write(--SP, h);
 		write(--SP, l);
 	}
@@ -354,7 +361,6 @@ private:
 
 	void _call(addr newPC) {
 		// cycle to account for --SP;
-		stepComponents();
 		push(high(PC), low(PC));
 		PC = newPC;
 	}
@@ -368,7 +374,7 @@ private:
 	}
 
 	void relJump() {
-		Z = readN();
+		loadZ();
 
 		// cc
 		if (IR & 0x20) {

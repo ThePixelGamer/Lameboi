@@ -89,6 +89,6 @@ public:
 	}
 
 	bool pending() {
-		return enable.read() != 0xE0 && request.read() != 0xE0;
+		return request.read() & 0x1F;
 	}
 };

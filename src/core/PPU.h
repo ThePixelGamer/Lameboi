@@ -201,7 +201,7 @@ private:
 	u8 backIdx = 2;
 
 	bool vblankHelper;
-	bool redraw;
+	std::atomic<bool> redraw;
 
 public:
 	// Display Palette

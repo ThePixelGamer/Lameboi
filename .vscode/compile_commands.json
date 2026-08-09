@@ -1,0 +1,158 @@
+[
+{
+  "directory": "C:/Users/thepi/.git/Lameboi/build",
+  "command": "C:\\PROGRA~2\\MICROS~2\\18\\BUILDT~1\\VC\\Tools\\MSVC\\1451~1.362\\bin\\Hostx64\\x64\\cl.exe  /nologo /TP -DFMT_HEADER_ONLY=1 -DIMGUI_USER_CONFIG=\\\"frontend/imconfig.h\\\" -DNOMINMAX -IC:\\Users\\thepi\\.git\\Lameboi\\.\\src -IC:\\Users\\thepi\\.git\\Lameboi\\build\\vcpkg_installed\\x64-windows\\include -IC:\\Users\\thepi\\.git\\Lameboi\\lib\\PFD -IC:\\Users\\thepi\\.git\\Lameboi\\lib\\imgui -external:IC:\\Users\\thepi\\.git\\Lameboi\\build\\vcpkg_installed\\x64-windows-static\\include -external:W0 /DWIN32 /D_WINDOWS /GR /EHsc /Zi /Ob0 /Od /RTC1 -std:c++20 -MTd /utf-8 /FoCMakeFiles\\lameboi.dir\\src\\core\\APU.cpp.obj /FdCMakeFiles\\lameboi.dir\\ /FS -c C:\\Users\\thepi\\.git\\Lameboi\\src\\core\\APU.cpp",
+  "file": "C:/Users/thepi/.git/Lameboi/src/core/APU.cpp",
+  "output": "C:/Users/thepi/.git/Lameboi/build/CMakeFiles/lameboi.dir/src/core/APU.cpp.obj"
+},
+{
+  "directory": "C:/Users/thepi/.git/Lameboi/build",
+  "command": "C:\\PROGRA~2\\MICROS~2\\18\\BUILDT~1\\VC\\Tools\\MSVC\\1451~1.362\\bin\\Hostx64\\x64\\cl.exe  /nologo /TP -DFMT_HEADER_ONLY=1 -DIMGUI_USER_CONFIG=\\\"frontend/imconfig.h\\\" -DNOMINMAX -IC:\\Users\\thepi\\.git\\Lameboi\\.\\src -IC:\\Users\\thepi\\.git\\Lameboi\\build\\vcpkg_installed\\x64-windows\\include -IC:\\Users\\thepi\\.git\\Lameboi\\lib\\PFD -IC:\\Users\\thepi\\.git\\Lameboi\\lib\\imgui -external:IC:\\Users\\thepi\\.git\\Lameboi\\build\\vcpkg_installed\\x64-windows-static\\include -external:W0 /DWIN32 /D_WINDOWS /GR /EHsc /Zi /Ob0 /Od /RTC1 -std:c++20 -MTd /utf-8 /FoCMakeFiles\\lameboi.dir\\src\\core\\CPU.cpp.obj /FdCMakeFiles\\lameboi.dir\\ /FS -c C:\\Users\\thepi\\.git\\Lameboi\\src\\core\\CPU.cpp",
+  "file": "C:/Users/thepi/.git/Lameboi/src/core/CPU.cpp",
+  "output": "C:/Users/thepi/.git/Lameboi/build/CMakeFiles/lameboi.dir/src/core/CPU.cpp.obj"
+},
+{
+  "directory": "C:/Users/thepi/.git/Lameboi/build",
+  "command": "C:\\PROGRA~2\\MICROS~2\\18\\BUILDT~1\\VC\\Tools\\MSVC\\1451~1.362\\bin\\Hostx64\\x64\\cl.exe  /nologo /TP -DFMT_HEADER_ONLY=1 -DIMGUI_USER_CONFIG=\\\"frontend/imconfig.h\\\" -DNOMINMAX -IC:\\Users\\thepi\\.git\\Lameboi\\.\\src -IC:\\Users\\thepi\\.git\\Lameboi\\build\\vcpkg_installed\\x64-windows\\include -IC:\\Users\\thepi\\.git\\Lameboi\\lib\\PFD -IC:\\Users\\thepi\\.git\\Lameboi\\lib\\imgui -external:IC:\\Users\\thepi\\.git\\Lameboi\\build\\vcpkg_installed\\x64-windows-static\\include -external:W0 /DWIN32 /D_WINDOWS /GR /EHsc /Zi /Ob0 /Od /RTC1 -std:c++20 -MTd /utf-8 /FoCMakeFiles\\lameboi.dir\\src\\core\\Config.cpp.obj /FdCMakeFiles\\lameboi.dir\\ /FS -c C:\\Users\\thepi\\.git\\Lameboi\\src\\core\\Config.cpp",
+  "file": "C:/Users/thepi/.git/Lameboi/src/core/Config.cpp",
+  "output": "C:/Users/thepi/.git/Lameboi/build/CMakeFiles/lameboi.dir/src/core/Config.cpp.obj"
+},
+{
+  "directory": "C:/Users/thepi/.git/Lameboi/build",
+  "command": "C:\\PROGRA~2\\MICROS~2\\18\\BUILDT~1\\VC\\Tools\\MSVC\\1451~1.362\\bin\\Hostx64\\x64\\cl.exe  /nologo /TP -DFMT_HEADER_ONLY=1 -DIMGUI_USER_CONFIG=\\\"frontend/imconfig.h\\\" -DNOMINMAX -IC:\\Users\\thepi\\.git\\Lameboi\\.\\src -IC:\\Users\\thepi\\.git\\Lameboi\\build\\vcpkg_installed\\x64-windows\\include -IC:\\Users\\thepi\\.git\\Lameboi\\lib\\PFD -IC:\\Users\\thepi\\.git\\Lameboi\\lib\\imgui -external:IC:\\Users\\thepi\\.git\\Lameboi\\build\\vcpkg_installed\\x64-windows-static\\include -external:W0 /DWIN32 /D_WINDOWS /GR /EHsc /Zi /Ob0 /Od /RTC1 -std:c++20 -MTd /utf-8 /FoCMakeFiles\\lameboi.dir\\src\\core\\Debugger.cpp.obj /FdCMakeFiles\\lameboi.dir\\ /FS -c C:\\Users\\thepi\\.git\\Lameboi\\src\\core\\Debugger.cpp",
+  "file": "C:/Users/thepi/.git/Lameboi/src/core/Debugger.cpp",
+  "output": "C:/Users/thepi/.git/Lameboi/build/CMakeFiles/lameboi.dir/src/core/Debugger.cpp.obj"
+},
+{
+  "directory": "C:/Users/thepi/.git/Lameboi/build",
+  "command": "C:\\PROGRA~2\\MICROS~2\\18\\BUILDT~1\\VC\\Tools\\MSVC\\1451~1.362\\bin\\Hostx64\\x64\\cl.exe  /nologo /TP -DFMT_HEADER_ONLY=1 -DIMGUI_USER_CONFIG=\\\"frontend/imconfig.h\\\" -DNOMINMAX -IC:\\Users\\thepi\\.git\\Lameboi\\.\\src -IC:\\Users\\thepi\\.git\\Lameboi\\build\\vcpkg_installed\\x64-windows\\include -IC:\\Users\\thepi\\.git\\Lameboi\\lib\\PFD -IC:\\Users\\thepi\\.git\\Lameboi\\lib\\imgui -external:IC:\\Users\\thepi\\.git\\Lameboi\\build\\vcpkg_installed\\x64-windows-static\\include -external:W0 /DWIN32 /D_WINDOWS /GR /EHsc /Zi /Ob0 /Od /RTC1 -std:c++20 -MTd /utf-8 /FoCMakeFiles\\lameboi.dir\\src\\core\\Gameboy.cpp.obj /FdCMakeFiles\\lameboi.dir\\ /FS -c C:\\Users\\thepi\\.git\\Lameboi\\src\\core\\Gameboy.cpp",
+  "file": "C:/Users/thepi/.git/Lameboi/src/core/Gameboy.cpp",
+  "output": "C:/Users/thepi/.git/Lameboi/build/CMakeFiles/lameboi.dir/src/core/Gameboy.cpp.obj"
+},
+{
+  "directory": "C:/Users/thepi/.git/Lameboi/build",
+  "command": "C:\\PROGRA~2\\MICROS~2\\18\\BUILDT~1\\VC\\Tools\\MSVC\\1451~1.362\\bin\\Hostx64\\x64\\cl.exe  /nologo /TP -DFMT_HEADER_ONLY=1 -DIMGUI_USER_CONFIG=\\\"frontend/imconfig.h\\\" -DNOMINMAX -IC:\\Users\\thepi\\.git\\Lameboi\\.\\src -IC:\\Users\\thepi\\.git\\Lameboi\\build\\vcpkg_installed\\x64-windows\\include -IC:\\Users\\thepi\\.git\\Lameboi\\lib\\PFD -IC:\\Users\\thepi\\.git\\Lameboi\\lib\\imgui -external:IC:\\Users\\thepi\\.git\\Lameboi\\build\\vcpkg_installed\\x64-windows-static\\include -external:W0 /DWIN32 /D_WINDOWS /GR /EHsc /Zi /Ob0 /Od /RTC1 -std:c++20 -MTd /utf-8 /FoCMakeFiles\\lameboi.dir\\src\\core\\Input.cpp.obj /FdCMakeFiles\\lameboi.dir\\ /FS -c C:\\Users\\thepi\\.git\\Lameboi\\src\\core\\Input.cpp",
+  "file": "C:/Users/thepi/.git/Lameboi/src/core/Input.cpp",
+  "output": "C:/Users/thepi/.git/Lameboi/build/CMakeFiles/lameboi.dir/src/core/Input.cpp.obj"
+},
+{
+  "directory": "C:/Users/thepi/.git/Lameboi/build",
+  "command": "C:\\PROGRA~2\\MICROS~2\\18\\BUILDT~1\\VC\\Tools\\MSVC\\1451~1.362\\bin\\Hostx64\\x64\\cl.exe  /nologo /TP -DFMT_HEADER_ONLY=1 -DIMGUI_USER_CONFIG=\\\"frontend/imconfig.h\\\" -DNOMINMAX -IC:\\Users\\thepi\\.git\\Lameboi\\.\\src -IC:\\Users\\thepi\\.git\\Lameboi\\build\\vcpkg_installed\\x64-windows\\include -IC:\\Users\\thepi\\.git\\Lameboi\\lib\\PFD -IC:\\Users\\thepi\\.git\\Lameboi\\lib\\imgui -external:IC:\\Users\\thepi\\.git\\Lameboi\\build\\vcpkg_installed\\x64-windows-static\\include -external:W0 /DWIN32 /D_WINDOWS /GR /EHsc /Zi /Ob0 /Od /RTC1 -std:c++20 -MTd /utf-8 /FoCMakeFiles\\lameboi.dir\\src\\core\\PPU.cpp.obj /FdCMakeFiles\\lameboi.dir\\ /FS -c C:\\Users\\thepi\\.git\\Lameboi\\src\\core\\PPU.cpp",
+  "file": "C:/Users/thepi/.git/Lameboi/src/core/PPU.cpp",
+  "output": "C:/Users/thepi/.git/Lameboi/build/CMakeFiles/lameboi.dir/src/core/PPU.cpp.obj"
+},
+{
+  "directory": "C:/Users/thepi/.git/Lameboi/build",
+  "command": "C:\\PROGRA~2\\MICROS~2\\18\\BUILDT~1\\VC\\Tools\\MSVC\\1451~1.362\\bin\\Hostx64\\x64\\cl.exe  /nologo /TP -DFMT_HEADER_ONLY=1 -DIMGUI_USER_CONFIG=\\\"frontend/imconfig.h\\\" -DNOMINMAX -IC:\\Users\\thepi\\.git\\Lameboi\\.\\src -IC:\\Users\\thepi\\.git\\Lameboi\\build\\vcpkg_installed\\x64-windows\\include -IC:\\Users\\thepi\\.git\\Lameboi\\lib\\PFD -IC:\\Users\\thepi\\.git\\Lameboi\\lib\\imgui -external:IC:\\Users\\thepi\\.git\\Lameboi\\build\\vcpkg_installed\\x64-windows-static\\include -external:W0 /DWIN32 /D_WINDOWS /GR /EHsc /Zi /Ob0 /Od /RTC1 -std:c++20 -MTd /utf-8 /FoCMakeFiles\\lameboi.dir\\src\\core\\SpriteManager.cpp.obj /FdCMakeFiles\\lameboi.dir\\ /FS -c C:\\Users\\thepi\\.git\\Lameboi\\src\\core\\SpriteManager.cpp",
+  "file": "C:/Users/thepi/.git/Lameboi/src/core/SpriteManager.cpp",
+  "output": "C:/Users/thepi/.git/Lameboi/build/CMakeFiles/lameboi.dir/src/core/SpriteManager.cpp.obj"
+},
+{
+  "directory": "C:/Users/thepi/.git/Lameboi/build",
+  "command": "C:\\PROGRA~2\\MICROS~2\\18\\BUILDT~1\\VC\\Tools\\MSVC\\1451~1.362\\bin\\Hostx64\\x64\\cl.exe  /nologo /TP -DFMT_HEADER_ONLY=1 -DIMGUI_USER_CONFIG=\\\"frontend/imconfig.h\\\" -DNOMINMAX -IC:\\Users\\thepi\\.git\\Lameboi\\.\\src -IC:\\Users\\thepi\\.git\\Lameboi\\build\\vcpkg_installed\\x64-windows\\include -IC:\\Users\\thepi\\.git\\Lameboi\\lib\\PFD -IC:\\Users\\thepi\\.git\\Lameboi\\lib\\imgui -external:IC:\\Users\\thepi\\.git\\Lameboi\\build\\vcpkg_installed\\x64-windows-static\\include -external:W0 /DWIN32 /D_WINDOWS /GR /EHsc /Zi /Ob0 /Od /RTC1 -std:c++20 -MTd /utf-8 /FoCMakeFiles\\lameboi.dir\\src\\core\\channel\\Noise.cpp.obj /FdCMakeFiles\\lameboi.dir\\ /FS -c C:\\Users\\thepi\\.git\\Lameboi\\src\\core\\channel\\Noise.cpp",
+  "file": "C:/Users/thepi/.git/Lameboi/src/core/channel/Noise.cpp",
+  "output": "C:/Users/thepi/.git/Lameboi/build/CMakeFiles/lameboi.dir/src/core/channel/Noise.cpp.obj"
+},
+{
+  "directory": "C:/Users/thepi/.git/Lameboi/build",
+  "command": "C:\\PROGRA~2\\MICROS~2\\18\\BUILDT~1\\VC\\Tools\\MSVC\\1451~1.362\\bin\\Hostx64\\x64\\cl.exe  /nologo /TP -DFMT_HEADER_ONLY=1 -DIMGUI_USER_CONFIG=\\\"frontend/imconfig.h\\\" -DNOMINMAX -IC:\\Users\\thepi\\.git\\Lameboi\\.\\src -IC:\\Users\\thepi\\.git\\Lameboi\\build\\vcpkg_installed\\x64-windows\\include -IC:\\Users\\thepi\\.git\\Lameboi\\lib\\PFD -IC:\\Users\\thepi\\.git\\Lameboi\\lib\\imgui -external:IC:\\Users\\thepi\\.git\\Lameboi\\build\\vcpkg_installed\\x64-windows-static\\include -external:W0 /DWIN32 /D_WINDOWS /GR /EHsc /Zi /Ob0 /Od /RTC1 -std:c++20 -MTd /utf-8 /FoCMakeFiles\\lameboi.dir\\src\\core\\channel\\Wave.cpp.obj /FdCMakeFiles\\lameboi.dir\\ /FS -c C:\\Users\\thepi\\.git\\Lameboi\\src\\core\\channel\\Wave.cpp",
+  "file": "C:/Users/thepi/.git/Lameboi/src/core/channel/Wave.cpp",
+  "output": "C:/Users/thepi/.git/Lameboi/build/CMakeFiles/lameboi.dir/src/core/channel/Wave.cpp.obj"
+},
+{
+  "directory": "C:/Users/thepi/.git/Lameboi/build",
+  "command": "C:\\PROGRA~2\\MICROS~2\\18\\BUILDT~1\\VC\\Tools\\MSVC\\1451~1.362\\bin\\Hostx64\\x64\\cl.exe  /nologo /TP -DFMT_HEADER_ONLY=1 -DIMGUI_USER_CONFIG=\\\"frontend/imconfig.h\\\" -DNOMINMAX -IC:\\Users\\thepi\\.git\\Lameboi\\.\\src -IC:\\Users\\thepi\\.git\\Lameboi\\build\\vcpkg_installed\\x64-windows\\include -IC:\\Users\\thepi\\.git\\Lameboi\\lib\\PFD -IC:\\Users\\thepi\\.git\\Lameboi\\lib\\imgui -external:IC:\\Users\\thepi\\.git\\Lameboi\\build\\vcpkg_installed\\x64-windows-static\\include -external:W0 /DWIN32 /D_WINDOWS /GR /EHsc /Zi /Ob0 /Od /RTC1 -std:c++20 -MTd /utf-8 /FoCMakeFiles\\lameboi.dir\\src\\core\\io\\Joypad.cpp.obj /FdCMakeFiles\\lameboi.dir\\ /FS -c C:\\Users\\thepi\\.git\\Lameboi\\src\\core\\io\\Joypad.cpp",
+  "file": "C:/Users/thepi/.git/Lameboi/src/core/io/Joypad.cpp",
+  "output": "C:/Users/thepi/.git/Lameboi/build/CMakeFiles/lameboi.dir/src/core/io/Joypad.cpp.obj"
+},
+{
+  "directory": "C:/Users/thepi/.git/Lameboi/build",
+  "command": "C:\\PROGRA~2\\MICROS~2\\18\\BUILDT~1\\VC\\Tools\\MSVC\\1451~1.362\\bin\\Hostx64\\x64\\cl.exe  /nologo /TP -DFMT_HEADER_ONLY=1 -DIMGUI_USER_CONFIG=\\\"frontend/imconfig.h\\\" -DNOMINMAX -IC:\\Users\\thepi\\.git\\Lameboi\\.\\src -IC:\\Users\\thepi\\.git\\Lameboi\\build\\vcpkg_installed\\x64-windows\\include -IC:\\Users\\thepi\\.git\\Lameboi\\lib\\PFD -IC:\\Users\\thepi\\.git\\Lameboi\\lib\\imgui -external:IC:\\Users\\thepi\\.git\\Lameboi\\build\\vcpkg_installed\\x64-windows-static\\include -external:W0 /DWIN32 /D_WINDOWS /GR /EHsc /Zi /Ob0 /Od /RTC1 -std:c++20 -MTd /utf-8 /FoCMakeFiles\\lameboi.dir\\src\\core\\mbc\\MBC.cpp.obj /FdCMakeFiles\\lameboi.dir\\ /FS -c C:\\Users\\thepi\\.git\\Lameboi\\src\\core\\mbc\\MBC.cpp",
+  "file": "C:/Users/thepi/.git/Lameboi/src/core/mbc/MBC.cpp",
+  "output": "C:/Users/thepi/.git/Lameboi/build/CMakeFiles/lameboi.dir/src/core/mbc/MBC.cpp.obj"
+},
+{
+  "directory": "C:/Users/thepi/.git/Lameboi/build",
+  "command": "C:\\PROGRA~2\\MICROS~2\\18\\BUILDT~1\\VC\\Tools\\MSVC\\1451~1.362\\bin\\Hostx64\\x64\\cl.exe  /nologo /TP -DFMT_HEADER_ONLY=1 -DIMGUI_USER_CONFIG=\\\"frontend/imconfig.h\\\" -DNOMINMAX -IC:\\Users\\thepi\\.git\\Lameboi\\.\\src -IC:\\Users\\thepi\\.git\\Lameboi\\build\\vcpkg_installed\\x64-windows\\include -IC:\\Users\\thepi\\.git\\Lameboi\\lib\\PFD -IC:\\Users\\thepi\\.git\\Lameboi\\lib\\imgui -external:IC:\\Users\\thepi\\.git\\Lameboi\\build\\vcpkg_installed\\x64-windows-static\\include -external:W0 /DWIN32 /D_WINDOWS /GR /EHsc /Zi /Ob0 /Od /RTC1 -std:c++20 -MTd /utf-8 /FoCMakeFiles\\lameboi.dir\\src\\frontend\\APUWindow.cpp.obj /FdCMakeFiles\\lameboi.dir\\ /FS -c C:\\Users\\thepi\\.git\\Lameboi\\src\\frontend\\APUWindow.cpp",
+  "file": "C:/Users/thepi/.git/Lameboi/src/frontend/APUWindow.cpp",
+  "output": "C:/Users/thepi/.git/Lameboi/build/CMakeFiles/lameboi.dir/src/frontend/APUWindow.cpp.obj"
+},
+{
+  "directory": "C:/Users/thepi/.git/Lameboi/build",
+  "command": "C:\\PROGRA~2\\MICROS~2\\18\\BUILDT~1\\VC\\Tools\\MSVC\\1451~1.362\\bin\\Hostx64\\x64\\cl.exe  /nologo /TP -DFMT_HEADER_ONLY=1 -DIMGUI_USER_CONFIG=\\\"frontend/imconfig.h\\\" -DNOMINMAX -IC:\\Users\\thepi\\.git\\Lameboi\\.\\src -IC:\\Users\\thepi\\.git\\Lameboi\\build\\vcpkg_installed\\x64-windows\\include -IC:\\Users\\thepi\\.git\\Lameboi\\lib\\PFD -IC:\\Users\\thepi\\.git\\Lameboi\\lib\\imgui -external:IC:\\Users\\thepi\\.git\\Lameboi\\build\\vcpkg_installed\\x64-windows-static\\include -external:W0 /DWIN32 /D_WINDOWS /GR /EHsc /Zi /Ob0 /Od /RTC1 -std:c++20 -MTd /utf-8 /FoCMakeFiles\\lameboi.dir\\src\\frontend\\DebugWindow.cpp.obj /FdCMakeFiles\\lameboi.dir\\ /FS -c C:\\Users\\thepi\\.git\\Lameboi\\src\\frontend\\DebugWindow.cpp",
+  "file": "C:/Users/thepi/.git/Lameboi/src/frontend/DebugWindow.cpp",
+  "output": "C:/Users/thepi/.git/Lameboi/build/CMakeFiles/lameboi.dir/src/frontend/DebugWindow.cpp.obj"
+},
+{
+  "directory": "C:/Users/thepi/.git/Lameboi/build",
+  "command": "C:\\PROGRA~2\\MICROS~2\\18\\BUILDT~1\\VC\\Tools\\MSVC\\1451~1.362\\bin\\Hostx64\\x64\\cl.exe  /nologo /TP -DFMT_HEADER_ONLY=1 -DIMGUI_USER_CONFIG=\\\"frontend/imconfig.h\\\" -DNOMINMAX -IC:\\Users\\thepi\\.git\\Lameboi\\.\\src -IC:\\Users\\thepi\\.git\\Lameboi\\build\\vcpkg_installed\\x64-windows\\include -IC:\\Users\\thepi\\.git\\Lameboi\\lib\\PFD -IC:\\Users\\thepi\\.git\\Lameboi\\lib\\imgui -external:IC:\\Users\\thepi\\.git\\Lameboi\\build\\vcpkg_installed\\x64-windows-static\\include -external:W0 /DWIN32 /D_WINDOWS /GR /EHsc /Zi /Ob0 /Od /RTC1 -std:c++20 -MTd /utf-8 /FoCMakeFiles\\lameboi.dir\\src\\frontend\\DisplayWindow.cpp.obj /FdCMakeFiles\\lameboi.dir\\ /FS -c C:\\Users\\thepi\\.git\\Lameboi\\src\\frontend\\DisplayWindow.cpp",
+  "file": "C:/Users/thepi/.git/Lameboi/src/frontend/DisplayWindow.cpp",
+  "output": "C:/Users/thepi/.git/Lameboi/build/CMakeFiles/lameboi.dir/src/frontend/DisplayWindow.cpp.obj"
+},
+{
+  "directory": "C:/Users/thepi/.git/Lameboi/build",
+  "command": "C:\\PROGRA~2\\MICROS~2\\18\\BUILDT~1\\VC\\Tools\\MSVC\\1451~1.362\\bin\\Hostx64\\x64\\cl.exe  /nologo /TP -DFMT_HEADER_ONLY=1 -DIMGUI_USER_CONFIG=\\\"frontend/imconfig.h\\\" -DNOMINMAX -IC:\\Users\\thepi\\.git\\Lameboi\\.\\src -IC:\\Users\\thepi\\.git\\Lameboi\\build\\vcpkg_installed\\x64-windows\\include -IC:\\Users\\thepi\\.git\\Lameboi\\lib\\PFD -IC:\\Users\\thepi\\.git\\Lameboi\\lib\\imgui -external:IC:\\Users\\thepi\\.git\\Lameboi\\build\\vcpkg_installed\\x64-windows-static\\include -external:W0 /DWIN32 /D_WINDOWS /GR /EHsc /Zi /Ob0 /Od /RTC1 -std:c++20 -MTd /utf-8 /FoCMakeFiles\\lameboi.dir\\src\\frontend\\MainMenu.cpp.obj /FdCMakeFiles\\lameboi.dir\\ /FS -c C:\\Users\\thepi\\.git\\Lameboi\\src\\frontend\\MainMenu.cpp",
+  "file": "C:/Users/thepi/.git/Lameboi/src/frontend/MainMenu.cpp",
+  "output": "C:/Users/thepi/.git/Lameboi/build/CMakeFiles/lameboi.dir/src/frontend/MainMenu.cpp.obj"
+},
+{
+  "directory": "C:/Users/thepi/.git/Lameboi/build",
+  "command": "C:\\PROGRA~2\\MICROS~2\\18\\BUILDT~1\\VC\\Tools\\MSVC\\1451~1.362\\bin\\Hostx64\\x64\\cl.exe  /nologo /TP -DFMT_HEADER_ONLY=1 -DIMGUI_USER_CONFIG=\\\"frontend/imconfig.h\\\" -DNOMINMAX -IC:\\Users\\thepi\\.git\\Lameboi\\.\\src -IC:\\Users\\thepi\\.git\\Lameboi\\build\\vcpkg_installed\\x64-windows\\include -IC:\\Users\\thepi\\.git\\Lameboi\\lib\\PFD -IC:\\Users\\thepi\\.git\\Lameboi\\lib\\imgui -external:IC:\\Users\\thepi\\.git\\Lameboi\\build\\vcpkg_installed\\x64-windows-static\\include -external:W0 /DWIN32 /D_WINDOWS /GR /EHsc /Zi /Ob0 /Od /RTC1 -std:c++20 -MTd /utf-8 /FoCMakeFiles\\lameboi.dir\\src\\frontend\\MainWindow.cpp.obj /FdCMakeFiles\\lameboi.dir\\ /FS -c C:\\Users\\thepi\\.git\\Lameboi\\src\\frontend\\MainWindow.cpp",
+  "file": "C:/Users/thepi/.git/Lameboi/src/frontend/MainWindow.cpp",
+  "output": "C:/Users/thepi/.git/Lameboi/build/CMakeFiles/lameboi.dir/src/frontend/MainWindow.cpp.obj"
+},
+{
+  "directory": "C:/Users/thepi/.git/Lameboi/build",
+  "command": "C:\\PROGRA~2\\MICROS~2\\18\\BUILDT~1\\VC\\Tools\\MSVC\\1451~1.362\\bin\\Hostx64\\x64\\cl.exe  /nologo /TP -DFMT_HEADER_ONLY=1 -DIMGUI_USER_CONFIG=\\\"frontend/imconfig.h\\\" -DNOMINMAX -IC:\\Users\\thepi\\.git\\Lameboi\\.\\src -IC:\\Users\\thepi\\.git\\Lameboi\\build\\vcpkg_installed\\x64-windows\\include -IC:\\Users\\thepi\\.git\\Lameboi\\lib\\PFD -IC:\\Users\\thepi\\.git\\Lameboi\\lib\\imgui -external:IC:\\Users\\thepi\\.git\\Lameboi\\build\\vcpkg_installed\\x64-windows-static\\include -external:W0 /DWIN32 /D_WINDOWS /GR /EHsc /Zi /Ob0 /Od /RTC1 -std:c++20 -MTd /utf-8 /FoCMakeFiles\\lameboi.dir\\src\\frontend\\SettingsWindow.cpp.obj /FdCMakeFiles\\lameboi.dir\\ /FS -c C:\\Users\\thepi\\.git\\Lameboi\\src\\frontend\\SettingsWindow.cpp",
+  "file": "C:/Users/thepi/.git/Lameboi/src/frontend/SettingsWindow.cpp",
+  "output": "C:/Users/thepi/.git/Lameboi/build/CMakeFiles/lameboi.dir/src/frontend/SettingsWindow.cpp.obj"
+},
+{
+  "directory": "C:/Users/thepi/.git/Lameboi/build",
+  "command": "C:\\PROGRA~2\\MICROS~2\\18\\BUILDT~1\\VC\\Tools\\MSVC\\1451~1.362\\bin\\Hostx64\\x64\\cl.exe  /nologo /TP -DFMT_HEADER_ONLY=1 -DIMGUI_USER_CONFIG=\\\"frontend/imconfig.h\\\" -DNOMINMAX -IC:\\Users\\thepi\\.git\\Lameboi\\.\\src -IC:\\Users\\thepi\\.git\\Lameboi\\build\\vcpkg_installed\\x64-windows\\include -IC:\\Users\\thepi\\.git\\Lameboi\\lib\\PFD -IC:\\Users\\thepi\\.git\\Lameboi\\lib\\imgui -external:IC:\\Users\\thepi\\.git\\Lameboi\\build\\vcpkg_installed\\x64-windows-static\\include -external:W0 /DWIN32 /D_WINDOWS /GR /EHsc /Zi /Ob0 /Od /RTC1 -std:c++20 -MTd /utf-8 /FoCMakeFiles\\lameboi.dir\\src\\frontend\\ppu\\BGMapWindow.cpp.obj /FdCMakeFiles\\lameboi.dir\\ /FS -c C:\\Users\\thepi\\.git\\Lameboi\\src\\frontend\\ppu\\BGMapWindow.cpp",
+  "file": "C:/Users/thepi/.git/Lameboi/src/frontend/ppu/BGMapWindow.cpp",
+  "output": "C:/Users/thepi/.git/Lameboi/build/CMakeFiles/lameboi.dir/src/frontend/ppu/BGMapWindow.cpp.obj"
+},
+{
+  "directory": "C:/Users/thepi/.git/Lameboi/build",
+  "command": "C:\\PROGRA~2\\MICROS~2\\18\\BUILDT~1\\VC\\Tools\\MSVC\\1451~1.362\\bin\\Hostx64\\x64\\cl.exe  /nologo /TP -DFMT_HEADER_ONLY=1 -DIMGUI_USER_CONFIG=\\\"frontend/imconfig.h\\\" -DNOMINMAX -IC:\\Users\\thepi\\.git\\Lameboi\\.\\src -IC:\\Users\\thepi\\.git\\Lameboi\\build\\vcpkg_installed\\x64-windows\\include -IC:\\Users\\thepi\\.git\\Lameboi\\lib\\PFD -IC:\\Users\\thepi\\.git\\Lameboi\\lib\\imgui -external:IC:\\Users\\thepi\\.git\\Lameboi\\build\\vcpkg_installed\\x64-windows-static\\include -external:W0 /DWIN32 /D_WINDOWS /GR /EHsc /Zi /Ob0 /Od /RTC1 -std:c++20 -MTd /utf-8 /FoCMakeFiles\\lameboi.dir\\src\\frontend\\ppu\\OAMWindow.cpp.obj /FdCMakeFiles\\lameboi.dir\\ /FS -c C:\\Users\\thepi\\.git\\Lameboi\\src\\frontend\\ppu\\OAMWindow.cpp",
+  "file": "C:/Users/thepi/.git/Lameboi/src/frontend/ppu/OAMWindow.cpp",
+  "output": "C:/Users/thepi/.git/Lameboi/build/CMakeFiles/lameboi.dir/src/frontend/ppu/OAMWindow.cpp.obj"
+},
+{
+  "directory": "C:/Users/thepi/.git/Lameboi/build",
+  "command": "C:\\PROGRA~2\\MICROS~2\\18\\BUILDT~1\\VC\\Tools\\MSVC\\1451~1.362\\bin\\Hostx64\\x64\\cl.exe  /nologo /TP -DFMT_HEADER_ONLY=1 -DIMGUI_USER_CONFIG=\\\"frontend/imconfig.h\\\" -DNOMINMAX -IC:\\Users\\thepi\\.git\\Lameboi\\.\\src -IC:\\Users\\thepi\\.git\\Lameboi\\build\\vcpkg_installed\\x64-windows\\include -IC:\\Users\\thepi\\.git\\Lameboi\\lib\\PFD -IC:\\Users\\thepi\\.git\\Lameboi\\lib\\imgui -external:IC:\\Users\\thepi\\.git\\Lameboi\\build\\vcpkg_installed\\x64-windows-static\\include -external:W0 /DWIN32 /D_WINDOWS /GR /EHsc /Zi /Ob0 /Od /RTC1 -std:c++20 -MTd /utf-8 /FoCMakeFiles\\lameboi.dir\\src\\frontend\\ppu\\TileDataWindow.cpp.obj /FdCMakeFiles\\lameboi.dir\\ /FS -c C:\\Users\\thepi\\.git\\Lameboi\\src\\frontend\\ppu\\TileDataWindow.cpp",
+  "file": "C:/Users/thepi/.git/Lameboi/src/frontend/ppu/TileDataWindow.cpp",
+  "output": "C:/Users/thepi/.git/Lameboi/build/CMakeFiles/lameboi.dir/src/frontend/ppu/TileDataWindow.cpp.obj"
+},
+{
+  "directory": "C:/Users/thepi/.git/Lameboi/build",
+  "command": "C:\\PROGRA~2\\MICROS~2\\18\\BUILDT~1\\VC\\Tools\\MSVC\\1451~1.362\\bin\\Hostx64\\x64\\cl.exe  /nologo /TP -DFMT_HEADER_ONLY=1 -DIMGUI_USER_CONFIG=\\\"frontend/imconfig.h\\\" -DNOMINMAX -IC:\\Users\\thepi\\.git\\Lameboi\\.\\src -IC:\\Users\\thepi\\.git\\Lameboi\\build\\vcpkg_installed\\x64-windows\\include -IC:\\Users\\thepi\\.git\\Lameboi\\lib\\PFD -IC:\\Users\\thepi\\.git\\Lameboi\\lib\\imgui -external:IC:\\Users\\thepi\\.git\\Lameboi\\build\\vcpkg_installed\\x64-windows-static\\include -external:W0 /DWIN32 /D_WINDOWS /GR /EHsc /Zi /Ob0 /Od /RTC1 -std:c++20 -MTd /utf-8 /FoCMakeFiles\\lameboi.dir\\src\\frontend\\widgets\\Image.cpp.obj /FdCMakeFiles\\lameboi.dir\\ /FS -c C:\\Users\\thepi\\.git\\Lameboi\\src\\frontend\\widgets\\Image.cpp",
+  "file": "C:/Users/thepi/.git/Lameboi/src/frontend/widgets/Image.cpp",
+  "output": "C:/Users/thepi/.git/Lameboi/build/CMakeFiles/lameboi.dir/src/frontend/widgets/Image.cpp.obj"
+},
+{
+  "directory": "C:/Users/thepi/.git/Lameboi/build",
+  "command": "C:\\PROGRA~2\\MICROS~2\\18\\BUILDT~1\\VC\\Tools\\MSVC\\1451~1.362\\bin\\Hostx64\\x64\\cl.exe  /nologo /TP -DFMT_HEADER_ONLY=1 -DIMGUI_USER_CONFIG=\\\"frontend/imconfig.h\\\" -DNOMINMAX -IC:\\Users\\thepi\\.git\\Lameboi\\.\\src -IC:\\Users\\thepi\\.git\\Lameboi\\build\\vcpkg_installed\\x64-windows\\include -IC:\\Users\\thepi\\.git\\Lameboi\\lib\\PFD -IC:\\Users\\thepi\\.git\\Lameboi\\lib\\imgui -external:IC:\\Users\\thepi\\.git\\Lameboi\\build\\vcpkg_installed\\x64-windows-static\\include -external:W0 /DWIN32 /D_WINDOWS /GR /EHsc /Zi /Ob0 /Od /RTC1 -std:c++20 -MTd /utf-8 /FoCMakeFiles\\lameboi.dir\\src\\main.cpp.obj /FdCMakeFiles\\lameboi.dir\\ /FS -c C:\\Users\\thepi\\.git\\Lameboi\\src\\main.cpp",
+  "file": "C:/Users/thepi/.git/Lameboi/src/main.cpp",
+  "output": "C:/Users/thepi/.git/Lameboi/build/CMakeFiles/lameboi.dir/src/main.cpp.obj"
+},
+{
+  "directory": "C:/Users/thepi/.git/Lameboi/build",
+  "command": "C:\\PROGRA~2\\MICROS~2\\18\\BUILDT~1\\VC\\Tools\\MSVC\\1451~1.362\\bin\\Hostx64\\x64\\cl.exe  /nologo /TP -DFMT_HEADER_ONLY=1 -DIMGUI_USER_CONFIG=\\\"frontend/imconfig.h\\\" -DNOMINMAX -IC:\\Users\\thepi\\.git\\Lameboi\\.\\src -IC:\\Users\\thepi\\.git\\Lameboi\\build\\vcpkg_installed\\x64-windows\\include -IC:\\Users\\thepi\\.git\\Lameboi\\lib\\PFD -IC:\\Users\\thepi\\.git\\Lameboi\\lib\\imgui -external:IC:\\Users\\thepi\\.git\\Lameboi\\build\\vcpkg_installed\\x64-windows-static\\include -external:W0 /DWIN32 /D_WINDOWS /GR /EHsc /Zi /Ob0 /Od /RTC1 -std:c++20 -MTd /utf-8 /FoCMakeFiles\\lameboi.dir\\src\\render\\Scene.cpp.obj /FdCMakeFiles\\lameboi.dir\\ /FS -c C:\\Users\\thepi\\.git\\Lameboi\\src\\render\\Scene.cpp",
+  "file": "C:/Users/thepi/.git/Lameboi/src/render/Scene.cpp",
+  "output": "C:/Users/thepi/.git/Lameboi/build/CMakeFiles/lameboi.dir/src/render/Scene.cpp.obj"
+},
+{
+  "directory": "C:/Users/thepi/.git/Lameboi/build",
+  "command": "C:\\PROGRA~2\\MICROS~2\\18\\BUILDT~1\\VC\\Tools\\MSVC\\1451~1.362\\bin\\Hostx64\\x64\\cl.exe  /nologo /TP -DFMT_HEADER_ONLY=1 -DIMGUI_USER_CONFIG=\\\"frontend/imconfig.h\\\" -DNOMINMAX -IC:\\Users\\thepi\\.git\\Lameboi\\.\\src -IC:\\Users\\thepi\\.git\\Lameboi\\build\\vcpkg_installed\\x64-windows\\include -IC:\\Users\\thepi\\.git\\Lameboi\\lib\\PFD -IC:\\Users\\thepi\\.git\\Lameboi\\lib\\imgui -external:IC:\\Users\\thepi\\.git\\Lameboi\\build\\vcpkg_installed\\x64-windows-static\\include -external:W0 /DWIN32 /D_WINDOWS /GR /EHsc /Zi /Ob0 /Od /RTC1 -std:c++20 -MTd /utf-8 /FoCMakeFiles\\lameboi.dir\\src\\render\\Texture.cpp.obj /FdCMakeFiles\\lameboi.dir\\ /FS -c C:\\Users\\thepi\\.git\\Lameboi\\src\\render\\Texture.cpp",
+  "file": "C:/Users/thepi/.git/Lameboi/src/render/Texture.cpp",
+  "output": "C:/Users/thepi/.git/Lameboi/build/CMakeFiles/lameboi.dir/src/render/Texture.cpp.obj"
+},
+{
+  "directory": "C:/Users/thepi/.git/Lameboi/build",
+  "command": "C:\\PROGRA~2\\WI3CF2~1\\10\\bin\\100261~1.0\\x64\\rc.exe -DFMT_HEADER_ONLY=1 -DIMGUI_USER_CONFIG=\\\"frontend/imconfig.h\\\" -DNOMINMAX -I C:\\Users\\thepi\\.git\\Lameboi\\.\\src -I C:\\Users\\thepi\\.git\\Lameboi\\build\\vcpkg_installed\\x64-windows\\include -I C:\\Users\\thepi\\.git\\Lameboi\\lib\\PFD -I C:\\Users\\thepi\\.git\\Lameboi\\lib\\imgui -I C:\\Users\\thepi\\.git\\Lameboi\\build\\vcpkg_installed\\x64-windows-static\\include -DWIN32 -D_DEBUG /fo CMakeFiles\\lameboi.dir\\src\\lameboi.rc.res C:\\Users\\thepi\\.git\\Lameboi\\src\\lameboi.rc",
+  "file": "C:/Users/thepi/.git/Lameboi/src/lameboi.rc",
+  "output": "C:/Users/thepi/.git/Lameboi/build/CMakeFiles/lameboi.dir/src/lameboi.rc.res"
+}
+]

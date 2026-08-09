@@ -6,7 +6,7 @@
 
 std::array<std::function<void (CPU*)>, 256> opcodeTable; 
 
-CPU::CPU(Gameboy& core) : bus(core.bus), stepComponents(std::bind(&Gameboy::step, &core)), interrupt(core.interrupt), spriteManager(core.spriteManager) {
+CPU::CPU(Gameboy& core) : bus(core.bus), core(core), interrupt(core.interrupt), spriteManager(core.spriteManager) {
 	auto bios_tag = core.bus.register_bus(
 		[](void* d, addr) { return (static_cast<CPU*>(d)->inBios) ? u8(0) : u8(1); },
 		[](void* d, addr, u8 v) { if (v != 0) static_cast<CPU*>(d)->inBios = false; },
@@ -32,11 +32,7 @@ CPU::CPU(Gameboy& core) : bus(core.bus), stepComponents(std::bind(&Gameboy::step
 	opcodeTable[0x3F] = &CPU::ccf;
 
 	// JR [cc, e8]
-	opcodeTable[0x18] = &CPU::relJump;
-	opcodeTable[0x20] = &CPU::relJump;
-	opcodeTable[0x30] = &CPU::relJump;
-	opcodeTable[0x28] = &CPU::relJump;
-	opcodeTable[0x38] = &CPU::relJump;
+	for (u8 i = 0; i < 5; ++i) opcodeTable[0x18 + (i * 0x8)] = &CPU::relJump;
 
 	// LD (nn), SP
 	opcodeTable[0x08] = [](CPU* cpu) {
@@ -89,7 +85,7 @@ CPU::CPU(Gameboy& core) : bus(core.bus), stepComponents(std::bind(&Gameboy::step
 	// LD r, n
 	for (u8 i = 0; i < 8; ++i) 
 		opcodeTable[0x06 + (i * 8)] = [](CPU* cpu) {
-			cpu->Z = cpu->readN();
+			cpu->loadZ();
 			cpu->load();
 		};
 
@@ -111,11 +107,11 @@ CPU::CPU(Gameboy& core) : bus(core.bus), stepComponents(std::bind(&Gameboy::step
 	opcodeTable[0x2B] = [](CPU* cpu) { cpu->dec16(cpu->H, cpu->L); };
 	opcodeTable[0x3B] = [](CPU* cpu) { cpu->SP--; };
 
-	// INC r
-	for (u8 i = 0; i < 8; ++i) opcodeTable[0x4 + (i * 0x8)] = &CPU::inc;
-
-	// DEC r
-	for (u8 i = 0; i < 8; ++i) opcodeTable[0x5 + (i * 0x8)] = &CPU::dec;
+	// INC/DEC r
+	for (u8 i = 0; i < 8; ++i) {
+		opcodeTable[0x4 + (i * 0x8)] = &CPU::inc;
+		opcodeTable[0x5 + (i * 0x8)] = &CPU::dec;
+	}
 
 	// rotate A
 	opcodeTable[0x07] = [](CPU* cpu) { cpu->rotateLeft(cpu->A, true); cpu->F.Z = false; };
@@ -130,7 +126,16 @@ CPU::CPU(Gameboy& core) : bus(core.bus), stepComponents(std::bind(&Gameboy::step
 	// halt (todo)
 	opcodeTable[0x76] = [](CPU* cpu) {
 		//LB_INFO(CPU, "Halt {:04X}", cpu->PC);
-		cpu->lowPower = true;
+		if (cpu->IME) {
+			cpu->handler = true;
+			cpu->lowPower = true;
+		}
+		else if (cpu->interrupt.enable.read() & cpu->interrupt.request.read() & 0x1F) {
+			cpu->haltBug = true;
+		}
+		else {
+			cpu->lowPower = true;
+		}
 	};
 
 	/// block 2
@@ -146,10 +151,10 @@ CPU::CPU(Gameboy& core) : bus(core.bus), stepComponents(std::bind(&Gameboy::step
 	}
 
 	// PUSH rr
-	opcodeTable[0xC5] = [](CPU* cpu) { cpu->stepComponents(); cpu->push(cpu->B, cpu->C); };
-	opcodeTable[0xD5] = [](CPU* cpu) { cpu->stepComponents(); cpu->push(cpu->D, cpu->E); };
-	opcodeTable[0xE5] = [](CPU* cpu) { cpu->stepComponents(); cpu->push(cpu->H, cpu->L); };
-	opcodeTable[0xF5] = [](CPU* cpu) { cpu->stepComponents(); cpu->push(cpu->A, cpu->F); };
+	opcodeTable[0xC5] = [](CPU* cpu) { cpu->push(cpu->B, cpu->C); };
+	opcodeTable[0xD5] = [](CPU* cpu) { cpu->push(cpu->D, cpu->E); };
+	opcodeTable[0xE5] = [](CPU* cpu) { cpu->push(cpu->H, cpu->L); };
+	opcodeTable[0xF5] = [](CPU* cpu) { cpu->push(cpu->A, cpu->F); };
 
 	// POP rr
 	opcodeTable[0xC1] = [](CPU* cpu) { cpu->pop(cpu->B, cpu->C); };
@@ -160,15 +165,12 @@ CPU::CPU(Gameboy& core) : bus(core.bus), stepComponents(std::bind(&Gameboy::step
 	// RET
 	opcodeTable[0xC9] = &CPU::ret;
 	opcodeTable[0xD9] = [](CPU* cpu) { cpu->ret(); cpu->IME = true; };
-	opcodeTable[0xC0] = &CPU::ret;
-	opcodeTable[0xC8] = &CPU::ret;
-	opcodeTable[0xD0] = &CPU::ret;
-	opcodeTable[0xD8] = &CPU::ret;
+	for (u8 i = 0; i < 4; ++i) opcodeTable[0xC0 + (i * 0x8)] = &CPU::ret;
 
 	// LDH 
-	opcodeTable[0xE0] = [](CPU* cpu) { cpu->Z = cpu->readN(); cpu->write(0xFF00 + cpu->Z, cpu->A); };
+	opcodeTable[0xE0] = [](CPU* cpu) { cpu->loadZ(); cpu->write(0xFF00 + cpu->Z, cpu->A); };
 	opcodeTable[0xE2] = [](CPU* cpu) { cpu->write(0xFF00 + cpu->C, cpu->A); };
-	opcodeTable[0xF0] = [](CPU* cpu) { cpu->Z = cpu->readN(); cpu->A = cpu->read(0xFF00 + cpu->Z); };
+	opcodeTable[0xF0] = [](CPU* cpu) { cpu->loadZ(); cpu->A = cpu->read(0xFF00 + cpu->Z); };
 	opcodeTable[0xF2] = [](CPU* cpu) { cpu->A = cpu->read(0xFF00 + cpu->C); };
 
 	// LD
@@ -186,7 +188,7 @@ CPU::CPU(Gameboy& core) : bus(core.bus), stepComponents(std::bind(&Gameboy::step
 
 	// SP+e8
 	auto addSP = [](CPU* cpu) {
-		cpu->Z = cpu->readN();
+		cpu->loadZ();
 		u8 neg = 0xFF * bool(cpu->Z & 0x80);
 		cpu->_add(cpu->Z, low(cpu->SP));
 		cpu->F.Z = false;
@@ -229,11 +231,12 @@ CPU::CPU(Gameboy& core) : bus(core.bus), stepComponents(std::bind(&Gameboy::step
 void CPU::update() {
 	// execute
 	++instrCount;
+	Z = W = 0;
 	opcodeTable[IR](this);
 	
 	// handle interrupts/halt
-	if (interrupt.pending()) {
-		if (IME) {
+	auto handleInterrupt = [&]() {
+		if (IME && interrupt.pending()) {
 			for (u8 i = Interrupt::VBlank; i < Interrupt::_Count; ++i) {
 				auto type = Interrupt::Type(i);
 				if (interrupt.shouldFire(type)) {
@@ -244,18 +247,38 @@ void CPU::update() {
 					IME = false;
 				}
 			}
+
+			return true;
 		}
 
-		lowPower = false;
-	}
-
+		return false;
+	};
+		
 	if (lowPower) {
-		stepComponents();
-		return;
+		if (handler && handleInterrupt()) {
+			handler = false;
+			lowPower = false;
+		}
+		else if (interrupt.pending()) {
+			lowPower = false;
+		}
+		else {
+			stepComponents();
+			return;
+		}
+	}
+	else {
+		handleInterrupt();
 	}
 
 	// fetch
-	IR = read(PC++).first;
+	if (haltBug) {
+		haltBug = false;
+		IR = read(PC).first;
+	}
+	else {
+		IR = read(PC++).first;
+	}
 }
 
 void CPU::reset() {
@@ -263,17 +286,25 @@ void CPU::reset() {
 	F = 0;
 	SP = PC = 0;
 	IR = 0;
+
+	IME = false;
+	
+	haltBug = false;
 	lowPower = false;
+	handler = false;
 	instrCount = 0;
 	inBios = true;
 }
 
 std::string CPU::log() {
-	return fmt::format("A: {:02X} F: {:02X} B: {:02X} C: {:02X} D: {:02X} E: {:02X} H: {:02X} L: {:02X} SP: {:04X} PC: {:02X}:{:04X} ({:02X} {:02X} {:02X} {:02X})\n",
-			u8(A), u8(F), u8(B), u8(C), u8(D), u8(E), u8(H), u8(L), SP, 0, PC - 1, IR, bus.read(PC), bus.read(PC + 1), bus.read(PC + 2));
+	return fmt::format("A: {:02X} F: {:02X} B: {:02X} C: {:02X} D: {:02X} E: {:02X} H: {:02X} L: {:02X} SP: {:04X} PC: {:02X}:{:04X} ({:02X} {:02X} {:02X} {:02X}) Z: {:02X}\n",
+			u8(A), u8(F), u8(B), u8(C), u8(D), u8(E), u8(H), u8(L), SP, 0, PC - 1, IR, bus.read(PC), bus.read(PC + 1), bus.read(PC + 2), u8(Z));
 }
 
 // IL functions
+void CPU::stepComponents() {
+	core.step();
+}
 
 CPU::ReferenceData CPU::read(addr a) {
 	stepComponents();

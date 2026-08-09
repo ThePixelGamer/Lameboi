@@ -24,7 +24,7 @@ public:
 	OAMWindow(Gameboy& gb) :
 		gb(gb)
 	{
-		tex.data().fill(0xFFFFFFFF);
+		tex.data().fill(0xFF);
 	}
 
 	void render();

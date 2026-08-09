@@ -14,7 +14,7 @@ class APU {
 private:
 	constexpr static int clock = 1048576;
 	constexpr static int frequency = 44100;
-	constexpr static int samples = 4096;
+	constexpr static int samples = 512;
 	constexpr static u8 channels = 2;
 	constexpr static float volumeModifier = 0.5f; 
 
