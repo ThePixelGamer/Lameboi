@@ -13,7 +13,7 @@ bool Debugger::shouldBreak(addr PC) {
 	}
 
 	// does the current instruction have a breakpoint?
-	if (breakpoints.find(PC) != breakpoints.end()) {
+	if (!breakpoints.empty() && breakpoints.contains(PC)) {
 		pause();
 		return true;
 	}

@@ -55,7 +55,8 @@ void Config::load() {
 
 	// General/Input
 	inputOverlay.deserialize(j, "inputOverlay");
-	biosPath.deserialize(j, "biosPath");
+	biosDir.deserialize(j, "biosDir");
+	fastBios.deserialize(j, "fastBios");
 	recentRoms.deserialize(j, "recentRoms");
 	oppositeDir.deserialize(j, "oppositeDir");
 
@@ -80,7 +81,8 @@ void Config::save() {
 
 	// General
 	j["inputOverlay"] = inputOverlay.serialize();
-	j["biosPath"] = biosPath.serialize();
+	j["biosPath"] = biosDir.serialize();
+	j["fastBios"] = fastBios.serialize();
 	j["recentRoms"] = recentRoms.serialize();
 
 	// Video

@@ -15,10 +15,12 @@ class MBC5 : public MBC {
     };
 
 	MemoryMap tag_backing{SIZE};
-	MemoryMap::ReservedSection rom_tags[4];
+	MemoryMap::ReservedSection rom_tags[8];
 
 public:
-	MBC5(Cartridge& hw) : MBC(hw) {
+	using MBC::MBC;
+
+	void install() {
 		auto& bus = hw.bus;
 		{
 			auto tag_data = tag_backing.map();
@@ -29,10 +31,10 @@ public:
 			auto ram_bank_number_tag = bus.register_bus(nullptr, selectRam, this);
 			
 			auto bus_tag = tag_data.get<Memory::BusTag>();
-			std::ranges::fill(std::span(bus_tag + RAM_ENABLE, Memory::PAGE_SIZE * 2), ram_enable_tag);
+			std::ranges::fill(std::span(bus_tag + RAM_ENABLE, Memory::PAGE_SIZE), ram_enable_tag);
 			std::ranges::fill(std::span(bus_tag + ROM_SELECT, Memory::PAGE_SIZE), rom_bank_number_tag);
 			std::ranges::fill(std::span(bus_tag + ROM9_SELECT, Memory::PAGE_SIZE), rom_bank9_tag);
-			std::ranges::fill(std::span(bus_tag + RAM_SELECT, Memory::PAGE_SIZE * 2), ram_bank_number_tag);
+			std::ranges::fill(std::span(bus_tag + RAM_SELECT, Memory::PAGE_SIZE), ram_bank_number_tag);
 		}
 
 		for (u8 i = 0; i < 4; ++i) {

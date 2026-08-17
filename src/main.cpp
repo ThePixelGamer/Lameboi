@@ -57,7 +57,6 @@ public:
 		ImGui_ImplOpenGL3_Init("#version 430");
 
 		LB_INFO(App, "Working directory is {}", std::filesystem::current_path().string());
-		gb.loadBios(config.biosPath);
 	}
 
 	~App() {

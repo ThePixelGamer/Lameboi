@@ -26,7 +26,8 @@ private:
 	bool selectDirect, selectButton;
 
 public:
-	Joypad(Memory& bus, Interrupt& interrupt);
+	Joypad(Interrupt& interrupt);
+	void install(Memory& bus);
 
 	void clean();
 

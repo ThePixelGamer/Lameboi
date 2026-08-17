@@ -61,9 +61,11 @@ public:
 		}
 	} enable, request;
 
-	Interrupt(Memory& bus) {
+	Interrupt() {
 		clean();
+	}
 
+	void install(Memory& bus) {
 		auto i_tag = bus.register_bus(
 			[](void* d, addr a) -> u8 { 
 				auto interrupt = static_cast<Interrupt*>(d);

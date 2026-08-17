@@ -5,6 +5,7 @@
 #include "widgets/Image.h"
 
 struct UI;
+struct Framebuffer;
 
 namespace ui {
 
@@ -36,6 +37,8 @@ public:
 
 private:
 	void updateBuffer();
+
+	void renderCG(Framebuffer& buffer);
 };
 
 } // namespace ui 

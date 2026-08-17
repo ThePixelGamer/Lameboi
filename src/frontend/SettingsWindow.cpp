@@ -25,7 +25,7 @@ void SettingsWindow::render() {
 	if (show) {
 		ImGui::Begin("Settings", &show);
 
-		ImGui::PushItemFlag(ImGuiItemFlags_Disabled, (bool)paletteFile || (bool)biosFile);
+		ImGui::PushItemFlag(ImGuiItemFlags_Disabled, (bool)paletteFile || (bool)biosPath);
 
 		if (ImGui::Button("Save")) {
 			config.save();
@@ -71,25 +71,24 @@ void SettingsWindow::render() {
 }
 
 void SettingsWindow::renderGeneralTab() {
-	ImGui::InputText("##bios_path", config.biosPath.get()->data(), ImGuiInputTextFlags_ReadOnly);
+	ImGui::InputText("##bios_path", config.biosDir.get()->data(), ImGuiInputTextFlags_ReadOnly);
 
 	ImGui::SameLine();
 	if (ImGui::Button("Select")) {
-		biosFile = std::make_unique<pfd::open_file>("Select bios file", "C:\\", biosFileTypes, true);
+		biosPath = std::make_unique<pfd::select_folder>("Select bios directory", "C:\\");
 	}
+	
 
-	if (biosFile && biosFile->ready()) {
-		auto result = biosFile->result();
+	if (biosPath && biosPath->ready()) {
+		auto result = biosPath->result();
 		if (!result.empty()) {
-			std::string& file = result[0];
-
-			gb.loadBios(file);
-			config.biosPath = file;
+			config.biosDir = result;
 		}
 
-		biosFile = nullptr;
+		biosPath = nullptr;
 	}
 
+	ImGui::Checkbox("Use fast bios if available", config.fastBios.get());
 	ImGui::Checkbox("Enable input overlay", config.inputOverlay.get());
 	ImGui::Checkbox("Allow L+R or U+D inputs", config.oppositeDir.get());
 }
@@ -234,15 +233,15 @@ void SettingsWindow::renderInputTab() {
 }
 
 void SettingsWindow::renderGfxTab() {
-	auto& spriteMgr = gb.spriteManager;
+	auto& ppu = gb.ppu;
 		
-	auto& bios = spriteMgr.getManifest(true);
+	auto& bios = ppu.getManifest(true);
 	if (!bios.skins.empty()) {
 		if (ImGui::BeginCombo("Bios Skin", bios.selSkin.c_str())) {
 			for (auto& skin : bios.skins) {
 				if (ImGui::Selectable(skin.c_str())) {
 					bios.selSkin = skin;
-					gb.ppu.forceUpdate();
+					ppu.redraw = true;
 				}
 			}
 
@@ -250,13 +249,13 @@ void SettingsWindow::renderGfxTab() {
 		}
 	}
 
-	auto& game = spriteMgr.getManifest(false);
+	auto& game = ppu.getManifest(false);
 	if (!game.skins.empty()) {
 		if (ImGui::BeginCombo("Game Skin", game.selSkin.c_str())) {
 			for (auto& skin : game.skins) {
 				if (ImGui::Selectable(skin.c_str())) {
 					game.selSkin = skin;
-					gb.ppu.forceUpdate();
+					ppu.redraw = true;
 				}
 			}
 

@@ -52,7 +52,8 @@ public:
 	Wave wave;
 	Noise noise;
 
-	APU(Memory& bus);
+	APU();
+	void install(Memory& bus);
 	~APU();
 
 	void clean();

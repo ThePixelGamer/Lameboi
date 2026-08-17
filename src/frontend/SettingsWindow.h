@@ -16,7 +16,7 @@ class SettingsWindow {
 
 	u8 paletteIdx;
 	std::unique_ptr<pfd::open_file> paletteFile = nullptr;
-	std::unique_ptr<pfd::open_file> biosFile = nullptr;
+	std::unique_ptr<pfd::select_folder> biosPath = nullptr;
 
 public:
 	bool show = false;

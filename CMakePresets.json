@@ -6,7 +6,7 @@
 			"generator": "Ninja",
 			"binaryDir": "${sourceDir}/build",
 			"cacheVariables": {
-				"CMAKE_BUILD_TYPE": "RelWithDebInfo",
+				"CMAKE_BUILD_TYPE": "Debug",
 				"CMAKE_TOOLCHAIN_FILE": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
 				"VCPKG_LIBRARY_LINKAGE": "static"
 			}

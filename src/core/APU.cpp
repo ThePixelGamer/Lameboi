@@ -5,7 +5,7 @@
 
 #include "util/Log.h"
 
-APU::APU(Memory& bus) :
+APU::APU() :
 	squareSweep(soundOn, sequencerStep),
 	square(soundOn, sequencerStep),
 	wave(soundOn, sequencerStep),
@@ -13,6 +13,17 @@ APU::APU(Memory& bus) :
 {
 	clean();
 
+	const SDL_AudioSpec spec{ SDL_AUDIO_F32, channels, frequency };
+	audio_device = SDL_OpenAudioDeviceStream(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &spec, nullptr, nullptr);
+	if (audio_device == nullptr) {
+		LB_ERROR(Audio, "Failed to open audio: %s", SDL_GetError());
+	}
+	else {
+		SDL_ResumeAudioStreamDevice(audio_device);
+	}
+}
+
+void APU::install(Memory& bus) {
 	auto audio_tag = bus.register_bus(
 		[](void* d, addr a) -> u8 { return static_cast<APU*>(d)->read(a & 0xFF); },
 		[](void* d, addr a, u8 v) { static_cast<APU*>(d)->write(a & 0xFF, v); },
@@ -27,15 +38,6 @@ APU::APU(Memory& bus) :
 
 	for (u8 i = 0x10; i < 0x27; ++i) bus.register_io(i, audio_tag);
 	for (u8 i = 0x30; i < 0x40; ++i) bus.register_io(i, wave_tag);
-
-	const SDL_AudioSpec spec{ SDL_AUDIO_F32, channels, frequency };
-	audio_device = SDL_OpenAudioDeviceStream(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &spec, nullptr, nullptr);
-	if (audio_device == nullptr) {
-		LB_ERROR(Audio, "Failed to open audio: %s", SDL_GetError());
-	}
-	else {
-		SDL_ResumeAudioStreamDevice(audio_device);
-	}
 }
 
 APU::~APU() {
@@ -120,15 +122,14 @@ void APU::update() {
 	if (bufferOffset >= samples) {
 		bufferOffset = 0;
 
-		uint32_t len = samples * channels * sizeof(float);
 		if (config.audioSync) {
-			SDL_PutAudioStreamData(audio_device, sampleBuffer.data(), len);
+			SDL_PutAudioStreamData(audio_device, sampleBuffer.data(), sizeof(sampleBuffer));
 			sampleBuffer.fill(0.0f);
-			while (SDL_GetAudioStreamQueued(audio_device) > len) {}
+			while (SDL_GetAudioStreamQueued(audio_device) > sizeof(sampleBuffer)) {}
 		}
 		else {
-			if (SDL_GetAudioStreamQueued(audio_device) <= len) {
-				SDL_PutAudioStreamData(audio_device, sampleBuffer.data(), len);
+			if (SDL_GetAudioStreamQueued(audio_device) <= sizeof(sampleBuffer)) {
+				SDL_PutAudioStreamData(audio_device, sampleBuffer.data(), sizeof(sampleBuffer));
 				sampleBuffer.fill(0.0f);
 			}
 		}

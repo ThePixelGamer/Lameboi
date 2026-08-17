@@ -59,7 +59,6 @@ public:
 	void update(void* user_data = nullptr) {
 		use();
 		glTexSubImage2D(Target, 0, 0, 0, W, H, Format, Type, (user_data) ? user_data : data);
-
 	}
 
 	template <typename T>

@@ -1,7 +1,6 @@
 #pragma once
 
-#include "MBC.h"
-#include "../Memory.h"
+#include "core/Cartridge.h"
 
 class MBC3 : public MBC {
 public:
@@ -68,10 +67,12 @@ private:
     };
 
 	MemoryMap tag_backing{SIZE};
-	MemoryMap::ReservedSection rom_tags[4];
+	MemoryMap::ReservedSection rom_tags[8];
 
 public:
-	MBC3(Cartridge& hw) : MBC(hw) {
+	using MBC::MBC;
+
+	void install() {
 		auto& bus = hw.bus;
 		{
 			auto tag_data = tag_backing.map();

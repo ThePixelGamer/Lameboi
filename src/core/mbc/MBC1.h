@@ -1,6 +1,6 @@
 #pragma once
 
-#include "MBC.h"
+#include "core/Cartridge.h"
 
 // todo: handle MBC1M carts
 class MBC1 : public MBC {
@@ -20,8 +20,11 @@ class MBC1 : public MBC {
 	MemoryMap::ReservedSection rom_tags[8];
 
 public:
-	MBC1(Cartridge& hw) : MBC(hw) {
+	using MBC::MBC;
+
+	void install() {
 		auto& bus = hw.bus;
+
 		{
 			auto tag_data = tag_backing.map();
 

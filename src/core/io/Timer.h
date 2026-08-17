@@ -28,9 +28,11 @@ class Timer {
 	bool reloaded;
 
 public:
-	Timer(Memory& bus, Interrupt& interrupt) : interrupt(interrupt) {
+	Timer(Interrupt& interrupt) : interrupt(interrupt) {
 		clean();
+	}
 
+	void install(Memory& bus) {
 		auto timer_tag = bus.register_bus(
 			[](void* d, addr a) -> u8 { return static_cast<Timer*>(d)->read(a & 0xFF); },
 			[](void* d, addr a, u8 v) { static_cast<Timer*>(d)->write(a & 0xFF, v); },

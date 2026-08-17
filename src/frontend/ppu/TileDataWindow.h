@@ -24,6 +24,7 @@ class TileDataWindow {
 
 	u32 zoom = 3;
 	bool grid = true;
+	std::string dumpFile = "";
 
 public:
 	bool show = false;

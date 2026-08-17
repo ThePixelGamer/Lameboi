@@ -14,7 +14,8 @@ struct Config {
 
 	// General
 	Setting<bool> inputOverlay{ true };
-	Setting<std::string> biosPath{ "dmg_boot.bin" }; // should resolve to a full directory when saving
+	Setting<std::string> biosDir{ "bios/" }; // should resolve to a full directory when saving
+	Setting<bool> fastBios{ false }; 
 	Setting<std::vector<std::string>> recentRoms{ {} };
 
 	// Video

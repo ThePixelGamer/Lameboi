@@ -3,24 +3,45 @@
 #include <algorithm> //std::fill
 #include <iterator> //std::size
 
+#include <lodepng.h>
+#include <nlohmann/json.hpp>
+
 #include "Config.h"
 #include "Gameboy.h"
+#include "Model.h"
 #include "util/Common.h"
 #include "util/Log.h"
+#include "util/StringUtils.h"
+
+namespace fs = std::filesystem;
+
+bool imageIndexColors(const Tile::Data& image) {
+	for (auto& p : image) {
+		if (std::count(indexColors.begin(), indexColors.end(), p) == 0) {
+			return false;
+		}
+	}
+
+	return true;
+}
+
 
 Pixel PPU::DefaultPixel;
 
 PPU::PPU(Gameboy& gb) :
+	inBios(gb.cpu.inBios),
 	bus(gb.bus),
 	debug(gb.debug),
 	interrupt(gb.interrupt),
-	spriteManager(gb.spriteManager),
 	
-	vram_backing(Memory::PAGE_SIZE * 2),
+	vram_backing(Memory::PAGE_SIZE * 4),
 	vram_tag_backing(Memory::PAGE_SIZE * 2) {
 	clean();
+}
 
-	vram = vram_backing.map(bus.Mem() + 0x8000, 0x0000, Memory::PAGE_SIZE * 2);
+void PPU::install(Memory& bus, Model::Type model) {
+	vram = vram_backing.map();
+	vram_bank = vram_backing.map(bus.Mem() + 0x8000, 0x0000, Memory::PAGE_SIZE * 2);
 	
 	vram_bus = bus.register_bus(nullptr, nullptr, nullptr);
 	
@@ -44,11 +65,19 @@ PPU::PPU(Gameboy& gb) :
 	);
 
 	for (u8 i = 0x40; i < 0x4C; ++i) bus.register_io(i, io);
+
+	if (model == Model::CGB) {
+		cgbMode = true;
+		
+		bus.register_io(0x4F, io);
+
+		for (u8 i = 0x51; i < 0x56; ++i) bus.register_io(i, io);
+		for (u8 i = 0x68; i < 0x6C; ++i) bus.register_io(i, io);
+	}
 }
 
 void PPU::clean() {
-	// prevent DisplayWindow::render from using framebuffer when clearing
-	std::unique_lock lock(vblank_m);
+	bios.load("lameboi");
 
 	// GB Registers
 	LCDC.displayPriority = 0;
@@ -75,10 +104,9 @@ void PPU::clean() {
 
 	// Internal
 	for (auto& displayBuf : buffers) {
-		displayBuf.metainfo.fill(DefaultPixel); // white
-		displayBuf.pixels.fill(0); // white
+		displayBuf.pixels.fill(DefaultPixel); // white
 	}
-	forceUpdate();
+	redraw = true;
 
 	renderSprites.fill(0);
 
@@ -187,6 +215,17 @@ u8 PPU::read(u8 reg) {
 		case 0x4A: return WY;
 		case 0x4B: return WX;
 
+		// CGB Registers
+		case 0x4F: return VBK;
+
+		case 0x51: case 0x52: case 0x53: case 0x54: return 0xFF;
+		case 0x55: return !activeVDMA << 7; 
+		
+		case 0x68: return (BGPI.autoInc << 6) | BGPI.addr;
+		case 0x69: return bgColors[BGPI.addr];
+		case 0x6A: return (OBPI.autoInc << 6) | OBPI.addr;
+		case 0x6B: return objColors[OBPI.addr];
+
 		default:
 			//log
 			return 0xFF;
@@ -234,9 +273,76 @@ void PPU::write(u8 reg, u8 value) {
 		case 0x4A: WY = value; break;
 		case 0x4B: WX = value; break;
 
-		default:
-			//log
+		case 0x4F: 
+			VBK = value;
+
+			vram_bank = {};
+			vram_bank = vram_backing.map(bus.Mem() + 0x8000, Memory::PAGE_SIZE * 2 * (value & 0x1), Memory::PAGE_SIZE * 2);
 			break;
+
+		case 0x51: 
+			srcVDMA &= 0xFF;
+			srcVDMA |= value << 8;
+			break;
+
+		case 0x52: 
+			srcVDMA &= 0xFF00;
+			srcVDMA |= value & 0xF0;
+			break;
+			
+		case 0x53: 
+			dstVDMA &= 0xFF;
+			dstVDMA |= value << 8;
+			break;
+			
+		case 0x54:
+			dstVDMA &= 0xFF00;
+			dstVDMA |= value & 0xF0;
+			break;
+
+		case 0x55: 
+			modeVDMA = value & 0x80;
+			curVDMA = ((value & 0x7F) + 1) * 0x10;
+			activeVDMA = true;
+			break; 
+		
+		case 0x68: 
+			BGPI.autoInc = value >> 6;
+			BGPI.addr = value & 0x3F;
+			break;
+
+		case 0x69: 
+			bgColors[BGPI.addr] = value;
+			if (BGPI.autoInc) BGPI.addr++;
+			break;
+
+		case 0x6A:
+			OBPI.autoInc = value >> 6;
+			OBPI.addr = value & 0x3F;
+			break;
+
+		case 0x6B: 
+			objColors[OBPI.addr] = value;
+			if (OBPI.autoInc) OBPI.addr++;
+			break;
+
+		default: break;
+	}
+}
+
+void PPU::writeIntercept(addr dst, u32 src, u8 data) {
+	//LB_INFO(CG, "{:04X} = {:04X} {{ {:02X} }}", dst, src, data);
+
+	u16 vramOffset = dst & 0x1FFF;
+
+	vram_src_locations[vramOffset] = src;
+
+	// 0x8000 - 0x97FF
+	if (vramOffset < 0x1800) {
+	}
+	// 0x9800 - 0x9FFF
+	else {
+		// todo: use writes to check for matching logic
 	}
 }
 
@@ -251,11 +357,11 @@ void PPU::setMode(Mode mode) {
 		switch (STAT.mode) {
 			case Drawing: 
 				bus.buses[vram_bus.id].enable = false;
-				case Searching:
+			case Searching:
 				bus.buses[oam_bus.id].enable = false;
 				break;
 				
-				case HBlank:
+			case HBlank:
 				bus.buses[vram_bus.id].enable = true;
 				bus.buses[oam_bus.id].enable = true;
 				break;
@@ -290,60 +396,82 @@ void PPU::scanline() {
 	
 	std::array<u8, 2> rawLine = { 0, 0 };
 
-	std::array<Pixel, 8> line = {};
+	std::array<Pixel, 16> line = {};
 	const auto map0 =  0x1800;
 	const auto map1 =  0x1C00;
 	constexpr u8 tileMaxX = (256 / T);
 
-	for (u8 tileX = 0; tileX < (W / T); ++tileX) {
+	for (u8 tileX = 0; tileX < (160 / T); ++tileX) {
 		if (LCDC.displayPriority) {
 			// Background
 			u8 x = ((tileX * 8) + SCX) & 0xFF;
 			u8 y = (LY + SCY) & 0xFF;
 
-			auto map = vram.get() + ((LCDC.bgMap) ? map1 : map0);
-			u16 tileOffset = (x / T) + ((y / T) * tileMaxX);
+			auto map = &vram[(LCDC.bgMap) ? map1 : map0];
+			u16 mapOffset = (x / T) + ((y / T) * tileMaxX);
+			u8 tileOffset = map[mapOffset];
 			u8 yOffset = y % T;
 			u8 xShift = SCX % T;
 
-			addr tileAddr = _fetchTileAddr(LCDC.tileSet, map[tileOffset]);
+			addr tileAddr = _fetchTileAddr(LCDC.tileSet, tileOffset);
 			addr lineAddr = tileAddr + yOffset * 2;
 			rawLine = { vram[lineAddr], vram[lineAddr + 1] };
 			rawLine[0] <<= xShift;
 			rawLine[1] <<= xShift;
 			
-			for (u8 lineX = 0; lineX < 8; ++lineX) {
-				auto& pixel = line[lineX];
-				pixel.src = tileOffset;
-				pixel.tile = tileAddr;
+			for (u8 lineX = xShift; lineX < T; ++lineX) {
+				auto& pixel = line[lineX - xShift];
+				pixel.src = (tileOffset & 0x80) ? tileOffset : (LCDC.tileSet << 8) | tileOffset;
+				pixel.tile = vram_src_locations[tileAddr];
 				pixel.x = lineX;
 				pixel.y = yOffset;
 			}
-			
+
 			if (xShift != 0) {
 				if (x >= 248) {
-					tileOffset -= 31;
+					mapOffset -= 31;
 				}
 				else {
-					tileOffset += 1;
+					mapOffset += 1;
 				}
 
-				auto nextLine = _fetchTileLine(LCDC.tileSet, yOffset, map[tileOffset]);
-				rawLine[0] |= (nextLine[0] >> (8 - xShift));
-				rawLine[1] |= (nextLine[1] >> (8 - xShift));
-			}
+				tileOffset = map[mapOffset];
+				tileAddr = _fetchTileAddr(LCDC.tileSet, tileOffset);
+				lineAddr = tileAddr + yOffset * 2;
+				rawLine[0] |= (vram[lineAddr] >> (8 - xShift));
+				rawLine[1] |= (vram[lineAddr + 1] >> (8 - xShift));
 
+				for (u8 lineX = 0; lineX < xShift; ++lineX) {
+					auto& pixel = line[(8 - xShift) + lineX];
+					pixel.src = (tileOffset & 0x80) ? tileOffset : (LCDC.tileSet << 8) | tileOffset;
+					pixel.tile = vram_src_locations[tileAddr];
+					pixel.x = lineX;
+					pixel.y = yOffset;
+				}
+			}
 
 			// Window
 			if (windowEnabled && LCDC.windowDisplay) {
 				s16 adjustedX = (WX - 7) / 8;
+				yOffset = (windowLines % 8);
+
 				if (tileX >= adjustedX && LY >= WY) {
 					auto map = vram.get() + ((LCDC.windowMap) ? map1 : map0);
-					u16 tileOffset = (tileX - adjustedX) + ((windowLines / 8) * tileMaxX);
+					mapOffset = (tileX - adjustedX) + ((windowLines / 8) * tileMaxX);
+					tileOffset = map[mapOffset];
 
-					rawLine = _fetchTileLine(LCDC.tileSet, windowLines % 8, map[tileOffset]);
-
+					tileAddr = _fetchTileAddr(LCDC.tileSet, tileOffset);
+					lineAddr = tileAddr + yOffset * 2;
+					rawLine = { vram[lineAddr], vram[lineAddr + 1] };
 					windowYTrigger = true;
+					
+					for (u8 lineX = 0; lineX < T; ++lineX) {
+						auto& pixel = line[lineX];
+						pixel.src = (tileOffset & 0x80) ? tileOffset : (LCDC.tileSet << 8) | tileOffset;
+						pixel.tile = vram_src_locations[tileAddr];
+						pixel.x = lineX;
+						pixel.y = yOffset;
+					}
 				}
 			}
 		}
@@ -369,12 +497,9 @@ void PPU::scanline() {
 					y = ((LCDC.objSize) ? 15 : 7) - y;
 				}
 
-				u8 tileOffset = 0;
+				u8 tileOffset = sprite.tile;
 				if (LCDC.objSize) { // 8x16
 					tileOffset = (y < 8) ? (sprite.tile & 0xFE) : (sprite.tile | 0x1);
-				}
-				else { // 8x8
-					tileOffset = sprite.tile;
 				}
 
 				addr tileAddr = _fetchTileAddr(true, tileOffset);
@@ -409,18 +534,18 @@ void PPU::scanline() {
 						}
 					}
 
-					auto& pixel = line[itX];
-					pixel.src = spriteIndex;
-					pixel.tile = tileAddr;
-					//pixel.x = x;
-					//pixel.y = (y % 8);
-					pixel.obj = true;
-
 					if ((bottomSpriteLine[itX] > sprite.xPos) && (s_c0 || s_c1)) {
 						palettes[itX] = &((sprite.useOBP1()) ? OBP1 : OBP0);
 						bottomSpriteLine[itX] = sprite.xPos;
 						setBit(rawLine[1], 7 - itX, s_c0);
 						setBit(rawLine[0], 7 - itX, s_c1);
+
+						auto& pixel = line[itX];
+						pixel.src = tileOffset;
+						pixel.tile = vram_src_locations[tileAddr];
+						pixel.x = bitX;
+						pixel.y = (y % 8);
+						pixel.obj = true;
 					}
 				}
 			}
@@ -432,12 +557,11 @@ void PPU::scanline() {
 			PaletteData& palette = (palettes[x]) ? *palettes[x] : BGP;
 
 			size_t offset = (LY * 160) + (tileX * 8) + x;
-			auto& pixel = buffers[backIdx].metainfo[offset];
+			auto& pixel = buffers[backIdx].pixels[offset];
 			// custom graphics shenanigans
 			pixel = line[x];
 			pixel.palette = palette;
-
-			buffers[backIdx].pixels[offset] = palette[color];
+			pixel.color = palette[color];
 		}
 	}
 
@@ -664,3 +788,231 @@ void PPU::dumpSprites(std::array<u8, 64 * 40 * 4>& outData) {
 		}
 	}
 }
+
+/// Custom Graphics
+
+void Manifest::load(const std::string& n) {
+	name = n;
+	folder = name + "/";
+	if (!fs::exists(getPath())) {
+		return;
+	}
+
+	json manifest;
+	if (validate(manifest, getPath() + "manifest.json")) {
+		if (manifest.contains("skins")) {
+			auto& jsonSkins = manifest["skins"];
+
+			if (jsonSkins.is_array()) {
+				for (auto& skin : jsonSkins) {
+					if (skin.is_string()) skins.push_back(skin);
+				}
+			}
+		}
+
+		if (manifest.contains("sprite")) {
+			if (skins.empty()) {
+				loadSprite("", getPath(), manifest["sprite"]);
+			}
+			else {
+				for (auto& skin : skins) {
+					if (selSkin.empty()) selSkin = skin;
+					std::string path = getPath() + skin + "/";
+					if (!fs::exists(path)) {
+						path.pop_back();
+					}
+					loadSprite(skin, path, manifest["sprite"]);
+				}
+			}
+		}
+
+		if (manifest.contains("tilemap")) {
+			if (skins.empty()) {
+				loadTilemap("", getPath(), manifest["tilemap"]);
+			}
+			else {
+				for (auto& skin : skins) {
+					if (selSkin.empty()) selSkin = skin;
+					std::string path = getPath() + skin + "/";
+					if (!fs::exists(path)) {
+						path.pop_back();
+					}
+					loadTilemap(skin, path, manifest["tilemap"]);
+				}
+			}
+		}
+
+		LB_INFO(CG, "Loaded {}", name);
+	}
+	else {
+		LB_ERROR(CG, "Missing manifest for {}", folder);
+	}
+}
+
+void Manifest::loadSprite(const std::string& skin, const std::string& path, const json& sprite) {
+	if (sprite.is_object()) {
+		for (auto& [name, sprites] : sprite.items())
+			loadSprite(skin, path + name , sprites);
+		return;
+	}
+
+	std::vector<Color> image;
+	u32 width, height;
+
+	unsigned error = lodepng::decode((std::vector<u8>&)image, width, height, path + ".png");
+
+	// if there's an error, display it and skip
+	if (error) {
+		LB_ERROR(CG, "lodepng error {}: {} with {}.png", error, lodepng_error_text(error), path);
+		return;
+	}
+
+	// verify sprite is 8x8 tile based
+	if ((width % 8) != 0 || (height % 8) != 0) {
+		LB_ERROR(CG, "Tilemap not in 8x8 format");
+		return;
+	}
+	
+	bool indexed = imageIndexColors(image);
+	size_t tileWidth = width / 8;
+	for (auto& cond_json : sprite) {
+		if (cond_json.is_string()) {
+			std::string cond = cond_json;
+			size_t x = 0, y = 0;
+
+			size_t eq = cond.find('=');
+			if (eq != cond.npos) {
+				// todo: validate
+				size_t comma = cond.find(',');
+				x = std::stoull(cond.substr(0, comma));
+				y = std::stoull(cond.substr(comma + 1, eq - comma - 1));
+				cond = cond.substr(eq + 1);
+			}
+
+			addr a = stringToHex(cond);
+			
+			LB_INFO(CG, "{},{}={}", x, y, a);
+		}
+	}
+}
+
+void Manifest::loadTilemap(const std::string& skin, const std::string& path, const json& tilemap) {
+	if (tilemap.is_object()) {
+		for (auto& [name, tiles] : tilemap.items())
+			loadTilemap(skin, path + name , tiles);
+		return;
+	}
+
+	std::vector<Color> image;
+	u32 width, height;
+
+	unsigned error = lodepng::decode((std::vector<u8>&)image, width, height, path + ".png");
+
+	// if there's an error, display it and skip
+	if (error) {
+		LB_ERROR(CG, "lodepng error {}: {} with {}.png", error, lodepng_error_text(error), path);
+		return;
+	}
+
+	// verify sprite is 8x8 tile based
+	if ((width % 8) != 0 || (height % 8) != 0) {
+		LB_ERROR(CG, "Tilemap not in 8x8 format");
+		return;
+	}
+
+	bool indexed = imageIndexColors(image);
+	size_t tileOffset = 0;
+	size_t tileWidth = width / 8;
+	for (auto& loc_json : tilemap) {
+		auto load = [&](std::string loc) {
+			if (!loc.empty()) {
+				std::erase(loc, ':');
+				u32 a = stringToHex(loc);
+
+				Tile::Data uvImage(8 * 8);
+
+				size_t x = (tileOffset % tileWidth) * 8;
+				size_t y = (tileOffset / tileWidth) * 8;
+				for (size_t i = 0; i < 8; i++) {
+					auto it = image.begin() + x + ((i + y) * width);
+					std::copy_n(it, 8, uvImage.begin() + (i * 8));
+				}
+
+				auto& tile = tiles[a][skin];
+				tile.set(std::move(uvImage), indexed);
+			}
+		};
+
+		if (loc_json.is_string()) {
+			load(loc_json);
+		}
+		else if (loc_json.is_array()) {
+			for (auto& multiple : loc_json) {
+				if (multiple.is_string()) {
+					load(multiple);
+				}
+			}
+		}
+
+		++tileOffset;
+	}
+}
+
+bool Manifest::validate(json& manifest, const std::string& manifestPath) {
+	if (!fs::exists(manifestPath)) {
+		return false;
+	}
+
+	std::fstream manifestFile(manifestPath);
+	manifestFile >> manifest;
+
+	if (!manifest.contains("tilemap")) {
+		LB_ERROR(CG, "Manifest missing required objects.");
+		return false;
+	}
+
+	return true;
+}
+
+/*
+std::vector<Color> SpriteManager::getTilePixels(u16 tileOffset) {
+	std::vector<Color> tile(8 * 8);
+	
+	for (int i = 0; i != 16; i += 2) {
+		u8 bottom = ppu.vram[tileOffset + i];
+		u8 top = ppu.vram[tileOffset + i + 1];
+
+		// overwrite pixels vector
+		for (u8 x = 0; x < 8; ++x) {
+			u8 bit = 7 - x;
+			u8 colorIdx = (getBit(top, bit) << 1) | getBit(bottom, bit);
+
+			u8 y = (i / 2) * 8;
+			tile[x + y] = indexColors[colorIdx];
+		}
+	}
+
+	return tile;
+}
+
+void SpriteManager::dumpTile(addr offset) {
+	auto& map = getManifest();
+	addr tileSrc = ppu.vram_src_locations[offset];
+
+	if (map.tiles.find(tileSrc) == map.tiles.end()) {
+		std::vector<Color> tilePixels = getTilePixels(offset);
+
+		std::stringstream ss;
+		ss << std::hex << tileSrc;
+		std::string tileSrcStr = ss.str();
+
+		LB_INFO(PPU, "Dumping tile {} with src 0x{}", offset >> 4, tileSrcStr);
+
+		// write vector to png
+		unsigned error = lodepng::encode(map.getPath() + tileSrcStr + ".png", (std::vector<u8>&)tilePixels, 8, 8);
+
+		// if there's an error, display it
+		if (error)
+			LB_ERROR(PPU, "encoder error {}: {}", error, lodepng_error_text(error));
+	}
+}*/

@@ -6,12 +6,11 @@
 #include <string>
 
 #include "Memory.h"
-#include "mbc/MBC.h"
+#include "Cartridge.h"
 #include "CPU.h"
 #include "PPU.h"
 #include "APU.h"
 #include "Interrupt.h"
-#include "SpriteManager.h"
 #include "Debugger.h"
 
 #include "io/Joypad.h"
@@ -31,14 +30,8 @@ private:
 public:
 	std::atomic_bool emuRun = false;
 
-	enum class Type {
-		DMG,
-		MGB,
-		SGB,
-		CGB
-	};
-
 	// Internal
+	Debugger debug;
 	Memory bus;
 	Cartridge cart;
 
@@ -52,20 +45,16 @@ public:
 	Timer timer;
 	SerialPort serial;
 
-	Debugger debug;
-	SpriteManager spriteManager;
-
 	Gameboy() :
 		bus(*this),
 		cart(bus),
-		interrupt(bus),
-		spriteManager(ppu, cpu.inBios),
+		interrupt(),
 		cpu(*this),
 		ppu(*this),
-		apu(bus),
-		joypad(bus, interrupt),
-		timer(bus, interrupt),
-		serial(bus),
+		apu(),
+		joypad(interrupt),
+		timer(interrupt),
+		serial(),
 		debug(bus) {
 		createDirectory("saves");
 		emuThread = std::thread(&Gameboy::thread, this);
@@ -76,7 +65,6 @@ public:
 		emuThread.join();
 	}
 
-	bool loadBios(const std::string& biosPath);
 	bool loadRom(const std::string& romPath, bool start = true, bool power = true);
 
 	// signal run thread to start executing 

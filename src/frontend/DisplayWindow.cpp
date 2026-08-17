@@ -92,7 +92,7 @@ void DisplayWindow::render() {
 
 	ImGui::SameLine(); 
 	if (ImGui::Checkbox("Use Custom Graphics", &useCG)) {
-		gb.ppu.forceUpdate();
+		gb.ppu.redraw = true;
 	}
 
 	// Update FPS counter
@@ -124,7 +124,7 @@ void DisplayWindow::render() {
 	if (!status.empty()) {
 		ImGui::SameLine();
 		ImGui::SetCursorPosX(ImGui::GetCursorPosX() + ImMax(0.0f, ImGui::GetContentRegionAvail().x - ImGui::CalcTextSize(status.c_str()).x - ImGui::GetStyle().ItemInnerSpacing.x));
-		ImGui::Text(status.c_str());
+		ImGui::Text("%s", status.c_str());
 	}
 
 	oldCursor = ImGui::GetCursorPos();
@@ -142,9 +142,12 @@ void DisplayWindow::render() {
 	ImGui::OpenPopupOnItemClick("display_context_popup", ImGuiMouseButton_Right);
 
 	if (ImGui::BeginPopupContextItem("display_context_popup")) {
-		if (ImGui::Selectable("Fullscreen"));
-		if (ImGui::Selectable("Maintain aspect ratio"));
-		if (ImGui::Selectable("Maintain square ratio"));
+		if (ImGui::Selectable("Fullscreen"))
+			;
+		if (ImGui::Selectable("Maintain aspect ratio"))
+			;
+		if (ImGui::Selectable("Maintain square ratio"))
+			;
 		ImGui::EndPopup();
 	}
 
@@ -154,22 +157,53 @@ void DisplayWindow::render() {
 void DisplayWindow::updateBuffer() {
 	auto& ppu = context.gb.ppu;
 
-	ppu.render([&](PPU::Framebuffer& buffer)  {
-		for (size_t p = 0; p < (display.W * display.H); ++p) {
-			const Color* pixel = &ppu.paletteColors[buffer.pixels[p]];
+	ppu.render([&](Framebuffer& buffer)  {
+		if (useCG) {
+			renderCG(buffer);
+		}
+		else {
+			for (size_t p = 0; p < (display.W * display.H); ++p) {
+				const Color* pixel = &ppu.paletteColors[buffer.pixels[p].color];
 
-			if (useCG) {
-				auto cgPixel = ppu.spriteManager.renderPixel(buffer.metainfo[p]);
-				if (cgPixel) pixel = cgPixel;
+				size_t idx = p * 4;
+				display.data()[idx] = pixel->r;
+				display.data()[idx + 1] = pixel->g;
+				display.data()[idx + 2] = pixel->b;
+				display.data()[idx + 3] = pixel->a;
 			}
-
-			size_t idx = p * 4;
-			display.data()[idx] = pixel->r;
-			display.data()[idx + 1] = pixel->g;
-			display.data()[idx + 2] = pixel->b;
-			display.data()[idx + 3] = pixel->a;
 		}
 	});
+}
+
+void DisplayWindow::renderCG(Framebuffer& buffer) {
+	auto& ppu = context.gb.ppu;
+	
+	for (size_t p = 0; p < (160 * 144); ++p) {
+		const Color* pixel = [&, &pixel = buffer.pixels[p]]() {
+			// todo: either clear the screen when bios -> game or use the bios as a fallback
+			auto pTile = ppu.getTile(pixel.tile);
+			if (!pTile) {
+				return &PPU::paletteColors[pixel.color];
+			}
+			
+			auto& tile = *pTile;
+			auto col = &tile.data[pixel.x + (pixel.y * 8)];
+			if (tile.usesIndexColors) {
+				for (u8 i = 0; i < indexColors.size(); ++i) {
+					if (indexColors[i] == *col) {
+						return &PPU::paletteColors[pixel.palette[i]];
+					}
+				}
+			}
+			return col;
+		}();
+
+		size_t idx = p * 4;
+		display.data()[idx] = pixel->r;
+		display.data()[idx + 1] = pixel->g;
+		display.data()[idx + 2] = pixel->b;
+		display.data()[idx + 3] = pixel->a;
+	}
 }
 
 } // namespace ui 

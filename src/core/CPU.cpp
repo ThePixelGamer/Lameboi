@@ -6,15 +6,7 @@
 
 std::array<std::function<void (CPU*)>, 256> opcodeTable; 
 
-CPU::CPU(Gameboy& core) : bus(core.bus), core(core), interrupt(core.interrupt), spriteManager(core.spriteManager) {
-	auto bios_tag = core.bus.register_bus(
-		[](void* d, addr) { return (static_cast<CPU*>(d)->inBios) ? u8(0) : u8(1); },
-		[](void* d, addr, u8 v) { if (v != 0) static_cast<CPU*>(d)->inBios = false; },
-		this
-	);
-
-	core.bus.register_io(0x50, bios_tag);
-	
+CPU::CPU(Gameboy& core) : bus(core.bus), core(core), interrupt(core.interrupt) {
 	// setup opcode table
 	opcodeTable.fill(&CPU::invalid);
 	
@@ -23,7 +15,7 @@ CPU::CPU(Gameboy& core) : bus(core.bus), core(core), interrupt(core.interrupt), 
 	opcodeTable[0x00] = &CPU::nop;
 	
 	// stop (todo)
-	opcodeTable[0x10] = &CPU::nop;
+	opcodeTable[0x10] = &CPU::stop;
 
 	// misc
 	opcodeTable[0x27] = &CPU::daa;
@@ -228,6 +220,50 @@ CPU::CPU(Gameboy& core) : bus(core.bus), core(core), interrupt(core.interrupt), 
 	quit = false;
 }
 
+void CPU::install(Memory& bus, Model::Type model) {
+	auto bios_tag = bus.register_bus(
+		nullptr,
+		[](void* d, addr, u8 v) { 
+			auto cpu = static_cast<CPU*>(d);
+			if (v != 0) {
+				cpu->inBios = false;
+				cpu->bus.Mem()[0xFF50] = v;
+			}
+		},
+		this
+	);
+
+	bus.register_io(0x50, bios_tag);
+
+	if (model == Model::CGB) {
+		auto key_tag = bus.register_bus(
+			[](void* d, addr a) -> u8 {
+				auto cpu = static_cast<CPU*>(d);
+				switch (a & 0xFF) {
+					case 0x4C: return cpu->dmgMode << 2;
+					case 0x4D: return (cpu->doubleSpeed << 7) | cpu->speedSwitch; 
+				}
+				return 0xFF;
+			},
+			[](void* d, addr a, u8 v) {
+				auto cpu = static_cast<CPU*>(d);
+				switch (a & 0xFF) {
+					case 0x4C:
+					if (cpu->inBios)
+					cpu->dmgMode = v & 0x4;
+					break;
+					case 0x4D: cpu->speedSwitch = v & 0x1; break;
+				}
+			},
+			this
+		);
+
+		bus.register_io(0x4C, key_tag);
+		bus.register_io(0x4D, key_tag);
+	}
+	
+}
+	
 void CPU::update() {
 	// execute
 	++instrCount;
@@ -308,7 +344,32 @@ void CPU::stepComponents() {
 
 CPU::ReferenceData CPU::read(addr a) {
 	stepComponents();
-	return { (inBios && a < 0x100) ? bios.at(a) : bus.read(a), a };
+
+	u32 src = a;
+	// simplify with get bank for addr? add support for wram banks 
+	if (a < 0x4000) {
+		src |= core.cart.bank0 << sizeof(addr) * 8;
+	}
+	else if (a < 0x8000) {
+		src |= core.cart.bank1 << sizeof(addr) * 8;
+	}
+	else if ((a & 0xE000) == 0xA) {
+		src |= core.cart.bankRam << sizeof(addr) * 8;
+	}
+	else if (a & 0x8000) {
+		src = src_locations[a & 0x7FFF];
+	}
+
+	if (inBios) {
+		if (a < 0x100) {
+			return { bios[a], src};
+		}
+		else if (a >= 0x200 && a < 0x900 && bios.size() > 0xFF) {
+			return { bios[a], src};
+		}
+	}
+
+	return { bus.read(a), src };
 }
 
 void CPU::write(addr a, u8 data) {
@@ -316,15 +377,24 @@ void CPU::write(addr a, u8 data) {
 	bus.write(a, data);
 }
 
-void CPU::write(u8 a_h, u8 a_l, Register& data) {
-	addr a = to16(a_h, a_l);
+void CPU::write(addr a, Register& data) {
+	write(a, u8(data));
 
 	// check if we're in 0x8000-0x9fff
-	if ((a_h >> 5) == 0x4) {
-		spriteManager.writeIntercept(a, data.second, data);
+	if ((a >> 13) == 0x4) {
+		core.ppu.writeIntercept(a, data.second, data);
 	}
-	
-	write(a, data); 
+
+	if (a & 0x8000) {
+		src_locations[a & 0x7FFF] = data.second;
+	}
+}
+
+void CPU::stop() {
+	if (speedSwitch) {
+		speedSwitch = false;
+		doubleSpeed = !doubleSpeed;
+	}
 }
 
 void CPU::cb() {

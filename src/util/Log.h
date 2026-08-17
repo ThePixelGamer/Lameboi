@@ -6,81 +6,6 @@
 
 namespace Log {
 
-enum class Level : u8 {
-    Info,     
-    Warning,  
-    Error,    
-
-    Count
-};
-
-enum class Class : u8 {
-    App,
-    CPU,
-    PPU,
-    Audio,
-    Memory,
-    IO,
-    MBC,
-    Joypad,
-    Serial,
-    Timer,
-    Frontend,
-    CG,
-    Input,
-    Util,
-    GL,
-
-    Count
-};
-
-// todo: move both string funcs to a source file
-inline const char* LevelToString(Level log_level) {
-#define LVL(x) \
-    case Level::x: \
-        return #x
-
-    switch (log_level) {
-        LVL(Info);
-        LVL(Warning);
-        LVL(Error);
-        case Level::Count:
-            break;
-    }
-
-#undef LVL
-    return "Invalid";
-}
-
-inline const char* ClassToString(Class log_class) {
-#define CLS(x) \
-    case Class::x: \
-        return #x
-
-    switch (log_class) {
-        CLS(App);
-        CLS(CPU);
-        CLS(PPU);
-        CLS(Audio);
-        CLS(Memory);
-        CLS(IO);
-        CLS(MBC);
-        CLS(Joypad);
-        CLS(Serial);
-        CLS(Timer);
-        CLS(Frontend);
-        CLS(CG);
-        CLS(Input);
-        CLS(Util);
-        CLS(GL);
-        case Class::Count:
-            break;
-    }
-
-#undef CLS
-    return "Invalid";
-}
-
 struct Entry {
     const char* class_name = nullptr;
     const char* level_name = nullptr;
@@ -90,30 +15,24 @@ struct Entry {
     std::string message;
 };
 
-// todo: move this to a source file
-inline auto FormatMessage(const Entry& entry) {
-    return fmt::format("[{}] [{}] {}:{}:{}: {}\n", entry.level_name, entry.class_name,
-                       entry.filename, entry.line, entry.function, entry.message);
-}
+std::string FormatEntryMessage(const Entry& entry);
 
-// switch to a queue?
 template <typename... Args>
-void Write(Class log_class, Level log_level, const char* filename, u32 line, 
+void Write(const char* log_class, const char* log_level, const char* filename, u32 line, 
                     const char* function, const char* format, const Args&... args) {
     static std::mutex logMutex;
     std::lock_guard guard(logMutex);
 
-    // switch to C++20?
     Entry entry{
-        ClassToString(log_class), // class_name
-        LevelToString(log_level), // level_name
+        log_class,
+        log_level,
         filename,
         line,
         function,
         fmt::format(fmt::runtime(format), args...) // message
     };
 
-    auto str = FormatMessage(entry);
+    auto str = FormatEntryMessage(entry);
 
     // add printing to a file and add color support for console
     fmt::print("{}", str);
@@ -122,7 +41,7 @@ void Write(Class log_class, Level log_level, const char* filename, u32 line,
 } // namespace Log
 
 #define LB_LOG(log_class, log_level, ...) \
-    Log::Write(Log::Class::log_class, Log::Level::log_level, __FILE__, __LINE__, __func__, __VA_ARGS__)
+    Log::Write(#log_class, #log_level, __FILE__, __LINE__, __func__, __VA_ARGS__)
 
 #define LB_INFO(log_class, ...) LB_LOG(log_class, Info, __VA_ARGS__)
 #define LB_WARN(log_class, ...) LB_LOG(log_class, Warning, __VA_ARGS__)

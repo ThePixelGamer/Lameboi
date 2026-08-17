@@ -1,10 +1,9 @@
 #include "Cartridge.h"
 
-#include "core/Memory.h"
-
-#include "MBC1.h"
-#include "MBC3.h"
-#include "MBC5.h"
+#include "Memory.h"
+#include "mbc/MBC1.h"
+#include "mbc/MBC3.h"
+#include "mbc/MBC5.h"
 
 #include "util/Log.h"
 
@@ -123,7 +122,23 @@ bool Cartridge::load(const std::filesystem::path& romPath) {
 	romSize = std::filesystem::file_size(romPath);
 	rom_backing = MemoryMap{romPath, Access::Read, 0};
 	rom = rom_backing.map(); 
+
+	// validate checksum
+	u16 chksum = 0;
+	for (size_t i = 0; i < romSize; ++i) {
+		chksum += rom[i];
+	}
+	u8 high = getHeader()->highChecksum;
+	u8 low = getHeader()->lowChecksum;
+	chksum -= high;
+	chksum -= low;
+
+	u16 hChksum = ((high << 8) | low);
+	if (chksum != hChksum) {
+		LB_WARN(MBC, "Mismatch checksum {} != {}", chksum, hChksum);
+	}
 	
+	bus.install(getHeader()->getModel());
 	bank0 = 0xFF;
 	bank1 = 0xFFFF;
 	switchBank0(0);
@@ -135,6 +150,7 @@ bool Cartridge::load(const std::filesystem::path& romPath) {
 	}
 
 	_initHW();
+	mbc->install();
 
 	if (has(RAM)) {
 		ramSize = (is(MBC2)) ? 512 : getHeader()->getMaxRamBanks() * RAM_BANK_SIZE;

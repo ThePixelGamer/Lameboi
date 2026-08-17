@@ -18,10 +18,10 @@ public:
     constexpr static size_t W = Width;
     constexpr static size_t H = Height;
 
-    using Data = std::array<u8, W * H * 4>;
+	using Container = std::array<u8, Width * Height * 4>;
 
 private:
-    Data pixels{};
+    Container pixels{};
     bool dirty = false;
 
     ImageTexture tex;
@@ -32,9 +32,21 @@ public:
         pixels.fill(0xFF);
     }
 
-    using DrawExtra = std::function<void(const ImVec2& tl, const ImVec2& br, float zoom)>;
-    using Click = std::function<void(u32 x, u32 y)>;
-    void render(float zoom, bool grid = false, DrawExtra extraCallback = nullptr, Click clickCallback = nullptr) {
+	struct Callback {
+		using DrawExtra = std::function<void(const ImVec2& tl, const ImVec2& br, float zoom)>;
+		using Click = std::function<void(u32 x, u32 y)>;
+		using Hover = std::function<void(u32 x, u32 y)>;
+
+		DrawExtra extra = nullptr;
+		Click click = nullptr;
+		Hover hover = nullptr;
+
+		operator bool() {
+			return extra || click || hover;
+		}
+	};
+
+    void render(float zoom, bool grid = false, Callback callback = {}) {
         float adjWidth = W * v.x * zoom;
         float adjHeight = H * v.y * zoom;
 
@@ -58,7 +70,7 @@ public:
         ImGui::PopStyleVar();
 
         // exit early if we're rendering a simple image
-        if (!grid && !extraCallback && !clickCallback) {
+        if (!grid && !callback) {
             return;
         }
 
@@ -90,6 +102,10 @@ public:
 
                 ImGui::Text("Coordinate: (%d, %d)", region_x, region_y);
 
+				if (callback.hover) {
+					callback.hover(region_x, region_y);
+				}
+
                 constexpr float mini_zoom = 4.0f;
                 ImVec2 uv0 = ImVec2((region_x * region_sz) / adjWidth, (region_y * region_sz) / adjHeight);
                 ImVec2 uv1 = ImVec2(((region_x + 1.0f) * region_sz) / adjWidth, ((region_y + 1.0f) * region_sz) / adjHeight);
@@ -99,12 +115,12 @@ public:
             }
         }
 
-        if (extraCallback) {
-            extraCallback(tl, br, zoom);
+        if (callback.extra) {
+            callback.extra(tl, br, zoom);
         }
 
-        if (clicked && clickCallback) {
-            clickCallback(region_x, region_y);
+        if (clicked && callback.click) {
+            callback.click(region_x, region_y);
         }
     }
 
@@ -114,12 +130,12 @@ public:
         v.y = y / H;
     }
 
-    operator Data&() {
+    operator Container&() {
         dirty = true;
         return pixels;
     }
 
-    Data& data() {
+    Container& data() {
         dirty = true;
         return pixels;
     }

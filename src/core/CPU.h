@@ -6,6 +6,7 @@
 
 #include <fmt/format.h>
 
+#include "Model.h"
 #include "util/Types.h"
 
 class Memory;
@@ -19,7 +20,24 @@ public:
 
 	struct Flags {
 		u8 nibble = 0;
-		bool Z, N, H, C;
+		bool Z, N, H;
+		
+		struct Carry : public std::pair<bool, u32> {
+			Carry& operator=(const std::pair<bool, u32>& rhs) {
+				std::pair<bool, u32>::operator=(rhs);
+				return *this;
+			}
+
+			Carry& operator=(bool v) {
+				first = v;
+				second = 0;
+				return *this;
+			}
+			
+			operator bool&() {
+				return first;
+			}
+		} C;
 
 		operator u8() { return (Z << 7) | (N << 6) | (H << 5) | (C << 4); }
 		void operator=(u8 val) {
@@ -65,17 +83,22 @@ public:
 	bool quit;
 	std::atomic<uint64_t> instrCount;
 
-	std::array<u8, 0x100> bios;
+	std::vector<u8> bios;
 	bool inBios;
 
+	bool dmgMode = true;
+	bool doubleSpeed = false;
+	bool speedSwitch = false;
+
 private:
+	std::array<u32, 0x8000> src_locations;
 	Gameboy& core;
 	Memory& bus;
 	Interrupt& interrupt;
-	SpriteManager& spriteManager;
 
 public:
 	CPU(Gameboy& core);
+	void install(Memory& bus, Model::Type model);
 	void update();
 	void reset();
 
@@ -108,7 +131,8 @@ private:
 	}
 	
 	void write(addr a, u8 data);
-	void write(u8 a_h, u8 a_l, Register& data);
+	void write(addr a, Register& data);
+	void write(u8 a_h, u8 a_l, Register& data) { write(to16(a_h, a_l), data); }
 	void writeHL(Register& data) { write(H, L, data); }
 
 	void invalid();
@@ -117,6 +141,7 @@ private:
 
 	// Instructions
 	void nop() {}
+	void stop();
 
 	// 16-bit load
 	void push(u8 h, u8 l) {
@@ -146,18 +171,26 @@ private:
 	}
 
 	// rotate/shift/bit instructions
-	void rotateLeft(u8& reg, bool circular = false) {
+	void rotateLeft(Register& reg, bool circular = false) {
 		bool c = (reg & 0x80);
 		reg <<= 1;
+
+		u32 src = reg.second;
+		// hack to support sameboy bios
+		if (!circular && F.C.second != 0) {
+			reg.second = F.C.second;
+		}
+
 		reg |= u8((circular) ? c : F.C);
 
 		F.Z = reg == 0;
 		F.N = false;
 		F.H = false;
 		F.C = c;
+		F.C.second = src;
 	}
 
-	void rotateRight(u8& reg, bool circular = false) {
+	void rotateRight(Register& reg, bool circular = false) {
 		bool c = (reg & 0x1);
 		reg >>= 1;
 		reg |= ((circular) ? c : F.C) << 7;
@@ -166,18 +199,21 @@ private:
 		F.N = false;
 		F.H = false;
 		F.C = c;
+		F.C.second = reg.second;
 	}
 
-	void shiftLA(u8& reg) {
+	void shiftLA(Register& reg) {
 		F.C = reg & 0x80;
+		F.C.second = reg.second;
 		reg <<= 1;
 		F.Z = reg == 0;
 		F.H = false;
 		F.N = false;
 	}
 	
-	void shiftRA(u8& reg) {
+	void shiftRA(Register& reg) {
 		F.C = reg & 0x1;
+		F.C.second = reg.second;
 		reg = (reg & 0x80) | (reg >> 1);
 		F.Z = reg == 0;
 		F.H = false;
@@ -193,8 +229,9 @@ private:
 		F.N = false;
 	}
 
-	void shiftRL(u8& reg) {
+	void shiftRL(Register& reg) {
 		F.C = reg & 0x1;
+		F.C.second = reg.second;
 		reg >>= 1;
 		F.Z = reg == 0;
 		F.H = false;
@@ -278,7 +315,7 @@ private:
 
 	void _add(Register& r, u8 val, bool carry = false) {
 		u16 res = r + val + carry;
-		F.H = (r ^ val ^ res) & 0x10; 
+		F.H = (r ^ val ^ res) & 0x10;
 		F.C = res > 0xFF;
 		r = u8(res);
 		F.N = false;

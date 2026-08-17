@@ -35,26 +35,31 @@ inline void LogError() {
                                 reinterpret_cast<LPSTR>(&message_buffer_raw), 0, NULL);
         message_buffer.reset(message_buffer_raw);
     }
-    LB_ERROR(Memory, "{:#010X}: {}", static_cast<u32>(error_id), std::string_view{message_buffer.get(), size});
+    LB_ERROR(Memory, "0x{:010X}: {}", static_cast<u32>(error_id), std::string_view{message_buffer.get(), size});
 }
 #endif
 
 class ReservedSpace {
 private:
-	void* data;
-	size_t size;
+	void* data = nullptr;
+	size_t size = 0;
 
 public:
-	ReservedSpace(size_t s) : size(s) {
-#ifdef _WIN32
-		data = VirtualAlloc2(GetCurrentProcess(), nullptr, size, MEM_RESERVE | MEM_RESERVE_PLACEHOLDER, PAGE_NOACCESS, nullptr, 0);
-		if (!data) LogError(); 
-#endif
-	}
+	ReservedSpace() = default;
 
 	~ReservedSpace() {
 #ifdef _WIN32
-		VirtualFree(data, 0, MEM_RELEASE);
+		if (data && !VirtualFree(data, 0, MEM_RELEASE)) {
+			LogError();
+		}
+#endif
+	}
+
+	void setup(size_t s) {
+		size = s;
+#ifdef _WIN32
+		data = VirtualAlloc2(GetCurrentProcess(), nullptr, size, MEM_RESERVE | MEM_RESERVE_PLACEHOLDER, PAGE_NOACCESS, nullptr, 0);
+		if (!data) LogError(); 
 #endif
 	}
 	

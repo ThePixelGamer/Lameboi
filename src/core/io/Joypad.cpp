@@ -21,14 +21,8 @@ void Joypad::updateButton(Button button, bool down) {
 	}
 }
 
-Joypad::Joypad(Memory& bus, Interrupt& interrupt) : interrupt(interrupt) {
+Joypad::Joypad(Interrupt& interrupt) : interrupt(interrupt) {
 	clean();
-
-	bus.register_io(0x0, bus.register_bus(
-		[](void* d, addr) { return static_cast<Joypad*>(d)->read(); },
-		[](void* d, addr, u8 v) { return static_cast<Joypad*>(d)->write(v); },
-		this
-	));
 
 	// should I change this?
 	auto registerButton = [&](Button button, SDL_Scancode defaultKey, SDL_GamepadButton defaultButton) {
@@ -49,6 +43,14 @@ Joypad::Joypad(Memory& bus, Interrupt& interrupt) : interrupt(interrupt) {
 	registerButton(Select, SDL_SCANCODE_E, SDL_GAMEPAD_BUTTON_BACK);
 	registerButton(B, SDL_SCANCODE_SEMICOLON, SDL_GAMEPAD_BUTTON_WEST);
 	registerButton(A, SDL_SCANCODE_APOSTROPHE, SDL_GAMEPAD_BUTTON_SOUTH);
+}
+
+void Joypad::install(Memory& bus) {
+	bus.register_io(0x0, bus.register_bus(
+		[](void* d, addr) { return static_cast<Joypad*>(d)->read(); },
+		[](void* d, addr, u8 v) { return static_cast<Joypad*>(d)->write(v); },
+		this
+	));
 }
 
 void Joypad::clean() {

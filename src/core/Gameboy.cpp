@@ -1,5 +1,7 @@
 #include "Gameboy.h"
 
+#include "Config.h"
+
 #include <filesystem>
 #include <iostream>
 
@@ -9,36 +11,57 @@ namespace fs = std::filesystem;
 
 #define OUTPUT_CPU false
 
-// todo: verify the file provided is 0xFF bytes?
-bool Gameboy::loadBios(const std::string& biosPath) {
-	if (!fs::exists(biosPath)) {
-		LB_WARN(Frontend, "{} file does not exist", biosPath);
-		return false;
-	}
-
-	if (fs::file_size(biosPath) != cpu.bios.size()) {
-		LB_WARN(Frontend, "{} file is not a valid DMG bios", biosPath);
-		return false;
-	}
-
-	std::ifstream biosFile(biosPath, std::ifstream::binary);
-
-	if (!biosFile) {
-		LB_WARN(Frontend, "{} file failed to open", biosPath);
-		return false;
-	}
-
-	biosFile.read((char*)cpu.bios.data(), cpu.bios.size());
-	biosFile.close();
-	return true;
-}
-
 bool Gameboy::loadRom(const std::string& romPath, bool start, bool power) {
 	if (!cart.load(romPath)) {
 		return false;
 	}
 
-	spriteManager.loadRom(cart.romName);
+	auto model = cart.getHeader()->getModel();
+	apu.install(bus);
+	cpu.install(bus, model);
+	ppu.install(bus, model);
+	joypad.install(bus);
+	serial.install(bus);
+	timer.install(bus);
+	interrupt.install(bus);
+
+	// load bios
+	[&]() {
+		std::string biosPath = config.biosDir;
+		if (config.fastBios) biosPath += "fast_";
+
+		switch (model) {
+			default:
+			case Model::DMG: biosPath += "dmg_boot.bin"; break;
+			case Model::CGB: biosPath += "cgb_boot.bin"; break;
+		}
+
+		if (!fs::exists(biosPath)) {
+			auto fast = "fast_";
+			auto idx = biosPath.rfind(fast);
+			if (idx != biosPath.npos)
+				biosPath.erase(idx, std::char_traits<char>::length(fast));
+			
+			if (!fs::exists(biosPath)) {
+				LB_WARN(Frontend, "{} file does not exist", biosPath);
+				return;
+			}
+		}
+
+		cpu.bios.resize(fs::file_size(biosPath));
+		std::ifstream biosFile(biosPath, std::ifstream::binary);
+
+		if (!biosFile) {
+			LB_WARN(Frontend, "{} file failed to open", biosPath);
+			return;
+		}
+
+		biosFile.read((char*)cpu.bios.data(), cpu.bios.size());
+		biosFile.close();
+	}();
+
+	// load cg manifest for game 
+	ppu.game.load(cart.romName);
 
 	if (power) {
 		if (!start) debug.pause();
@@ -49,8 +72,11 @@ bool Gameboy::loadRom(const std::string& romPath, bool start, bool power) {
 }
 
 void Gameboy::run() {
-	std::ofstream bootlog("bootrom.txt");
-	std::ofstream romlog("rom.txt");
+	std::ofstream bootlog, romlog;
+	if (OUTPUT_CPU) {
+		bootlog.open("logs/bootrom.txt");
+		romlog.open("logs/rom.txt");
+	}
 
 	while (emuRun) {
 		if (debug.shouldBreak(cpu.PC)) {

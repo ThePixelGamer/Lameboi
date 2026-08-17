@@ -20,14 +20,14 @@ void MainMenu::renderFile() {
 		// wait for the any emu threads to finish
 		gb.stop();
 
-		if (!gb.loadRom(filename, !app.debug.show)) {
-			LB_INFO(Frontend, "File {} does not exist", filename);
-
-			// Silently drop it from recent roms list if it exists
-			auto& recentRoms = *config.recentRoms;
-			auto romIt = std::find(recentRoms.begin(), recentRoms.end(), filename);
-			if (romIt != recentRoms.end()) {
-				recentRoms.erase(romIt);
+		if (!gb.loadRom(filename, !app.debug.show) ) {
+			// Silently drop it from recent roms list if it doesn't exists
+			if (!std::filesystem::exists(filename)) {
+				auto& recentRoms = *config.recentRoms;
+				auto romIt = std::find(recentRoms.begin(), recentRoms.end(), filename);
+				if (romIt != recentRoms.end()) {
+					recentRoms.erase(romIt);
+				}
 			}
 
 			return;

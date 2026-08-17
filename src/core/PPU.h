@@ -4,9 +4,13 @@
 #include <condition_variable>
 #include <functional>
 #include <mutex>
+#include <map>
 #include <vector>
 
+#include <nlohmann/json_fwd.hpp>
+
 #include "Memory.h"
+#include "Model.h"
 #include "util/Color.h"
 #include "util/Types.h"
 #include "util/Common.h"
@@ -18,7 +22,77 @@ namespace ui {
 class Gameboy;
 class Memory;
 class Debugger;
-class SpriteManager;
+
+inline const std::array indexColors = {
+	Color(0xff, 0xff, 0xff),
+	Color(0xaa, 0xaa, 0xaa),
+	Color(0x55, 0x55, 0x55),
+	Color(0x00, 0x00, 0x00),
+};
+
+struct Tile {
+	using Data = std::vector<Color>;
+
+	Data data;
+	bool usesIndexColors;
+
+	void set(Data&& image, bool index) {
+		data = std::move(image);
+		usesIndexColors = index;
+	}
+};
+
+struct Manifest {
+	using json = nlohmann::json;
+
+	inline static const std::string rootFolder = "cg/";
+
+	std::string name;
+	std::string folder;
+
+	std::map<u32, std::map<std::string, Tile>> tiles;
+	//std::map<u32, std::map<std::string, Sprite>> sprites;
+	std::vector<std::string> skins;
+	std::string selSkin = "";
+
+	Manifest() = default;
+
+	std::string getRawPath() {
+		return rootFolder + "raw/" + folder;
+	}
+
+	std::string getPath() {
+		return rootFolder + folder;
+	}
+
+	Tile* getTile(u32 a) {
+		auto tile = tiles.lower_bound(a);
+		if (tile != tiles.end() && a >= tile->first) {
+			if (a > 8 && (a - tile->first) > 8) {
+				return nullptr;
+			}
+
+			if (tile->second.contains(selSkin)) {
+				return &tile->second.at(selSkin);
+			}
+			else {
+				return &tile->second.at("");
+			}
+		}
+
+		return nullptr;
+	}
+	
+	void load(const std::string& name);
+
+	void unload() {
+		
+	}
+
+	void loadSprite(const std::string& skin, const std::string& name, const json& sprite);
+	void loadTilemap(const std::string& skin, const std::string& name, const json& tilemap);
+	bool validate(json& manifest, const std::string& manifestPath);
+};
 class Interrupt;
 
 struct alignas(1) Sprite {
@@ -95,34 +169,32 @@ struct alignas(1) PaletteData {
 struct Pixel {
 	static constexpr addr LB_BLANK = 0;
 
-	// gb paletted color
-	addr src : 11;
-	addr tile : 13;
+	u32 tile = 0;
+	PaletteData palette;
+
+	addr src : 9 = 0;
+	u8 color : 2 = 0;
 	u8 x : 3 = 0;
 	u8 y : 3 = 0;
-	bool inBios : 1 = false;
 	bool obj : 1 = false;
+};
 
-	PaletteData palette;
+struct Framebuffer {
+	constexpr static size_t W = 160, H = 144;
+
+	std::array<Pixel, W * H> pixels{};
 };
 
 class PPU {
 public:
-	constexpr static size_t W = 160, H = 144;
 	constexpr static size_t T = 8;
 
 	static Pixel DefaultPixel;
-
-	struct Framebuffer {
-		std::array<Pixel, W * H> metainfo;
-
-		// todo: separate cg and raw color displays
-		std::array<u8, W * H> pixels{};
-	};
-
-	SpriteManager& spriteManager;
+	Manifest bios;
+	Manifest game;
 
 private:
+	const bool& inBios;
 	Memory& bus;
 	Debugger& debug;
 	Interrupt& interrupt;
@@ -134,9 +206,12 @@ private:
 	MemoryMap::ReservedSection vram_tag;
 
 public:
+	bool cgbMode;
+
 	// RAM
-	MemoryMap::ReservedSection vram; //0x8000
-	Sprite sprites[40]; //0xFE00
+	MemoryMap::Section vram;
+	MemoryMap::ReservedSection vram_bank; // 0x8000
+	Sprite sprites[40]; // 0xFE00
 
 	// I/O Registers
 	struct { //0xFF40 LCDC
@@ -175,6 +250,19 @@ private:
 	u8 WY; //0xFF4A Window Y Position
 	u8 WX; //0xFF4B Window X Position
 
+	u8 VBK; // IO/4F VRAM bank
+
+	struct PalleteIndex {
+		u8 addr : 5;
+		u8 : 1;
+		u8 autoInc : 1;
+	} BGPI, OBPI;
+
+	u16 srcVDMA, dstVDMA;
+	bool modeVDMA;
+	u8 curVDMA;
+	bool activeVDMA;
+
 	//internal
 	int cycles;
 	int frameCycles;
@@ -187,6 +275,9 @@ private:
 	
 	bool windowYTrigger;
 	u16 windowLines;
+
+	std::array<u8, 64> bgColors;
+	std::array<u8, 64> objColors;
 
 	// 2-bit pixel display
 	std::array<Framebuffer, 3> buffers;
@@ -201,9 +292,10 @@ private:
 	u8 backIdx = 2;
 
 	bool vblankHelper;
+	
+public:
 	std::atomic<bool> redraw;
 
-public:
 	// Display Palette
 	static inline Palette paletteColors = {
 		0x9bbc0f,
@@ -217,10 +309,9 @@ public:
 
 	u16 framesPresented;
 
-	std::mutex vblank_m;
-
 	//helper for dumpSprites
 	inline static Color invisPixel{ u32(0) };
+	std::array<u32, 0x2000> vram_src_locations{};
 
 	enum Mode {
 		HBlank,
@@ -231,21 +322,34 @@ public:
 
 	PPU(Gameboy& gb);
 
+	void install(Memory& bus, Model::Type model);
+
 	void clean();
 	void update();
 	
 	u8 read(u8 reg);
 	void write(u8 reg, u8 value);
-	
-	void forceUpdate() {
-		redraw = true;
-	}
+	void writeIntercept(addr dst, u32 src, u8 data);
 
 	void setMode(Mode mode);
 	void setPalette(Palette p) {
 		paletteColors = p;
-		forceUpdate();
+		redraw = true;
 	}
+
+	Tile* getTile(u32 a) {
+		if (auto tile = game.getTile(a))
+			return tile;
+
+		if (auto tile = bios.getTile(a)) {
+			return tile;
+		}
+
+		return nullptr;
+	}
+
+	Manifest& getManifest() { return getManifest(inBios); }
+	Manifest& getManifest(bool boot) { return boot ? bios : game; }
 
 	void dumpTiles(u8* outData, const size_t outW, const size_t tW, const size_t tH, const size_t baseOffset);
 	void dumpTile(u8* out, const size_t outW, const u16 tileOffset);

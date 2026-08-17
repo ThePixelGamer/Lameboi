@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Model.h"
 #include "util/MemoryMap.h"
 #include "util/Types.h"
 
@@ -9,7 +10,19 @@
 #include <filesystem>
 #include <cstddef>
 
+class Cartridge;
 class Memory;
+
+// Abstract/Bare metal implementation
+class MBC {
+protected:
+	Cartridge& hw;
+
+public:
+	MBC(Cartridge& hw) : hw(hw) {}
+	virtual ~MBC() = default;
+	virtual void install() = 0;
+};
 
 constexpr std::size_t ROM_BANK_SIZE = 0x4000;
 constexpr std::size_t RAM_BANK_SIZE = 0x2000;
@@ -57,7 +70,7 @@ public:
 			struct {
 				u8 title[11];
 				u8 manuCode[4];
-				bool cgbFlag;
+				u8 cgbFlag;
 			};
 
 			u8 raw[0x10];
@@ -109,7 +122,7 @@ public:
 		u8 destCode;
 		u8 oLCode;
 		u8 romVersion;
-		u8 hChecksum;
+		u8 headerChecksum;
 		u8 highChecksum, lowChecksum;
 
 		Header() = delete;
@@ -128,6 +141,15 @@ public:
 			constexpr u8 ramBank[] = { 0, 0, 1, 4, 16, 8 };
 			assert(ramSizeCode < sizeof(ramBank));
 			return ramBank[ramSizeCode];
+		}
+		
+		Model::Type getModel() {
+			if (cgbFlag & 0x80) {
+				return Model::CGB;
+			}
+			else {
+				return Model::DMG;
+			}
 		}
 	};
 	static_assert(sizeof(Header) == (0x150 - Header::BASE), "Alignas failed");

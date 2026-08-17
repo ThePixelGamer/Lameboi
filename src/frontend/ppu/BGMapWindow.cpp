@@ -140,7 +140,7 @@ void BGMapWindow::render() {
 			if (ImGui::BeginPopupModal(popupName, nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
 				dump.render(zoom);
 
-				auto& manifest = gb.spriteManager.getManifest();
+				auto& manifest = gb.ppu.getManifest();
 
 				ImGui::InputText("##file", &dumpFile);
 
@@ -149,7 +149,8 @@ void BGMapWindow::render() {
 					if (!dumpFile.empty()) {
 						std::vector<u8> pixelData;
 						pixelData.resize(width * height * 4);
-						std::copy_n(dump.data().begin(), pixelData.size(), pixelData.begin());
+						for (int y = 0; y < height; ++y)
+							std::copy_n(dump.data().begin() + (dump.W * y * 4), width * 4, pixelData.begin() + (width * y * 4));
 
 						const std::string folder = manifest.getPath();
 						if (auto error = lodepng::encode(folder + dumpFile + ".png", pixelData, width, height)) {
@@ -182,7 +183,10 @@ void BGMapWindow::render() {
 		ImVec2 availSize = ImGui::GetContentRegionAvail();
 		float zoom = std::max(std::min(availSize.x / bgmapTex.W, availSize.y / bgmapTex.H), 1.0f);
 		using namespace std::placeholders;
-		bgmapTex.render(zoom, true, std::bind(&BGMapWindow::drawExtra, this, _1, _2, _3), std::bind(&BGMapWindow::handleClick, this, _1, _2));
+		bgmapTex.render(zoom, true, { 
+			.extra = [&](const ImVec2& topleft, const ImVec2& bottomright, float mult) { drawExtra(topleft, bottomright, mult); },
+			.click = [&](u32 x, u32 y) { handleClick(x, y); }
+		});
 
 		ImGui::EndGroup();
 

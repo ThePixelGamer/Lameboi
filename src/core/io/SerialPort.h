@@ -2,9 +2,8 @@
 
 #include <cstdio>
 
+#include "core/Memory.h"
 #include "util/Types.h"
-
-#include "../Memory.h"
 
 class SerialPort {
 private:
@@ -13,9 +12,11 @@ private:
 	bool requestTransfer;
 
 public:
-	SerialPort(Memory& bus) {
+	SerialPort() {
 		clean();
+	}
 
+	void install(Memory& bus) {
 		auto serial_tag = bus.register_bus(
 			[](void* d, addr a) -> u8 { 
 				return static_cast<SerialPort*>(d)->read(a & 0xFF);
@@ -28,6 +29,7 @@ public:
 
 		bus.register_io(0x1, serial_tag);
 		bus.register_io(0x2, serial_tag);
+
 	}
 
 	void clean() {
