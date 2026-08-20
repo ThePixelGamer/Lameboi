@@ -267,7 +267,6 @@ void CPU::install(Memory& bus, Model::Type model) {
 void CPU::update() {
 	// execute
 	++instrCount;
-	Z = W = 0;
 	opcodeTable[IR](this);
 	
 	// handle interrupts/halt

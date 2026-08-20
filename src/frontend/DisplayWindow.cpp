@@ -163,13 +163,13 @@ void DisplayWindow::updateBuffer() {
 		}
 		else {
 			for (size_t p = 0; p < (display.W * display.H); ++p) {
-				const Color* pixel = &ppu.paletteColors[buffer.pixels[p].color];
+				const Color pixel = buffer.pixels[p].getColor();
 
 				size_t idx = p * 4;
-				display.data()[idx] = pixel->r;
-				display.data()[idx + 1] = pixel->g;
-				display.data()[idx + 2] = pixel->b;
-				display.data()[idx + 3] = pixel->a;
+				display.data()[idx] = pixel.r;
+				display.data()[idx + 1] = pixel.g;
+				display.data()[idx + 2] = pixel.b;
+				display.data()[idx + 3] = pixel.a;
 			}
 		}
 	});
@@ -181,7 +181,7 @@ void DisplayWindow::renderCG(Framebuffer& buffer) {
 	for (size_t p = 0; p < (160 * 144); ++p) {
 		const Color* pixel = [&, &pixel = buffer.pixels[p]]() {
 			// todo: either clear the screen when bios -> game or use the bios as a fallback
-			auto pTile = ppu.getTile(pixel.tile);
+			auto pTile = ppu.getTile(pixel.src);
 			if (!pTile) {
 				return &PPU::paletteColors[pixel.color];
 			}

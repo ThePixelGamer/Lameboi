@@ -2,6 +2,7 @@
 
 #include <algorithm> //std::fill
 #include <iterator> //std::size
+#include <queue>
 
 #include <lodepng.h>
 #include <nlohmann/json.hpp>
@@ -30,6 +31,7 @@ Pixel PPU::DefaultPixel;
 
 PPU::PPU(Gameboy& gb) :
 	inBios(gb.cpu.inBios),
+	gb(gb),
 	bus(gb.bus),
 	debug(gb.debug),
 	interrupt(gb.interrupt),
@@ -74,6 +76,9 @@ void PPU::install(Memory& bus, Model::Type model) {
 		for (u8 i = 0x51; i < 0x56; ++i) bus.register_io(i, io);
 		for (u8 i = 0x68; i < 0x6C; ++i) bus.register_io(i, io);
 	}
+	else {
+		cgbMode = false;
+	}
 }
 
 void PPU::clean() {
@@ -99,7 +104,7 @@ void PPU::clean() {
 	SCX = SCY = 0;
 	LY = 0;
 	LYC = 0;
-	BGP = OBP0 = OBP1 = { 0, 0, 0, 0 };
+	BGP = OBP0 = OBP1 = 0;
 	WX = WY = 0;
 
 	// Internal
@@ -124,6 +129,7 @@ void PPU::clean() {
 	vblankHelper = false;
 
 	framesPresented = 0;
+	activeVDMA = false;
 }
 
 // Called every CPU m-cycle
@@ -209,9 +215,9 @@ u8 PPU::read(u8 reg) {
 		case 0x44: return LY;
 		case 0x45: return LYC;
 		case 0x46: return DMA_START;
-		case 0x47: return BGP.read();
-		case 0x48: return OBP0.read();
-		case 0x49: return OBP1.read();
+		case 0x47: return BGP;
+		case 0x48: return OBP0;
+		case 0x49: return OBP1;
 		case 0x4A: return WY;
 		case 0x4B: return WX;
 
@@ -292,7 +298,7 @@ void PPU::write(u8 reg, u8 value) {
 			
 		case 0x53: 
 			dstVDMA &= 0xFF;
-			dstVDMA |= value << 8;
+			dstVDMA |= (0x80 | (value & 0x1F)) << 8;
 			break;
 			
 		case 0x54:
@@ -303,8 +309,19 @@ void PPU::write(u8 reg, u8 value) {
 		case 0x55: 
 			modeVDMA = value & 0x80;
 			curVDMA = ((value & 0x7F) + 1) * 0x10;
-			activeVDMA = true;
-			break; 
+
+			if (!modeVDMA && !activeVDMA) {
+				for (int i = 0; i < curVDMA; ++i) {
+					bus.write(dstVDMA + i, bus.read(srcVDMA + i));
+					if (i & 0x1) gb.step();
+				}
+			}
+			else {
+				activeVDMA = true;
+			}
+
+			LB_INFO(PPU, "{} 0x{:04X} -> 0x{:04X}", modeVDMA, srcVDMA, dstVDMA);
+			break;
 		
 		case 0x68: 
 			BGPI.autoInc = value >> 6;
@@ -371,8 +388,8 @@ void PPU::setMode(Mode mode) {
 	}
 }
 
-u16 PPU::_fetchTileAddr(bool method8000, u8 tileoffset) {
-	u16 addr = 0;
+u16 _fetchTileAddr(bool method8000, u8 tileoffset, u8 bank = 0) {
+	u16 addr = PPU::VRAM_SIZE * bank;
 
 	if (tileoffset & 0x80) {
 		addr = 0x800;
@@ -394,174 +411,140 @@ void PPU::scanline() {
 		return;
 	}
 	
-	std::array<u8, 2> rawLine = { 0, 0 };
+	struct FIFO {
+		struct Pixel {
+			u8 col : 2 = 0;
+			u8 pal : 3 = 0;
+			u8 sprPr : 1 = 0;
+			u8 bgPr : 1 = 0;
+		};
 
-	std::array<Pixel, 16> line = {};
-	const auto map0 =  0x1800;
-	const auto map1 =  0x1C00;
+		std::deque<Pixel> line = {};
+
+		void push(Pixel&& pixel) {
+			line.push_back(pixel);
+		}
+
+		Pixel pop() {
+			auto p = line.front();
+			line.pop_front();
+			return p;
+		}
+
+		u8 size() {
+			return line.size();
+		}
+
+		Pixel& operator[](size_t i) {
+			return line[i];
+		}
+
+		u8 x : 5 = 0;
+	} bg, obj;
+
+	const auto map0 = 0x1800;
+	const auto map1 = 0x1C00;
+	u16 baseMap = (LCDC.bgMap) ? map1 : map0;
+
 	constexpr u8 tileMaxX = (256 / T);
+	bg.x = (SCX / T) & 0x1F;
+	u8 y = LY + SCY;
+	u16 yOffset = (y / T) * tileMaxX;
 
-	for (u8 tileX = 0; tileX < (160 / T); ++tileX) {
-		if (LCDC.displayPriority) {
-			// Background
-			u8 x = ((tileX * 8) + SCX) & 0xFF;
-			u8 y = (LY + SCY) & 0xFF;
+	for (u16 p = 0; p < 160; ++p) {
+		if (windowEnabled && LCDC.windowDisplay && (WX - 7) == p && LY >= WY) {
+			bg.line = {};
+			baseMap = (LCDC.windowMap) ? map1 : map0;
+			bg.x = 0;
+			y = windowLines++;
+			yOffset = (y / T) * tileMaxX;
+		}
 
-			auto map = &vram[(LCDC.bgMap) ? map1 : map0];
-			u16 mapOffset = (x / T) + ((y / T) * tileMaxX);
-			u8 tileOffset = map[mapOffset];
-			u8 yOffset = y % T;
-			u8 xShift = SCX % T;
-
-			addr tileAddr = _fetchTileAddr(LCDC.tileSet, tileOffset);
-			addr lineAddr = tileAddr + yOffset * 2;
-			rawLine = { vram[lineAddr], vram[lineAddr + 1] };
-			rawLine[0] <<= xShift;
-			rawLine[1] <<= xShift;
+		while (bg.size() < 9) {
+			u8 tile = baseMap + yOffset + bg.x++;
+			u8 bgattr = (cgbMode) ? vram[VRAM_SIZE + tile] : (LCDC.displayPriority << 7);
+			addr tileAddr = _fetchTileAddr(LCDC.tileSet, vram[tile], bgattr & 0x8);
+			addr lineAddr = tileAddr + (y % T) * 2;
 			
-			for (u8 lineX = xShift; lineX < T; ++lineX) {
-				auto& pixel = line[lineX - xShift];
-				pixel.src = (tileOffset & 0x80) ? tileOffset : (LCDC.tileSet << 8) | tileOffset;
-				pixel.tile = vram_src_locations[tileAddr];
-				pixel.x = lineX;
-				pixel.y = yOffset;
-			}
-
-			if (xShift != 0) {
-				if (x >= 248) {
-					mapOffset -= 31;
-				}
-				else {
-					mapOffset += 1;
-				}
-
-				tileOffset = map[mapOffset];
-				tileAddr = _fetchTileAddr(LCDC.tileSet, tileOffset);
-				lineAddr = tileAddr + yOffset * 2;
-				rawLine[0] |= (vram[lineAddr] >> (8 - xShift));
-				rawLine[1] |= (vram[lineAddr + 1] >> (8 - xShift));
-
-				for (u8 lineX = 0; lineX < xShift; ++lineX) {
-					auto& pixel = line[(8 - xShift) + lineX];
-					pixel.src = (tileOffset & 0x80) ? tileOffset : (LCDC.tileSet << 8) | tileOffset;
-					pixel.tile = vram_src_locations[tileAddr];
-					pixel.x = lineX;
-					pixel.y = yOffset;
-				}
-			}
-
-			// Window
-			if (windowEnabled && LCDC.windowDisplay) {
-				s16 adjustedX = (WX - 7) / 8;
-				yOffset = (windowLines % 8);
-
-				if (tileX >= adjustedX && LY >= WY) {
-					auto map = vram.get() + ((LCDC.windowMap) ? map1 : map0);
-					mapOffset = (tileX - adjustedX) + ((windowLines / 8) * tileMaxX);
-					tileOffset = map[mapOffset];
-
-					tileAddr = _fetchTileAddr(LCDC.tileSet, tileOffset);
-					lineAddr = tileAddr + yOffset * 2;
-					rawLine = { vram[lineAddr], vram[lineAddr + 1] };
-					windowYTrigger = true;
+			u8 b_col = vram[lineAddr], t_col = vram[lineAddr + 1]; 
+			for (u8 c = 0; c < 8; ++c) {
+				u8 bitX = (bgattr & 0x20) ? 7 - c : c;
 					
-					for (u8 lineX = 0; lineX < T; ++lineX) {
-						auto& pixel = line[lineX];
-						pixel.src = (tileOffset & 0x80) ? tileOffset : (LCDC.tileSet << 8) | tileOffset;
-						pixel.tile = vram_src_locations[tileAddr];
-						pixel.x = lineX;
-						pixel.y = yOffset;
-					}
-				}
+				bg.push({
+					.col = u8((getBit(t_col, 7 - c) << 1) | getBit(b_col, 7 - c)),
+					.pal = u8(bgattr & 0x7), 
+					.bgPr = bool(bgattr & 0x80)
+				});
 			}
 		}
 
-		// nullptr = bgp
-		std::array<PaletteData*, 8> palettes = {};
-
+		while (obj.size() < 8) {
+			obj.push({
+				.col = 0
+			});
+		}
+		
 		if (spritesEnabled && LCDC.objDisplay) {
-			std::array<u8, 8> bottomSpriteLine;
-			bottomSpriteLine.fill(u8(-1));
-
 			for (u8 i = 0; i < loadedSprites; ++i) {
 				u8 spriteIndex = renderSprites[i];
 				Sprite& sprite = sprites[spriteIndex];
 
- 				u8 x = tileX * 8;
-				if (!inRange(sprite.xPos - 8, x, x + 7) && !inRange(sprite.xPos - 1, x, x + 7)) {
-					continue;
+				if (p != (sprite.xPos - 8)) {
+					continue; 
 				}
 
-				u8 y = (LY + 16 - sprite.yPos) % 16;
+				u8 objY = (LY + 16 - sprite.yPos) % 16;
 				if (sprite.yFlip()) {
-					y = ((LCDC.objSize) ? 15 : 7) - y;
+					objY = ((LCDC.objSize) ? 15 : 7) - objY;
 				}
 
 				u8 tileOffset = sprite.tile;
 				if (LCDC.objSize) { // 8x16
-					tileOffset = (y < 8) ? (sprite.tile & 0xFE) : (sprite.tile | 0x1);
+					tileOffset = (objY < 8) ? (sprite.tile & 0xFE) : (sprite.tile | 0x1);
 				}
 
 				addr tileAddr = _fetchTileAddr(true, tileOffset);
-				addr lineAddr = tileAddr + (y % 8) * 2;
-				std::array<u8, 2> spriteLine = { vram[lineAddr], vram[lineAddr + 1] };
+				addr lineAddr = tileAddr + (objY % 8) * 2;
 
-				u8 spX, itX, endX;
-				if (x <= (sprite.xPos - 8)) {
-					spX = 0;
-					itX = sprite.xPos % 8;
-					endX = 8;
-				}
-				else {
-					itX = 0;
-					endX = sprite.xPos % 8;
-					spX = 8 - endX;
-				}
-
-				for (; itX < endX; ++itX, ++spX) {
-					u8 bitX = spX;
-					if (sprite.xFlip()) {
-						bitX = 7 - bitX;
-					}
-
-					u8 s_c0 = getBit(spriteLine[1], 7 - bitX);
-					u8 s_c1 = getBit(spriteLine[0], 7 - bitX);
-
-					if (sprite.behindBG()) {
-						// check if bg/window color is not 0
-						if (getBit(rawLine[1], 7 - itX) || getBit(rawLine[0], 7 - itX)) {
-							continue;
-						}
-					}
-
-					if ((bottomSpriteLine[itX] > sprite.xPos) && (s_c0 || s_c1)) {
-						palettes[itX] = &((sprite.useOBP1()) ? OBP1 : OBP0);
-						bottomSpriteLine[itX] = sprite.xPos;
-						setBit(rawLine[1], 7 - itX, s_c0);
-						setBit(rawLine[0], 7 - itX, s_c1);
-
-						auto& pixel = line[itX];
-						pixel.src = tileOffset;
-						pixel.tile = vram_src_locations[tileAddr];
-						pixel.x = bitX;
-						pixel.y = (y % 8);
-						pixel.obj = true;
+				u8 b_col = vram[lineAddr], t_col = vram[lineAddr + 1]; 
+				for (u8 c = 0; c < 8; ++c) {
+					u8 bitX = (sprite.xFlip()) ? 7 - c : c;
+					
+					auto& pixel = obj[c];
+					if (pixel.col == 0) {
+						pixel.col = u8((getBit(t_col, 7 - bitX) << 1) | getBit(b_col, 7 - bitX));
+						pixel.pal = (cgbMode) ? sprite.getCGBPal() : sprite.useOBP1();
+						pixel.bgPr = sprite.behindBG();
 					}
 				}
 			}
 		}
+		
+		size_t offset = (LY * 160) + p;
+		auto& pixel = buffers[backIdx].pixels[offset];
+		auto bgPixel = bg.pop();
+		auto objPixel = obj.pop();
 
-
-		for (u8 x = 0; x < 8; ++x) {
-			u8 color = (getBit(rawLine[1], 7 - x) << 1) | getBit(rawLine[0], 7 - x);
-			PaletteData& palette = (palettes[x]) ? *palettes[x] : BGP;
-
-			size_t offset = (LY * 160) + (tileX * 8) + x;
-			auto& pixel = buffers[backIdx].pixels[offset];
-			// custom graphics shenanigans
-			pixel = line[x];
-			pixel.palette = palette;
-			pixel.color = palette[color];
+		if (!cgbMode) {
+			if (objPixel.col != 0 && (!objPixel.bgPr || bgPixel.col == 0)) {
+				pixel.palette = (objPixel.pal) ? OBP1 : OBP0;
+				pixel.color = pixel.palette[objPixel.col];
+			}
+			else {
+				pixel.color = (bgPixel.bgPr) ? BGP[bgPixel.col] : 0;
+				pixel.palette = BGP;
+			}
+		}
+		else {
+			pixel.mode = 1;
+			if (objPixel.col != 0 && (!objPixel.bgPr || bgPixel.col == 0)) {
+				//pixel.colors = (objPixel.pal) ? OBP1 : OBP0;
+				pixel.color = pixel.palette[objPixel.col];
+			}
+			else {
+				auto colIdx = bgPixel.pal * 8 + bgPixel.col * 2;
+				pixel.color = bgColors[colIdx + 1] << 8 | bgColors[colIdx];
+			}
 		}
 	}
 
@@ -625,6 +608,9 @@ void PPU::vblank() {
 	}
 }
 
+void PPU::vdma() {
+}
+
 // name is a bit ambigious but checks if we're going to the next line with the amount of cycles
 bool PPU::_nextLine() {
 	if (cycles >= 114) {
@@ -650,14 +636,14 @@ void PPU::render(std::function<void (Framebuffer&)> callback) {
 	}
 }
 
-static PaletteData basic = {0, 1, 2, 3};
+static PaletteData basic{};
 template<size_t N>
 void rowHelper(std::array<u8, N>& outData, size_t index, u8 bottom, u8 top, bool color0Invis = false, PaletteData& pallete = basic) {
 	for (int x = 0; x < 8; ++x) {
 		u8 bit = 7 - x;
 		u8 color = (getBit(top, bit) << 1) | getBit(bottom, bit);
 
-		auto& pixel = (color0Invis && color == pallete.color0) ? PPU::invisPixel : PPU::paletteColors[pallete[color]];
+		auto& pixel = (color0Invis && color == pallete[0]) ? PPU::invisPixel : PPU::paletteColors[pallete[color]];
 		std::copy_n((u8*)&pixel, 4, outData.begin() + ((index + x) * 4));
 	}
 }

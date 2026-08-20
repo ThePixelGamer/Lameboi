@@ -98,6 +98,8 @@ class Interrupt;
 struct alignas(1) Sprite {
 	u8 yPos, xPos, tile, flags;
 
+	u8 getCGBPal() { return flags & 0x7; }
+	bool getBank() { return flags & 0x8; }
 	bool useOBP1() { return flags & 0x10; }
 	bool xFlip() { return flags & 0x20; }
 	bool yFlip() { return flags & 0x40; }
@@ -115,36 +117,17 @@ struct alignas(1) Sprite {
 };
 
 struct alignas(1) PaletteData {
-	u8 color0 : 2;
-	u8 color1 : 2;
-	u8 color2 : 2;
-	u8 color3 : 2;
+	u8 color;
 
-	PaletteData() :
-		color0(0),
-		color1(0),
-		color2(0),
-		color3(0) {}
+	PaletteData() : color(0b11'10'01'00) {}
 
-	PaletteData(u8 c0, u8 c1, u8 c2, u8 c3) :
-		color0(c0),
-		color1(c1),
-		color2(c2),
-		color3(c3) {}
-
-	PaletteData& operator=(u8 c) {
-		color0 = (c);
-		color1 = (c >> 2);
-		color2 = (c >> 4);
-		color3 = (c >> 6);
+	PaletteData& operator=(u8 v) {
+		color = v;
 		return *this;
 	}
 
 	bool operator==(PaletteData& pal) {
-		return color0 == pal.color0
-			&& color1 == pal.color1
-			&& color2 == pal.color2
-			&& color3 == pal.color3;
+		return color == pal.color;
 	}
 
 	bool operator!=(PaletteData& pal) {
@@ -153,30 +136,37 @@ struct alignas(1) PaletteData {
 
 	u8 operator[](u8 idx) const {
 		switch (idx) {
-			case 0: return color0;
-			case 1: return color1;
-			case 2: return color2;
-			case 3: return color3;
+			case 0: return color & 0x3;
+			case 1: return (color >> 2) & 0x3;
+			case 2: return (color >> 4) & 0x3;
+			case 3: return (color >> 6) & 0x3;
 			default: return 0;
 		}
 	}
 
-	u8 read() {
-		return (color3 << 6) | (color2 << 4) | (color1 << 2) | (color0);
+	operator u8&() {
+		return color;
 	}
 };
 
 struct Pixel {
-	static constexpr addr LB_BLANK = 0;
+	// mode 1 == 15-bit color
+	u16 mode : 1 = 0;
+	u16 color : 15 = 0;
 
-	u32 tile = 0;
-	PaletteData palette;
-
-	addr src : 9 = 0;
-	u8 color : 2 = 0;
+	// metainfo
+	u32 src = 0;
 	u8 x : 3 = 0;
 	u8 y : 3 = 0;
-	bool obj : 1 = false;
+
+	union {
+		// dmg
+		PaletteData palette{};
+		// cgb
+		u16 colors[4];
+	};
+
+	Color getColor();
 };
 
 struct Framebuffer {
@@ -188,6 +178,7 @@ struct Framebuffer {
 class PPU {
 public:
 	constexpr static size_t T = 8;
+	constexpr static size_t VRAM_SIZE = Memory::PAGE_SIZE * 2;
 
 	static Pixel DefaultPixel;
 	Manifest bios;
@@ -195,6 +186,7 @@ public:
 
 private:
 	const bool& inBios;
+	Gameboy& gb;
 	Memory& bus;
 	Debugger& debug;
 	Interrupt& interrupt;
@@ -367,9 +359,25 @@ private:
 	void oamScan();
 	void hblank();
 	void vblank();
+	void vdma();
 
 	bool _nextLine();
 
-	u16 _fetchTileAddr(bool method8000, u8 tileoffset);
 	std::array<u8, 2> _fetchTileLine(bool method8000, u8 yoffset, u8 tileoffset);
 };
+
+inline Color Pixel::getColor() {
+	if (mode) {
+		int r = color & 0x1f;
+		int g = (color >> 5) & 0x1f;
+		int b = (color >> 10) & 0x1f;
+
+		r = (r << 3) | (r >> 2);
+		g = (g << 3) | (g >> 2);
+		b = (b << 3) | (b >> 2);
+		return Color(r, g, b);
+	}
+	else {
+		return PPU::paletteColors[color];
+	}
+}
