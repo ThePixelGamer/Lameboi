@@ -16,7 +16,12 @@ bool Gameboy::loadRom(const std::string& romPath, bool start, bool power) {
 		return false;
 	}
 
-	auto model = cart.getHeader()->getModel();
+	auto model = (config.model == Model::AUTO) ? cart.getHeader()->getModel() : *config.model;
+
+	cgbMode = model == Model::CGB;
+
+	bus.install(model);
+	cart.install();
 	apu.install(bus);
 	cpu.install(bus, model);
 	ppu.install(bus, model);
@@ -93,12 +98,15 @@ void Gameboy::run() {
 	}
 }
 
-void Gameboy::step() {
-	apu.update();
-	ppu.update();
-	timer.update();
+void Gameboy::step(bool doubleSpeed) {
+	apu.update(doubleSpeed);
+	ppu.update(doubleSpeed);
 
-	//serial.print();
+	u8 count = 1 << doubleSpeed;
+	while (count--) {
+		timer.update();
+		//serial.print();
+	}
 }
 
 void Gameboy::clean() {

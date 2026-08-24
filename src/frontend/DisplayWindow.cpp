@@ -163,7 +163,7 @@ void DisplayWindow::updateBuffer() {
 		}
 		else {
 			for (size_t p = 0; p < (display.W * display.H); ++p) {
-				const Color pixel = buffer.pixels[p].getColor();
+				const Color pixel = buffer.pixels[p].getColor(ppu.model);
 
 				size_t idx = p * 4;
 				display.data()[idx] = pixel.r;

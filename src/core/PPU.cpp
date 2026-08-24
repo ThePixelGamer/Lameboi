@@ -31,7 +31,7 @@ Pixel PPU::DefaultPixel;
 
 PPU::PPU(Gameboy& gb) :
 	inBios(gb.cpu.inBios),
-	gb(gb),
+	core(gb),
 	bus(gb.bus),
 	debug(gb.debug),
 	interrupt(gb.interrupt),
@@ -39,9 +39,13 @@ PPU::PPU(Gameboy& gb) :
 	vram_backing(Memory::PAGE_SIZE * 4),
 	vram_tag_backing(Memory::PAGE_SIZE * 2) {
 	clean();
+
+	model = Model::DMG;
 }
 
-void PPU::install(Memory& bus, Model::Type model) {
+void PPU::install(Memory& bus, Model::Type type) {
+	model = type;
+
 	vram = vram_backing.map();
 	vram_bank = vram_backing.map(bus.Mem() + 0x8000, 0x0000, Memory::PAGE_SIZE * 2);
 	
@@ -69,15 +73,10 @@ void PPU::install(Memory& bus, Model::Type model) {
 	for (u8 i = 0x40; i < 0x4C; ++i) bus.register_io(i, io);
 
 	if (model == Model::CGB) {
-		cgbMode = true;
-		
 		bus.register_io(0x4F, io);
 
 		for (u8 i = 0x51; i < 0x56; ++i) bus.register_io(i, io);
-		for (u8 i = 0x68; i < 0x6C; ++i) bus.register_io(i, io);
-	}
-	else {
-		cgbMode = false;
+		for (u8 i = 0x68; i < 0x6D; ++i) bus.register_io(i, io);
 	}
 }
 
@@ -116,7 +115,6 @@ void PPU::clean() {
 	renderSprites.fill(0);
 
 	cycles = 0;
-	frameCycles = 0;
 	lastTile = 0;
 	last_stat = false;
 
@@ -130,10 +128,14 @@ void PPU::clean() {
 
 	framesPresented = 0;
 	activeVDMA = false;
+
+	srcVDMA = 0;
+	dstVDMA = 0;
+	curVDMA = 0;
 }
 
 // Called every CPU m-cycle
-void PPU::update() {
+void PPU::update(bool doubleSpeed) {
 	// DMA Transfer, 1 byte per M Cycle
 	if (dma != 0 && dma <= DMA_SIZE) {
 		u8 idx = (DMA_SIZE - dma);
@@ -146,8 +148,7 @@ void PPU::update() {
 		return;
 	}
 
-	++cycles;
-	++frameCycles;
+	cycles += (doubleSpeed) ? 2 : 4;
 
 	bool stat_state = false;
 
@@ -232,6 +233,8 @@ u8 PPU::read(u8 reg) {
 		case 0x6A: return (OBPI.autoInc << 6) | OBPI.addr;
 		case 0x6B: return objColors[OBPI.addr];
 
+		case 0x6C: return u8(dmgObjPriority);
+
 		default:
 			//log
 			return 0xFF;
@@ -279,15 +282,17 @@ void PPU::write(u8 reg, u8 value) {
 		case 0x4A: WY = value; break;
 		case 0x4B: WX = value; break;
 
-		case 0x4F: 
-			VBK = value;
+		case 0x4F:
+			if (VBK != value) {
+				VBK = value;
 
-			vram_bank = {};
-			vram_bank = vram_backing.map(bus.Mem() + 0x8000, Memory::PAGE_SIZE * 2 * (value & 0x1), Memory::PAGE_SIZE * 2);
+				vram_bank = {};
+				vram_bank = vram_backing.map(bus.Mem() + 0x8000, VRAM_SIZE * (VBK & 0x1), VRAM_SIZE);
+			}
 			break;
 
 		case 0x51: 
-			srcVDMA &= 0xFF;
+			srcVDMA &= 0xF0;
 			srcVDMA |= value << 8;
 			break;
 
@@ -297,8 +302,8 @@ void PPU::write(u8 reg, u8 value) {
 			break;
 			
 		case 0x53: 
-			dstVDMA &= 0xFF;
-			dstVDMA |= (0x80 | (value & 0x1F)) << 8;
+			dstVDMA &= 0xF0;
+			dstVDMA |= value << 8;
 			break;
 			
 		case 0x54:
@@ -313,18 +318,18 @@ void PPU::write(u8 reg, u8 value) {
 			if (!modeVDMA && !activeVDMA) {
 				for (int i = 0; i < curVDMA; ++i) {
 					bus.write(dstVDMA + i, bus.read(srcVDMA + i));
-					if (i & 0x1) gb.step();
+					if (i & 0x1) core.step();
 				}
 			}
 			else {
 				activeVDMA = true;
+				LB_INFO(PPU, "0x{:04X} -> 0x{:04X} ({})", srcVDMA, dstVDMA, curVDMA);
 			}
 
-			LB_INFO(PPU, "{} 0x{:04X} -> 0x{:04X}", modeVDMA, srcVDMA, dstVDMA);
 			break;
 		
 		case 0x68: 
-			BGPI.autoInc = value >> 6;
+			BGPI.autoInc = value >> 7;
 			BGPI.addr = value & 0x3F;
 			break;
 
@@ -334,7 +339,7 @@ void PPU::write(u8 reg, u8 value) {
 			break;
 
 		case 0x6A:
-			OBPI.autoInc = value >> 6;
+			OBPI.autoInc = value >> 7;
 			OBPI.addr = value & 0x3F;
 			break;
 
@@ -342,6 +347,8 @@ void PPU::write(u8 reg, u8 value) {
 			objColors[OBPI.addr] = value;
 			if (OBPI.autoInc) OBPI.addr++;
 			break;
+
+		case 0x6C: dmgObjPriority = value & 0x1;
 
 		default: break;
 	}
@@ -352,7 +359,7 @@ void PPU::writeIntercept(addr dst, u32 src, u8 data) {
 
 	u16 vramOffset = dst & 0x1FFF;
 
-	vram_src_locations[vramOffset] = src;
+	vram_src_locations[(VBK & 0x1) * VRAM_SIZE + vramOffset] = src;
 
 	// 0x8000 - 0x97FF
 	if (vramOffset < 0x1800) {
@@ -370,7 +377,7 @@ void PPU::setMode(Mode mode) {
 	// Searching -> Drawing turn off VRAM
 	// Drawing -> HBlank turn on everything
 	// HBlank -> VBlank do nothing
-	if (true) {
+	if (false) {
 		switch (STAT.mode) {
 			case Drawing: 
 				bus.buses[vram_bus.id].enable = false;
@@ -392,10 +399,10 @@ u16 _fetchTileAddr(bool method8000, u8 tileoffset, u8 bank = 0) {
 	u16 addr = PPU::VRAM_SIZE * bank;
 
 	if (tileoffset & 0x80) {
-		addr = 0x800;
+		addr += 0x800;
 	}
 	else if (!method8000) {
-		addr = 0x1000;
+		addr += 0x1000;
 	}
 
 	return addr + ((tileoffset & 0x7F) * 16);
@@ -407,7 +414,7 @@ std::array<u8, 2> PPU::_fetchTileLine(bool method8000, u8 yoffset, u8 tileoffset
 }
 
 void PPU::scanline() {
-	if (cycles < 63) {
+	if (cycles < 252) {
 		return;
 	}
 	
@@ -415,31 +422,45 @@ void PPU::scanline() {
 		struct Pixel {
 			u8 col : 2 = 0;
 			u8 pal : 3 = 0;
-			u8 sprPr : 1 = 0;
-			u8 bgPr : 1 = 0;
+			u8 pr : 1 = 0;
 		};
 
-		std::deque<Pixel> line = {};
+		std::array<Pixel, 16> line = {};
+		u8 head : 4, tail : 4;
+		u8 count;
+
+		u8 x : 5 = 0;
+
+		FIFO() { reset(); }
 
 		void push(Pixel&& pixel) {
-			line.push_back(pixel);
+			if (size() != line.size()) {
+				line[head++] = std::move(pixel);
+				count++;
+			}
 		}
 
 		Pixel pop() {
-			auto p = line.front();
-			line.pop_front();
-			return p;
+			if (size() == 0) return {};
+			
+			Pixel out = line[tail++];
+			count--;
+			return out;
+		}
+
+		void reset() {
+			head = 0;
+			tail = 0;
+			count = 0;
 		}
 
 		u8 size() {
-			return line.size();
+			return count;
 		}
 
 		Pixel& operator[](size_t i) {
-			return line[i];
+			return line[(tail + i) & 0xF];
 		}
-
-		u8 x : 5 = 0;
 	} bg, obj;
 
 	const auto map0 = 0x1800;
@@ -452,8 +473,8 @@ void PPU::scanline() {
 	u16 yOffset = (y / T) * tileMaxX;
 
 	for (u16 p = 0; p < 160; ++p) {
-		if (windowEnabled && LCDC.windowDisplay && (WX - 7) == p && LY >= WY) {
-			bg.line = {};
+		if (windowEnabled && LCDC.windowDisplay && (std::max(WX - 7, 0)) == p && LY >= WY) {
+			bg.reset();
 			baseMap = (LCDC.windowMap) ? map1 : map0;
 			bg.x = 0;
 			y = windowLines++;
@@ -461,21 +482,28 @@ void PPU::scanline() {
 		}
 
 		while (bg.size() < 9) {
-			u8 tile = baseMap + yOffset + bg.x++;
-			u8 bgattr = (cgbMode) ? vram[VRAM_SIZE + tile] : (LCDC.displayPriority << 7);
-			addr tileAddr = _fetchTileAddr(LCDC.tileSet, vram[tile], bgattr & 0x8);
-			addr lineAddr = tileAddr + (y % T) * 2;
+			u16 tile = baseMap + yOffset + bg.x++;
+ 			u8 bgattr = (core.cgbMode) ? vram[VRAM_SIZE + tile] : (LCDC.displayPriority << 7);
+			addr tileAddr = _fetchTileAddr(LCDC.tileSet, vram[tile], bool(bgattr & 0x8));
+
+			u8 tileY = (bgattr & 0x40) ? 7 - y : y; 
+			addr lineAddr = tileAddr + (tileY % T) * 2;
 			
 			u8 b_col = vram[lineAddr], t_col = vram[lineAddr + 1]; 
 			for (u8 c = 0; c < 8; ++c) {
 				u8 bitX = (bgattr & 0x20) ? 7 - c : c;
 					
 				bg.push({
-					.col = u8((getBit(t_col, 7 - c) << 1) | getBit(b_col, 7 - c)),
+					.col = u8((getBit(t_col, 7 - bitX) << 1) | getBit(b_col, 7 - bitX)),
 					.pal = u8(bgattr & 0x7), 
-					.bgPr = bool(bgattr & 0x80)
+					.pr = bool(bgattr & 0x80)
 				});
 			}
+		}
+
+		if (p == 0) {
+			for (u8 i = 0; i < SCX % T; ++i)
+				bg.pop();
 		}
 
 		while (obj.size() < 8) {
@@ -503,7 +531,7 @@ void PPU::scanline() {
 					tileOffset = (objY < 8) ? (sprite.tile & 0xFE) : (sprite.tile | 0x1);
 				}
 
-				addr tileAddr = _fetchTileAddr(true, tileOffset);
+				addr tileAddr = _fetchTileAddr(true, tileOffset, (core.cgbMode) ? sprite.getBank() : 0);
 				addr lineAddr = tileAddr + (objY % 8) * 2;
 
 				u8 b_col = vram[lineAddr], t_col = vram[lineAddr + 1]; 
@@ -511,10 +539,11 @@ void PPU::scanline() {
 					u8 bitX = (sprite.xFlip()) ? 7 - c : c;
 					
 					auto& pixel = obj[c];
-					if (pixel.col == 0) {
-						pixel.col = u8((getBit(t_col, 7 - bitX) << 1) | getBit(b_col, 7 - bitX));
-						pixel.pal = (cgbMode) ? sprite.getCGBPal() : sprite.useOBP1();
-						pixel.bgPr = sprite.behindBG();
+					u8 newCol = (getBit(t_col, 7 - bitX) << 1) | getBit(b_col, 7 - bitX);
+					if ((core.cgbMode && newCol != 0) || pixel.col == 0) {
+						pixel.col = newCol;
+						pixel.pal = (core.cgbMode) ? sprite.getCGBPal() : sprite.useOBP1();
+						pixel.pr = sprite.behindBG();
 					}
 				}
 			}
@@ -525,25 +554,46 @@ void PPU::scanline() {
 		auto bgPixel = bg.pop();
 		auto objPixel = obj.pop();
 
-		if (!cgbMode) {
-			if (objPixel.col != 0 && (!objPixel.bgPr || bgPixel.col == 0)) {
+		auto objWin = [&](bool cgbMode) {
+			if (objPixel.col != 0) {
+				if (cgbMode) {
+					if (!LCDC.displayPriority) {
+						return true;
+					}
+				}
+
+				if (!objPixel.pr) {
+					if (!cgbMode || !bgPixel.pr) {
+						return true;
+					}
+				}
+
+				if (bgPixel.col == 0) {
+					return true;
+				}
+			}
+
+			return false;
+		};
+
+		if (objWin(core.cgbMode)) {
+			if (model == Model::CGB) {
+				auto colIdx = objPixel.pal * 8 + objPixel.col * 2;
+				pixel.color = objColors[colIdx + 1] << 8 | objColors[colIdx];
+			}
+			else {
 				pixel.palette = (objPixel.pal) ? OBP1 : OBP0;
 				pixel.color = pixel.palette[objPixel.col];
 			}
-			else {
-				pixel.color = (bgPixel.bgPr) ? BGP[bgPixel.col] : 0;
-				pixel.palette = BGP;
-			}
 		}
 		else {
-			pixel.mode = 1;
-			if (objPixel.col != 0 && (!objPixel.bgPr || bgPixel.col == 0)) {
-				//pixel.colors = (objPixel.pal) ? OBP1 : OBP0;
-				pixel.color = pixel.palette[objPixel.col];
+			if (model == Model::CGB) {
+				auto colIdx = bgPixel.pal * 8 + bgPixel.col * 2;
+				pixel.color = (core.cgbMode || bgPixel.pr) ? bgColors[colIdx + 1] << 8 | bgColors[colIdx] : 0x7FFF;
 			}
 			else {
-				auto colIdx = bgPixel.pal * 8 + bgPixel.col * 2;
-				pixel.color = bgColors[colIdx + 1] << 8 | bgColors[colIdx];
+				pixel.color = (bgPixel.pr) ? BGP[bgPixel.col] : 0;
+				pixel.palette = BGP;
 			}
 		}
 	}
@@ -553,7 +603,7 @@ void PPU::scanline() {
 
 void PPU::oamScan() {
 	//scan 2 sprites for every cycle
-	while (spritesScanned < (cycles * 2) && spritesScanned != 40 && loadedSprites != 10) {
+	while (spritesScanned < (cycles / 2) && spritesScanned != 40 && loadedSprites != 10) {
 		Sprite& sprite = sprites[spritesScanned];
 
 		if ((LY + 16) >= sprite.yPos &&
@@ -565,7 +615,7 @@ void PPU::oamScan() {
 		++spritesScanned;
 	}
 
-	if (cycles == 20) {
+	if (cycles >= 80) {
 		setMode(Drawing);
 		spritesScanned = 0;
 	}
@@ -599,7 +649,6 @@ void PPU::vblank() {
 
 	if (_nextLine() && LY == 154) {
 		// reset after the 10 "lines" of vblank
-		frameCycles = 0;
 		windowLines = 0;
 		LY = 0;
 		vblankHelper = false;
@@ -613,8 +662,8 @@ void PPU::vdma() {
 
 // name is a bit ambigious but checks if we're going to the next line with the amount of cycles
 bool PPU::_nextLine() {
-	if (cycles >= 114) {
-		cycles -= 114;
+	if (cycles >= 456) {
+		cycles -= 456;
 
 		LY++;
 		return true;

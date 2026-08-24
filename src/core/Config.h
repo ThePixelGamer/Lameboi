@@ -3,6 +3,7 @@
 #include <map>
 #include <string>
 
+#include "Model.h"
 #include "util/Color.h"
 #include "util/Settings.h"
 #include "util/Types.h"
@@ -17,6 +18,7 @@ struct Config {
 	Setting<std::string> biosDir{ "bios/" }; // should resolve to a full directory when saving
 	Setting<bool> fastBios{ false }; 
 	Setting<std::vector<std::string>> recentRoms{ {} };
+	Setting<Model::Type> model{ Model::AUTO };
 
 	// Video
 	Setting<std::string> currentPalette{ "default" };

@@ -8,6 +8,16 @@
 
 const std::string configPath = "lameboi.json";
 
+namespace Model {
+
+NLOHMANN_JSON_SERIALIZE_ENUM(Type, {
+	{AUTO, "auto"},
+	{DMG, "dmg"},
+	{CGB, "cgb"},
+})
+	
+}
+
 namespace nlohmann {
 template<>
 struct adl_serializer<PaletteProfile> {
@@ -53,13 +63,13 @@ void Config::load() {
 	json j;
 	cfg >> j;
 
-	// General/Input
+	// General
 	inputOverlay.deserialize(j, "inputOverlay");
 	biosDir.deserialize(j, "biosDir");
 	fastBios.deserialize(j, "fastBios");
 	recentRoms.deserialize(j, "recentRoms");
-	oppositeDir.deserialize(j, "oppositeDir");
-
+	model.deserialize(j, "model");
+	
 	// Video
 	paletteProfiles.deserialize(j, "palettes");
 
@@ -67,10 +77,13 @@ void Config::load() {
 		currentPalette.deserialize(j["selectedPalette"]);
 		PPU::paletteColors = paletteProfiles->at(currentPalette);
 	}
-
+	
 	// Audio
 	volume.deserialize(j, "volume");
 	audioSync.deserialize(j, "audioSync");
+	
+	// Input
+	oppositeDir.deserialize(j, "oppositeDir");
 }
 
 void Config::save() {
@@ -84,6 +97,7 @@ void Config::save() {
 	j["biosPath"] = biosDir.serialize();
 	j["fastBios"] = fastBios.serialize();
 	j["recentRoms"] = recentRoms.serialize();
+	j["model"] = model.serialize();
 
 	// Video
 	j["selectedPalette"] = currentPalette.serialize();

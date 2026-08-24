@@ -240,7 +240,7 @@ void CPU::install(Memory& bus, Model::Type model) {
 			[](void* d, addr a) -> u8 {
 				auto cpu = static_cast<CPU*>(d);
 				switch (a & 0xFF) {
-					case 0x4C: return cpu->dmgMode << 2;
+					case 0x4C: return !cpu->core.cgbMode << 2;
 					case 0x4D: return (cpu->doubleSpeed << 7) | cpu->speedSwitch; 
 				}
 				return 0xFF;
@@ -249,9 +249,9 @@ void CPU::install(Memory& bus, Model::Type model) {
 				auto cpu = static_cast<CPU*>(d);
 				switch (a & 0xFF) {
 					case 0x4C:
-					if (cpu->inBios)
-					cpu->dmgMode = v & 0x4;
-					break;
+						if (cpu->inBios && v & 0xC)
+							cpu->core.cgbMode = false;
+						break;
 					case 0x4D: cpu->speedSwitch = v & 0x1; break;
 				}
 			},
@@ -329,6 +329,9 @@ void CPU::reset() {
 	handler = false;
 	instrCount = 0;
 	inBios = true;
+
+	doubleSpeed = false;
+	speedSwitch = false;
 }
 
 std::string CPU::log() {
@@ -338,7 +341,7 @@ std::string CPU::log() {
 
 // IL functions
 void CPU::stepComponents() {
-	core.step();
+	core.step(doubleSpeed);
 }
 
 CPU::ReferenceData CPU::read(addr a) {
@@ -393,6 +396,7 @@ void CPU::stop() {
 	if (speedSwitch) {
 		speedSwitch = false;
 		doubleSpeed = !doubleSpeed;
+		LB_INFO(CPU, "Speed switch");
 	}
 }
 

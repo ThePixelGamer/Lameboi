@@ -120,6 +120,6 @@ public:
 
 private:
 	void reloadFrequency() {
-		frequencyTimer = (2048 - frequency);
+		frequencyTimer = (2048 - frequency) * 4;
 	}
 };

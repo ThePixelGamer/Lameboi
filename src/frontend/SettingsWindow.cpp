@@ -71,6 +71,16 @@ void SettingsWindow::render() {
 }
 
 void SettingsWindow::renderGeneralTab() {
+	if (ImGui::BeginCombo("Model##GBModel", Model::to_str(config.model))) {
+		for (auto& model : { Model::AUTO, Model::DMG, Model::CGB }) {
+			if (ImGui::Selectable(Model::to_str(model))) {
+				config.model = model;
+			}
+		}
+
+		ImGui::EndCombo();
+	}
+
 	ImGui::InputText("##bios_path", config.biosDir.get()->data(), ImGuiInputTextFlags_ReadOnly);
 
 	ImGui::SameLine();
@@ -78,7 +88,6 @@ void SettingsWindow::renderGeneralTab() {
 		biosPath = std::make_unique<pfd::select_folder>("Select bios directory", "C:\\");
 	}
 	
-
 	if (biosPath && biosPath->ready()) {
 		auto result = biosPath->result();
 		if (!result.empty()) {

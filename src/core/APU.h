@@ -12,7 +12,7 @@ class Memory;
 
 class APU {
 private:
-	constexpr static int clock = 1048576;
+	constexpr static int clock = 4 << 20;
 	constexpr static int frequency = 44100;
 	constexpr static int samples = 512;
 	constexpr static u8 channels = 2;
@@ -58,8 +58,7 @@ public:
 
 	void clean();
 
-	//called in Scheduler::newMCycle
-	void update();
+	void update(bool doubleSpeed);
 
 	u8 read(u8 reg);
 	void write(u8 reg, u8 value);

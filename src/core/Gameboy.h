@@ -31,6 +31,8 @@ public:
 	std::atomic_bool emuRun = false;
 
 	// Internal
+	bool cgbMode;
+
 	Debugger debug;
 	Memory bus;
 	Cartridge cart;
@@ -117,7 +119,7 @@ public:
 		}
 	}
 
-	void step();
+	void step(bool doubleSpeed = false);
 
 private:
 	void run();

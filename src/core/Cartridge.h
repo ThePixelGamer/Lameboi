@@ -187,6 +187,7 @@ public:
 	}
 
 	bool load(const std::filesystem::path& romPath);
+	void install();
 	void unload();
 
 	// helper functions

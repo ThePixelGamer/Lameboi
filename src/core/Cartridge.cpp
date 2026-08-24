@@ -138,7 +138,11 @@ bool Cartridge::load(const std::filesystem::path& romPath) {
 		LB_WARN(MBC, "Mismatch checksum {} != {}", chksum, hChksum);
 	}
 	
-	bus.install(getHeader()->getModel());
+	connected = true;
+	return true;
+}
+
+void Cartridge::install() {
 	bank0 = 0xFF;
 	bank1 = 0xFFFF;
 	switchBank0(0);
@@ -161,6 +165,7 @@ bool Cartridge::load(const std::filesystem::path& romPath) {
 		}
 	}
 
+	bankRam = 0xFF;
 	// todo: memorymap the ram
 	if (has(BATTERY)) {
 		auto savePath = getSavePath();
@@ -172,6 +177,7 @@ bool Cartridge::load(const std::filesystem::path& romPath) {
 		if (std::filesystem::exists(savePath)) {
 			ram_backing = MemoryMap{savePath, Access::RW, ramSize};
 			ram = ram_backing.map();
+			switchRam(0);
 
 			if (has(TIMER)) {
 				// todo: update rtc registers since last game run
@@ -183,10 +189,8 @@ bool Cartridge::load(const std::filesystem::path& romPath) {
 	else if (ramSize != 0) {
 		ram_backing = MemoryMap{ramSize};
 		ram = ram_backing.map();
+		switchRam(0);
 	}
-	
-	connected = true;
-	return true;
 }
 
 void Cartridge::switchBank0(u8 bank) {

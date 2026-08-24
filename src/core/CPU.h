@@ -86,9 +86,8 @@ public:
 	std::vector<u8> bios;
 	bool inBios;
 
-	bool dmgMode = true;
-	bool doubleSpeed = false;
-	bool speedSwitch = false;
+	bool doubleSpeed;
+	bool speedSwitch;
 
 private:
 	std::array<u32, 0x8000> src_locations;

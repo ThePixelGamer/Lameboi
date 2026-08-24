@@ -150,8 +150,7 @@ struct alignas(1) PaletteData {
 };
 
 struct Pixel {
-	// mode 1 == 15-bit color
-	u16 mode : 1 = 0;
+	// index into palette lut (2 bits DMG, 15 bits CGB)
 	u16 color : 15 = 0;
 
 	// metainfo
@@ -166,7 +165,7 @@ struct Pixel {
 		u16 colors[4];
 	};
 
-	Color getColor();
+	Color getColor(Model::Type model);
 };
 
 struct Framebuffer {
@@ -184,9 +183,11 @@ public:
 	Manifest bios;
 	Manifest game;
 
+	Model::Type model;
+
 private:
 	const bool& inBios;
-	Gameboy& gb;
+	Gameboy& core;
 	Memory& bus;
 	Debugger& debug;
 	Interrupt& interrupt;
@@ -198,8 +199,6 @@ private:
 	MemoryMap::ReservedSection vram_tag;
 
 public:
-	bool cgbMode;
-
 	// RAM
 	MemoryMap::Section vram;
 	MemoryMap::ReservedSection vram_bank; // 0x8000
@@ -245,15 +244,17 @@ private:
 	u8 VBK; // IO/4F VRAM bank
 
 	struct PalleteIndex {
-		u8 addr : 5;
+		u8 addr : 6;
 		u8 : 1;
 		u8 autoInc : 1;
 	} BGPI, OBPI;
 
 	u16 srcVDMA, dstVDMA;
 	bool modeVDMA;
-	u8 curVDMA;
+	u16 curVDMA;
 	bool activeVDMA;
+	
+	bool dmgObjPriority;
 
 	//internal
 	int cycles;
@@ -296,6 +297,25 @@ public:
 		0x0f380f
 	};
 
+	static inline const auto cgbPaletteColors= []() {
+		std::array<Color, 0x8000> lut;
+
+		for (u16 c = 0; c < lut.size(); ++c) {
+
+			int r = c & 0x1f;
+			int g = (c >> 5) & 0x1f;
+			int b = (c >> 10) & 0x1f;
+			
+			r = (r << 3) | (r >> 2);
+			g = (g << 3) | (g >> 2);
+			b = (b << 3) | (b >> 2);
+
+			lut[c] =  Color(r, g, b);
+		}
+
+		return lut;
+	}();
+
 	static inline bool windowEnabled = true;
 	static inline bool spritesEnabled = true;
 
@@ -303,7 +323,7 @@ public:
 
 	//helper for dumpSprites
 	inline static Color invisPixel{ u32(0) };
-	std::array<u32, 0x2000> vram_src_locations{};
+	std::array<u32, VRAM_SIZE * 2> vram_src_locations{};
 
 	enum Mode {
 		HBlank,
@@ -317,7 +337,7 @@ public:
 	void install(Memory& bus, Model::Type model);
 
 	void clean();
-	void update();
+	void update(bool doubleSpeed);
 	
 	u8 read(u8 reg);
 	void write(u8 reg, u8 value);
@@ -366,18 +386,6 @@ private:
 	std::array<u8, 2> _fetchTileLine(bool method8000, u8 yoffset, u8 tileoffset);
 };
 
-inline Color Pixel::getColor() {
-	if (mode) {
-		int r = color & 0x1f;
-		int g = (color >> 5) & 0x1f;
-		int b = (color >> 10) & 0x1f;
-
-		r = (r << 3) | (r >> 2);
-		g = (g << 3) | (g >> 2);
-		b = (b << 3) | (b >> 2);
-		return Color(r, g, b);
-	}
-	else {
-		return PPU::paletteColors[color];
-	}
+inline Color Pixel::getColor(Model::Type model) {
+	return ((model == Model::CGB) ? PPU::cgbPaletteColors.data() : PPU::paletteColors.data())[color];
 }
