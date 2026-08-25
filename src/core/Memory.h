@@ -16,6 +16,13 @@ public:
 	using WHandler = void (*)(void*, addr, u8);
 	static constexpr size_t PAGE_SIZE = 0x1000;
 	static constexpr size_t ADDRESS_SPACE = PAGE_SIZE * 0x10;
+	static constexpr size_t TAG_SPACE = ADDRESS_SPACE;
+
+	struct alignas(1) BusTag {
+		u8 id : 6 = 0;
+		bool read : 1;
+		bool write : 1;
+	};
 
     enum TAG_TYPES : size_t {
         NOP = PAGE_SIZE * 0, 
@@ -27,11 +34,11 @@ public:
 
 	ReservedSpace addressSpace;
 
-	struct alignas(1) BusTag {
-		u8 id : 6 = 0;
-		bool read : 1;
-		bool write : 1;
-	};
+	u8* Mem() { return addressSpace.get(); }
+	BusTag* Tags() { return addressSpace.get<BusTag>() + ADDRESS_SPACE; }
+
+	Gameboy& core;
+	u32& Sources(addr a);
 
 	struct Bus {
 		void* data = nullptr;
@@ -41,34 +48,54 @@ public:
 		bool enable = true;
 	};
 
+	struct Chunk {
+		void* base;
+		size_t pageSize;
+		u16 activeBank;
+		u16 banks = 1;
+
+		MemoryMap::ReservedSection section;
+
+		void setup(void* b, u8 pages = 1) {
+			base = b;
+			pageSize = PAGE_SIZE * pages;
+			activeBank = std::numeric_limits<u16>::max();
+		}
+
+		bool map(MemoryMap& backing, u16 bank) {
+			if (bank == activeBank) return false;
+
+			activeBank = bank;
+			unmap();
+			section = backing.map(base, pageSize * bank, pageSize);
+
+			return true;
+		}
+
+		void unmap() {
+			section = {};
+		}
+
+		operator size_t() const {
+			return pageSize * banks;
+		}
+	};
+
 	std::array<Bus, 1 << 6> buses {};
 	u8 busCount = 1;
 
 	// 8 pages for wram and 1 page for hram
 	MemoryMap wram_backing {PAGE_SIZE * 9};
-	MemoryMap::ReservedSection wram, wram_bank, eram;
-	MemoryMap::ReservedSection hram_io;
-	MemoryMap tag_backing { size_t(TAG_TYPES::SIZE) };
+	std::array<u32, PAGE_SIZE * 9> wram_sources;
+	Chunk wram0, wram1, eram, hram_io;
+	MemoryMap tag_backing { TAG_TYPES::SIZE };
 	MemoryMap::ReservedSection wram_tags[4];
 
 	Memory(Gameboy&);
 
 	void install(Model::Type model);
 	
-	void switchWRAM(u8 bank) {
-		bank &= 0x7;
-		if (bank == 0) bank = 1;
-		Mem()[0xFF70] = 0xF8 | bank;
-		
-		wram_bank = {};
-		wram_bank = wram_backing.map(Mem() + 0xD000, PAGE_SIZE * bank, PAGE_SIZE);
-	}
-	
 	void clean() {}
-
-	u8* Mem() { return addressSpace.get(); }
-	BusTag* Tags() { return addressSpace.get<BusTag>() + ADDRESS_SPACE; }
-
 	u8 read(addr loc) {
 		auto tag = Tags()[loc];
 		auto& bus = buses[tag.id];

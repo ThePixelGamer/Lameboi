@@ -36,8 +36,8 @@ PPU::PPU(Gameboy& gb) :
 	debug(gb.debug),
 	interrupt(gb.interrupt),
 	
-	vram_backing(Memory::PAGE_SIZE * 4),
-	vram_tag_backing(Memory::PAGE_SIZE * 2) {
+	vram_backing(VRAM_SIZE * 2),
+	vram_tag_backing(VRAM_SIZE) {
 	clean();
 
 	model = Model::DMG;
@@ -46,11 +46,14 @@ PPU::PPU(Gameboy& gb) :
 void PPU::install(Memory& bus, Model::Type type) {
 	model = type;
 
+	vram_chunk.setup(bus.Mem() + 0x8000, 2);
+	vram_chunk.banks = 2;
+
 	vram = vram_backing.map();
-	vram_bank = vram_backing.map(bus.Mem() + 0x8000, 0x0000, Memory::PAGE_SIZE * 2);
+	vram_chunk.map(vram_backing, 0);
 	
 	vram_bus = bus.register_bus(nullptr, nullptr, nullptr);
-	
+
 	vram_tag = vram_tag_backing.map(bus.Tags() + 0x8000, 0, Memory::PAGE_SIZE * 2);
 	std::ranges::fill(std::span(vram_tag.get<Memory::BusTag>(), Memory::PAGE_SIZE * 2), vram_bus);
 	
@@ -73,6 +76,8 @@ void PPU::install(Memory& bus, Model::Type type) {
 	for (u8 i = 0x40; i < 0x4C; ++i) bus.register_io(i, io);
 
 	if (model == Model::CGB) {
+		dmgObjPriority = false;
+
 		bus.register_io(0x4F, io);
 
 		for (u8 i = 0x51; i < 0x56; ++i) bus.register_io(i, io);
@@ -132,6 +137,8 @@ void PPU::clean() {
 	srcVDMA = 0;
 	dstVDMA = 0;
 	curVDMA = 0;
+
+	dmgObjPriority = true;
 }
 
 // Called every CPU m-cycle
@@ -283,12 +290,8 @@ void PPU::write(u8 reg, u8 value) {
 		case 0x4B: WX = value; break;
 
 		case 0x4F:
-			if (VBK != value) {
-				VBK = value;
-
-				vram_bank = {};
-				vram_bank = vram_backing.map(bus.Mem() + 0x8000, VRAM_SIZE * (VBK & 0x1), VRAM_SIZE);
-			}
+			VBK = value;
+			vram_chunk.map(vram_backing, VBK & 0x1);
 			break;
 
 		case 0x51: 
@@ -422,18 +425,19 @@ void PPU::scanline() {
 		struct Pixel {
 			u8 col : 2 = 0;
 			u8 pal : 3 = 0;
-			u8 pr : 1 = 0;
+			u8 pr : 6 = 0;
+			u8 bg_pr : 1 = 0;
 		};
 
-		std::array<Pixel, 16> line = {};
-		u8 head : 4, tail : 4;
+		std::array<Pixel, 8> line = {};
+		u8 head : 3, tail : 3;
 		u8 count;
 
-		u8 x : 5 = 0;
+		u8 x : 5;
 
 		FIFO() { reset(); }
 
-		void push(Pixel&& pixel) {
+		void push(Pixel pixel) {
 			if (size() != line.size()) {
 				line[head++] = std::move(pixel);
 				count++;
@@ -452,6 +456,7 @@ void PPU::scanline() {
 			head = 0;
 			tail = 0;
 			count = 0;
+			x = 0;
 		}
 
 		u8 size() {
@@ -459,7 +464,7 @@ void PPU::scanline() {
 		}
 
 		Pixel& operator[](size_t i) {
-			return line[(tail + i) & 0xF];
+			return line[(tail + i) & 0x7];
 		}
 	} bg, obj;
 
@@ -476,12 +481,11 @@ void PPU::scanline() {
 		if (windowEnabled && LCDC.windowDisplay && (std::max(WX - 7, 0)) == p && LY >= WY) {
 			bg.reset();
 			baseMap = (LCDC.windowMap) ? map1 : map0;
-			bg.x = 0;
 			y = windowLines++;
 			yOffset = (y / T) * tileMaxX;
 		}
 
-		while (bg.size() < 9) {
+		if (bg.size() == 0) {
 			u16 tile = baseMap + yOffset + bg.x++;
  			u8 bgattr = (core.cgbMode) ? vram[VRAM_SIZE + tile] : (LCDC.displayPriority << 7);
 			addr tileAddr = _fetchTileAddr(LCDC.tileSet, vram[tile], bool(bgattr & 0x8));
@@ -496,7 +500,7 @@ void PPU::scanline() {
 				bg.push({
 					.col = u8((getBit(t_col, 7 - bitX) << 1) | getBit(b_col, 7 - bitX)),
 					.pal = u8(bgattr & 0x7), 
-					.pr = bool(bgattr & 0x80)
+					.bg_pr = bool(bgattr & 0x80)
 				});
 			}
 		}
@@ -534,16 +538,18 @@ void PPU::scanline() {
 				addr tileAddr = _fetchTileAddr(true, tileOffset, (core.cgbMode) ? sprite.getBank() : 0);
 				addr lineAddr = tileAddr + (objY % 8) * 2;
 
-				u8 b_col = vram[lineAddr], t_col = vram[lineAddr + 1]; 
+				u8 b_col = vram[lineAddr], t_col = vram[lineAddr + 1];
+				u8 priority = (dmgObjPriority) ? 0 : spriteIndex;
 				for (u8 c = 0; c < 8; ++c) {
 					u8 bitX = (sprite.xFlip()) ? 7 - c : c;
 					
 					auto& pixel = obj[c];
 					u8 newCol = (getBit(t_col, 7 - bitX) << 1) | getBit(b_col, 7 - bitX);
-					if ((core.cgbMode && newCol != 0) || pixel.col == 0) {
+					if (newCol != 0 && (pixel.col == 0 || pixel.pr > priority)) {
 						pixel.col = newCol;
 						pixel.pal = (core.cgbMode) ? sprite.getCGBPal() : sprite.useOBP1();
-						pixel.pr = sprite.behindBG();
+						pixel.pr = priority;
+						pixel.bg_pr = sprite.behindBG();
 					}
 				}
 			}
@@ -562,8 +568,8 @@ void PPU::scanline() {
 					}
 				}
 
-				if (!objPixel.pr) {
-					if (!cgbMode || !bgPixel.pr) {
+				if (!objPixel.bg_pr) {
+					if (!cgbMode || !bgPixel.bg_pr) {
 						return true;
 					}
 				}
@@ -582,18 +588,19 @@ void PPU::scanline() {
 				pixel.color = objColors[colIdx + 1] << 8 | objColors[colIdx];
 			}
 			else {
-				pixel.palette = (objPixel.pal) ? OBP1 : OBP0;
-				pixel.color = pixel.palette[objPixel.col];
+				auto& pal = (objPixel.pal) ? OBP1 : OBP0;
+				pixel.color = pal[objPixel.col];
+				pixel.palette.dmg = pal;
 			}
 		}
 		else {
 			if (model == Model::CGB) {
 				auto colIdx = bgPixel.pal * 8 + bgPixel.col * 2;
-				pixel.color = (core.cgbMode || bgPixel.pr) ? bgColors[colIdx + 1] << 8 | bgColors[colIdx] : 0x7FFF;
+				pixel.color = (core.cgbMode || bgPixel.bg_pr) ? bgColors[colIdx + 1] << 8 | bgColors[colIdx] : 0x7FFF;
 			}
 			else {
-				pixel.color = (bgPixel.pr) ? BGP[bgPixel.col] : 0;
-				pixel.palette = BGP;
+				pixel.color = (bgPixel.bg_pr) ? BGP[bgPixel.col] : 0;
+				pixel.palette.dmg = BGP;
 			}
 		}
 	}

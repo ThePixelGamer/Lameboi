@@ -1,8 +1,6 @@
 #pragma once
 
-#include "Model.h"
-#include "util/MemoryMap.h"
-#include "util/Types.h"
+#include "Memory.h"
 
 #include <array>
 #include <cassert>
@@ -11,7 +9,6 @@
 #include <cstddef>
 
 class Cartridge;
-class Memory;
 
 // Abstract/Bare metal implementation
 class MBC {
@@ -165,14 +162,13 @@ public:
 	std::size_t romSize = 0;
 	
 	MemoryMap ram_backing;
+	std::vector<u32> ram_sources;
 	MemoryMap::Section ram;
 	std::size_t ramSize = 0;
 	
-	u8 bank0, bankRam;
-	u16 bank1;
-	MemoryMap::ReservedSection rom0, rom1;
+	Memory::Chunk rom0, rom1;
 	MemoryMap::ReservedSection ram0_tag, ram1_tag;
-	MemoryMap::ReservedSection ram0;
+	Memory::Chunk ram0;
 
 	Memory& bus;
 	std::unique_ptr<class MBC> mbc;

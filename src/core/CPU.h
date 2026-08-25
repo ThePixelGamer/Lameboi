@@ -90,7 +90,6 @@ public:
 	bool speedSwitch;
 
 private:
-	std::array<u32, 0x8000> src_locations;
 	Gameboy& core;
 	Memory& bus;
 	Interrupt& interrupt;

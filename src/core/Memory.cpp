@@ -4,7 +4,16 @@
 
 #define LOG_NOP_WRITES
 
-Memory::Memory(Gameboy&) {
+u32& Memory::Sources(addr a) {
+	switch (a >> 12) {
+		case 0x8: case 0x9: return core.ppu.vram_src_locations[PAGE_SIZE * core.ppu.vram_chunk.activeBank + a & 0x1FFF];
+		case 0xA: case 0xB: return core.cart.ram_sources[PAGE_SIZE * core.cart.ram0.activeBank + a & 0x1FFF];
+		case 0xC: case 0xE: return wram_sources[a & 0xFFF];
+		case 0xD: case 0xF: return wram_sources[PAGE_SIZE * wram1.activeBank + a & 0xFFF];
+	}
+}
+
+Memory::Memory(Gameboy& gb) : core(gb) {
 	buses[0] = {
 		.read = [](void*, addr) -> u8 { return 0xFF; },
 		.write = [](void*, addr a, u8) {
@@ -16,7 +25,7 @@ Memory::Memory(Gameboy&) {
 }
 
 void Memory::install(Model::Type model) {
-	addressSpace.setup(ADDRESS_SPACE * 2);
+	addressSpace.setup(ADDRESS_SPACE + TAG_SPACE);
 	
 	// gb address space
 	addressSpace.split(0x0000, PAGE_SIZE * 4);
@@ -72,16 +81,29 @@ void Memory::install(Model::Type model) {
 	wram_tags[3] = tag_backing.map(Tags() + 0xF000, IO, PAGE_SIZE);
 
 	// Create Wram, Echo, and Hram
-	wram = wram_backing.map(Mem() + 0xC000, 0, PAGE_SIZE);
-	eram = wram_backing.map(Mem() + 0xE000, 0, PAGE_SIZE);
-	hram_io = wram_backing.map(Mem() + 0xF000, PAGE_SIZE * 8, PAGE_SIZE);
+	wram0.setup(Mem() + 0xC000, 1);
+	wram1.setup(Mem() + 0xD000, 1);
+	wram1.banks = 7;
+	eram.setup(Mem() + 0xE000, 1);
+	hram_io.setup(Mem() + 0xF000, 1);
+
+	wram0.map(wram_backing, 0);
+	wram1.map(wram_backing, 1);
+	eram.map(wram_backing, 0);
+	hram_io.map(wram_backing, 8);
 	
-	switchWRAM(1);
 
 	if (model == Model::CGB) {
 		auto wram_bank_tag = register_bus(
 			nullptr,
-			[](void* d, addr a, u8 v) { static_cast<Memory*>(d)->switchWRAM(v); },
+			[](void* d, addr a, u8 v) { 
+				auto bus = static_cast<Memory*>(d);
+
+				v &= 0x7;
+				if (v == 0) v = 1;
+				bus->Mem()[0xFF70] = 0xF8 | v;
+				bus->wram1.map(bus->wram_backing, v);
+			},
 			this
 		);
 		

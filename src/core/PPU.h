@@ -153,17 +153,16 @@ struct Pixel {
 	// index into palette lut (2 bits DMG, 15 bits CGB)
 	u16 color : 15 = 0;
 
-	// metainfo
 	u32 src = 0;
 	u8 x : 3 = 0;
 	u8 y : 3 = 0;
 
-	union {
+	union Palette {
 		// dmg
-		PaletteData palette{};
+		PaletteData dmg{};
 		// cgb
-		u16 colors[4];
-	};
+		u16 cgb[4];
+	} palette;
 
 	Color getColor(Model::Type model);
 };
@@ -201,7 +200,7 @@ private:
 public:
 	// RAM
 	MemoryMap::Section vram;
-	MemoryMap::ReservedSection vram_bank; // 0x8000
+	Memory::Chunk vram_chunk; // 0x8000
 	Sprite sprites[40]; // 0xFE00
 
 	// I/O Registers

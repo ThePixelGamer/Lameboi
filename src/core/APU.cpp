@@ -5,6 +5,8 @@
 
 #include "util/Log.h"
 
+#include <numbers>
+
 APU::APU() :
 	squareSweep(soundOn, sequencerStep),
 	square(soundOn, sequencerStep),
@@ -71,6 +73,22 @@ void APU::clean() {
 
 // called every 1mhz by the cpu
 void APU::update(bool doubleSpeed) {
+	struct HighPassFilter { 
+		float cap = 0.0f;
+		float alpha;
+
+		HighPassFilter() {
+			alpha = std::powf(0.999958f, clock / float(frequency));
+		}
+
+		float operator=(float input) {
+			float output = input - cap;
+			cap = input - output * alpha;
+			return output;
+		}
+	};
+	static HighPassFilter l_hpf{}, r_hpf{};
+
 	for (u8 i = 0; i < ((doubleSpeed) ? 2 : 4); ++i) {
 		if (--sequencerCycles == 0) {
 			sequencerCycles = maxSequencerCycles;
@@ -115,8 +133,8 @@ void APU::update(bool doubleSpeed) {
 			};
 
 			size_t offset = bufferOffset * channels;
-			sampleBuffer[offset] = adjustVolume(leftVolume, getL(), activeChannelCount);
-			sampleBuffer[offset + 1] = adjustVolume(rightVolume, getR(), activeChannelCount);
+			sampleBuffer[offset] = l_hpf = adjustVolume(leftVolume, getL(), activeChannelCount);
+			sampleBuffer[offset + 1] = r_hpf = adjustVolume(rightVolume, getR(), activeChannelCount);
 			++bufferOffset;
 		}
 		

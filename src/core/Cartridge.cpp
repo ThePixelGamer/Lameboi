@@ -108,8 +108,9 @@ void Cartridge::_initHW() {
 	}();
 }
 
-Cartridge::Cartridge(Memory& bus) : bus(bus) {
-}
+Cartridge::Cartridge(Memory& bus) : 
+	bus(bus)
+{}
 
 bool Cartridge::load(const std::filesystem::path& romPath) {
 	if (!std::filesystem::exists(romPath)) {
@@ -121,7 +122,7 @@ bool Cartridge::load(const std::filesystem::path& romPath) {
 
 	romSize = std::filesystem::file_size(romPath);
 	rom_backing = MemoryMap{romPath, Access::Read, 0};
-	rom = rom_backing.map(); 
+	rom = rom_backing.map();
 
 	// validate checksum
 	u16 chksum = 0;
@@ -143,8 +144,12 @@ bool Cartridge::load(const std::filesystem::path& romPath) {
 }
 
 void Cartridge::install() {
-	bank0 = 0xFF;
-	bank1 = 0xFFFF;
+	rom0.setup(bus.Mem() + 0x0000, 4);
+	rom1.setup(bus.Mem() + 0x4000, 4);
+	ram0.setup(bus.Mem() + 0xA000, 2);
+
+	rom0.banks = rom1.banks = getHeader()->getMaxRomBanks();
+
 	switchBank0(0);
 	switchBank1(1);
 
@@ -165,7 +170,6 @@ void Cartridge::install() {
 		}
 	}
 
-	bankRam = 0xFF;
 	// todo: memorymap the ram
 	if (has(BATTERY)) {
 		auto savePath = getSavePath();
@@ -191,26 +195,17 @@ void Cartridge::install() {
 		ram = ram_backing.map();
 		switchRam(0);
 	}
+	ram_sources.resize(ramSize);
 }
 
 void Cartridge::switchBank0(u8 bank) {
 	bank &= u8(getHeader()->getMaxRomBanks() - 1);
-
-	if (bank0 == bank) return;
-	bank0 = bank;
-
-	rom0 = {};
-	rom0 = rom_backing.map(bus.Mem(), Memory::PAGE_SIZE * 4 * bank, Memory::PAGE_SIZE * 4);
+	rom0.map(rom_backing, bank);
 }
 
 void Cartridge::switchBank1(u16 bank) {
 	bank &= u8(getHeader()->getMaxRomBanks() - 1);
-
-	if (bank1 == bank) return;
-	bank1 = bank;
-
-	rom1 = {};
-	rom1 = rom_backing.map(bus.Mem() + Memory::PAGE_SIZE * 4, Memory::PAGE_SIZE * 4 * bank, Memory::PAGE_SIZE * 4);
+	rom1.map(rom_backing, bank);
 }
 
 void Cartridge::enableRam(bool enable) {
@@ -223,12 +218,8 @@ void Cartridge::enableRam(bool enable) {
 
 void Cartridge::switchRam(u8 bank) {
 	if (has(RAM)) {
-		if (bankRam == bank) return;
-		bankRam = bank;
-
 		bank &= u8(getHeader()->getMaxRamBanks() - 1);
-		ram0 = {};
-		ram0 = ram_backing.map(bus.Mem() + Memory::PAGE_SIZE * 0xA, Memory::PAGE_SIZE * 2 * bank, Memory::PAGE_SIZE * 2);
+		ram0.map(ram_backing, bank);
 	}
 }
 
@@ -246,7 +237,7 @@ void Cartridge::unload() {
 		ramSize = 0;
 		ram_backing.close();
 		ram = {};
-		ram0 = {};
+		ram0.unmap();
 		ram0_tag = {};
 		ram1_tag = {};
 
@@ -255,8 +246,8 @@ void Cartridge::unload() {
 
 		rom_backing.close();
 		rom = {};
-		rom0 = {};
-		rom1 = {};
+		rom0.unmap();
+		rom1.unmap();
 		mbc = {};
 
 		connected = false;

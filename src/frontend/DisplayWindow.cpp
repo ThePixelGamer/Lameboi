@@ -191,7 +191,7 @@ void DisplayWindow::renderCG(Framebuffer& buffer) {
 			if (tile.usesIndexColors) {
 				for (u8 i = 0; i < indexColors.size(); ++i) {
 					if (indexColors[i] == *col) {
-						return &PPU::paletteColors[pixel.palette[i]];
+						return &PPU::paletteColors[pixel.palette.dmg[i]];
 					}
 				}
 			}

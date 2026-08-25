@@ -347,26 +347,18 @@ void CPU::stepComponents() {
 CPU::ReferenceData CPU::read(addr a) {
 	stepComponents();
 
-	u32 src = a;
+	u32 src = a & 0x3FFF;
 	// simplify with get bank for addr? add support for wram banks 
-	if (a < 0x4000) {
-		src |= core.cart.bank0 << sizeof(addr) * 8;
+	
+	if (a & 0x8000) {
+		src = bus.Sources(a);
 	}
-	else if (a < 0x8000) {
-		src |= core.cart.bank1 << sizeof(addr) * 8;
-	}
-	else if ((a & 0xE000) == 0xA) {
-		src |= core.cart.bankRam << sizeof(addr) * 8;
-	}
-	else if (a & 0x8000) {
-		src = src_locations[a & 0x7FFF];
+	else {
+		src |= ((a & 0x4000) ? core.cart.rom1 : core.cart.rom0).activeBank << 14;
 	}
 
 	if (inBios) {
-		if (a < 0x100) {
-			return { bios[a], src};
-		}
-		else if (a >= 0x200 && a < 0x900 && bios.size() > 0xFF) {
+		if (a < 0x100 || (a >= 0x200 && a < 0x900 && bios.size() > 0xFF)) {
 			return { bios[a], src};
 		}
 	}
@@ -388,7 +380,7 @@ void CPU::write(addr a, Register& data) {
 	}
 
 	if (a & 0x8000) {
-		src_locations[a & 0x7FFF] = data.second;
+		bus.Sources(a) = data.second;
 	}
 }
 
