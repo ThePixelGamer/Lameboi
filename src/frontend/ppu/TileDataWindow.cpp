@@ -30,7 +30,7 @@ void TileDataWindow::render() {
 		tilemap.render(zoom, grid, { 
 			.extra = drawSectionSeparator,
 			.hover = [&](u32 x, u32 y) {
-				ImGui::Text("Src: %x", gb.ppu.vram_src_locations[(x * 0x10) + (y * 0x100)]);
+				ImGui::Text("Src: 0x%x", gb.ppu.vram_src_locations[(x * 0x10) + (y * 0x100)]);
 			} 
 		});
 		/*

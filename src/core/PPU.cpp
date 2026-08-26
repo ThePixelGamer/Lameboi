@@ -236,9 +236,9 @@ u8 PPU::read(u8 reg) {
 		case 0x55: return !activeVDMA << 7; 
 		
 		case 0x68: return (BGPI.autoInc << 6) | BGPI.addr;
-		case 0x69: return bgColors[BGPI.addr];
+		case 0x69: return bgColors[BGPI.addr >> 3].color[BGPI.addr & 0x7];
 		case 0x6A: return (OBPI.autoInc << 6) | OBPI.addr;
-		case 0x6B: return objColors[OBPI.addr];
+		case 0x6B: return objColors[OBPI.addr >> 3].color[OBPI.addr & 0x7];
 
 		case 0x6C: return u8(dmgObjPriority);
 
@@ -337,7 +337,7 @@ void PPU::write(u8 reg, u8 value) {
 			break;
 
 		case 0x69: 
-			bgColors[BGPI.addr] = value;
+			bgColors[BGPI.addr >> 3].color[BGPI.addr & 0x7] = value;
 			if (BGPI.autoInc) BGPI.addr++;
 			break;
 
@@ -347,7 +347,7 @@ void PPU::write(u8 reg, u8 value) {
 			break;
 
 		case 0x6B: 
-			objColors[OBPI.addr] = value;
+			objColors[OBPI.addr >> 3].color[OBPI.addr & 0x7] = value;
 			if (OBPI.autoInc) OBPI.addr++;
 			break;
 
@@ -411,6 +411,19 @@ u16 _fetchTileAddr(bool method8000, u8 tileoffset, u8 bank = 0) {
 	return addr + ((tileoffset & 0x7F) * 16);
 }
 
+u16 _fetchTileIdx(bool method8000, u8 tileoffset, bool bank) {
+	u16 idx = 384 * bank;
+
+	if (tileoffset & 0x80) {
+		idx += 128;
+	}
+	else if (!method8000) {
+		idx += 256;
+	}
+
+	return idx + (tileoffset & 0x7F);
+}
+
 std::array<u8, 2> PPU::_fetchTileLine(bool method8000, u8 yoffset, u8 tileoffset) {
 	size_t loc = _fetchTileAddr(method8000, tileoffset) + (yoffset * 2);
 	return { vram[loc], vram[loc + 1] };
@@ -427,6 +440,11 @@ void PPU::scanline() {
 			u8 pal : 3 = 0;
 			u8 pr : 6 = 0;
 			u8 bg_pr : 1 = 0;
+
+			// additional info to support cg
+			u16 idx : 10;
+			u16 x : 3;
+			u16 y : 3;
 		};
 
 		std::array<Pixel, 8> line = {};
@@ -478,6 +496,9 @@ void PPU::scanline() {
 	u16 yOffset = (y / T) * tileMaxX;
 
 	for (u16 p = 0; p < 160; ++p) {
+		size_t offset = (LY * 160) + p;
+		auto& cgpixel = buffers[backIdx].meta.bg[offset];
+
 		if (windowEnabled && LCDC.windowDisplay && (std::max(WX - 7, 0)) == p && LY >= WY) {
 			bg.reset();
 			baseMap = (LCDC.windowMap) ? map1 : map0;
@@ -500,7 +521,11 @@ void PPU::scanline() {
 				bg.push({
 					.col = u8((getBit(t_col, 7 - bitX) << 1) | getBit(b_col, 7 - bitX)),
 					.pal = u8(bgattr & 0x7), 
-					.bg_pr = bool(bgattr & 0x80)
+					.bg_pr = bool(bgattr & 0x80),
+
+					.idx = _fetchTileIdx(LCDC.tileSet, vram[tile], bgattr & 0x8),
+					.x = bitX,
+					.y = tileY
 				});
 			}
 		}
@@ -554,11 +579,15 @@ void PPU::scanline() {
 				}
 			}
 		}
-		
-		size_t offset = (LY * 160) + p;
+
 		auto& pixel = buffers[backIdx].pixels[offset];
 		auto bgPixel = bg.pop();
 		auto objPixel = obj.pop();
+
+		cgpixel.idx = bgPixel.idx;
+		cgpixel.pal = bgPixel.pal;
+		cgpixel.x = bgPixel.x;
+		cgpixel.y = bgPixel.y;
 
 		auto objWin = [&](bool cgbMode) {
 			if (objPixel.col != 0) {
@@ -584,23 +613,19 @@ void PPU::scanline() {
 
 		if (objWin(core.cgbMode)) {
 			if (model == Model::CGB) {
-				auto colIdx = objPixel.pal * 8 + objPixel.col * 2;
-				pixel.color = objColors[colIdx + 1] << 8 | objColors[colIdx];
+				pixel.color = objColors[objPixel.pal][objPixel.col];
 			}
 			else {
 				auto& pal = (objPixel.pal) ? OBP1 : OBP0;
 				pixel.color = pal[objPixel.col];
-				pixel.palette.dmg = pal;
 			}
 		}
 		else {
 			if (model == Model::CGB) {
-				auto colIdx = bgPixel.pal * 8 + bgPixel.col * 2;
-				pixel.color = (core.cgbMode || bgPixel.bg_pr) ? bgColors[colIdx + 1] << 8 | bgColors[colIdx] : 0x7FFF;
+				pixel.color = (core.cgbMode || bgPixel.bg_pr) ? bgColors[bgPixel.pal][bgPixel.col] : 0x7FFF;
 			}
 			else {
 				pixel.color = (bgPixel.bg_pr) ? BGP[bgPixel.col] : 0;
-				pixel.palette.dmg = BGP;
 			}
 		}
 	}
@@ -647,6 +672,12 @@ void PPU::vblank() {
 	if (!vblankHelper) {
 		vblankHelper = true;
 		debug.inVblank = true;
+
+		auto& meta = buffers[backIdx].meta;
+		for (int i = 0; i < meta.tiles.size(); ++i) {
+			u16 addr = VRAM_SIZE * (i < meta.tiles.size() / 2);
+			addr += (i % 384) * 16;
+		}
 
 		interrupt.request.vblank = true;
 		backIdx = spare.exchange({backIdx, true}, std::memory_order_acq_rel).idx;
