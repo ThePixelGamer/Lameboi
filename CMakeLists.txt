@@ -8,7 +8,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 project(lameboi)
 
 set(LB_RESOURCE_DEST "${PROJECT_SOURCE_DIR}/bin" CACHE FILEPATH "Set the resource directory for debug builds.")
-set(LB_SHADER_DIR "${PROJECT_SOURCE_DIR}/src/frontend/shaders")
+set(LB_ASSET_DIR "${PROJECT_SOURCE_DIR}/src/assets")
 
 # todo: apply it for clang/gcc windows builds?
 # NO MIN MAX MACROS >:(
@@ -28,17 +28,17 @@ find_package(Stb REQUIRED)
 
 file(GLOB_RECURSE SRC_LIST "src/*.cpp")
 file(GLOB_RECURSE INCLUDE_LIST "src/*.h")
-file(GLOB_RECURSE SHADER_LIST "${LB_SHADER_DIR}/*")
+file(GLOB_RECURSE ASSET_LIST "${LB_ASSET_DIR}/*")
 
 # todo: add "empty" str/file for UNIX builds
-if (MSVC)
+if (WIN32)
     file(GLOB_RECURSE RC_LIST "src/*.rc")
 endif()
 
 add_executable(lameboi 
     ${SRC_LIST} 
     ${INCLUDE_LIST}
-    ${SHADER_LIST}
+    ${ASSET_LIST}
     ${RC_LIST}
 )
 
@@ -72,11 +72,10 @@ target_link_libraries(lameboi PRIVATE
 # setup resource directory for debug purposes
 file(MAKE_DIRECTORY ${LB_RESOURCE_DEST})
 
-# copy shader resources to our resource directory
-foreach(file IN LISTS SHADER_LIST)
-    string(REPLACE "${LB_SHADER_DIR}/" "" file ${file})
-    configure_file("${LB_SHADER_DIR}/${file}" "${LB_RESOURCE_DEST}/shaders/${file}" COPYONLY)
-endforeach()
+add_custom_command(
+	TARGET lameboi POST_BUILD
+	COMMAND ${CMAKE_COMMAND} -E copy_directory ${LB_ASSET_DIR} ${LB_RESOURCE_DEST}
+)
 
 # todo: add something for UNIX environments?
 if(MSVC)
@@ -84,8 +83,5 @@ if(MSVC)
     set_target_properties(lameboi PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY ${LB_RESOURCE_DEST})
 endif()
 
-source_group(TREE "${PROJECT_SOURCE_DIR}/src" FILES ${INCLUDE_LIST} ${SRC_LIST} ${RC_LIST})
-
-#source_group(TREE "${PROJECT_SOURCE_DIR}/src" PREFIX "Source Files/" FILES ${SRC_LIST})
-#source_group(TREE "${PROJECT_SOURCE_DIR}/src" PREFIX "Header Files/" FILES ${INCLUDE_LIST})
-source_group(TREE "${LB_SHADER_DIR}" PREFIX "shaders" FILES ${SHADER_LIST})
+source_group("src" FILES ${INCLUDE_LIST} ${SRC_LIST} ${RC_LIST})
+source_group("assets" FILES ${ASSET_LIST})

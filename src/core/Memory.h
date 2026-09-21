@@ -37,9 +37,6 @@ public:
 	u8* Mem() { return addressSpace.get(); }
 	BusTag* Tags() { return addressSpace.get<BusTag>() + ADDRESS_SPACE; }
 
-	Gameboy& core;
-	u32& Sources(addr a);
-
 	struct Bus {
 		void* data = nullptr;
 		RHandler read;
@@ -91,7 +88,7 @@ public:
 	MemoryMap tag_backing { TAG_TYPES::SIZE };
 	MemoryMap::ReservedSection wram_tags[4];
 
-	Memory(Gameboy&);
+	Memory();
 
 	void install(Model::Type model);
 	

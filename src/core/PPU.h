@@ -154,7 +154,7 @@ struct CGBPaletteData {
 
 	u16 operator[](u8 idx) const {
 		idx *= 2;
-		return color[idx + 1] << 8 | color[idx];
+		return (color[idx + 1] & 0x7F) << 8 | color[idx];
 	}
 };
 
@@ -172,7 +172,8 @@ struct Metainfo {
 	};
 
 	struct TileID {
-		u32 crc32;
+		// 2-bit color is turned into 1-bit color hash
+		u64 hash;
 		u32 src;
 	};
 
@@ -182,17 +183,46 @@ struct Metainfo {
 		u16 x : 3;
 		u16 y : 3;
 	};
-	
+
+	struct MapData {
+		u8 idx;
+		u8 pal : 3;
+
+		u8 altBank : 1;
+		u8 xFlip : 1, yFlip : 1;
+		u8 priority : 1;
+	};
+
+	struct Line {
+		struct Background {
+			u8 x, y;
+			bool altMap;
+		} bg;
+
+		struct Window {
+			u8 x, y;
+			bool enabled;
+			bool altMap;
+		} window;
+
+		bool altTileSet;
+	};
+
 	struct Sprite {
-		u16 idx : 10;
-		u16 pal : 3;
-		u8 x, y, attribute;
+		u8 idx;
+		u8 x, y;
+		u8 pal : 3;
+		u8 altBank : 1;
+		u8 xFlip : 1, yFlip : 1;
+		u8 behindBG : 1;
 	};
 	
 	std::array<Palette, 8 * 2> palettes;
-	std::array<TileID, 32 * 24> tiles;
-	std::array<Pixel, 160 * 144> bg;
-	std::array<Sprite, 40> oam;
+	std::array<TileID, 16 * 24 * 2> tiles;
+	std::array<MapData, 32 * 32 * 2> maps;
+	std::array<Sprite, 40> sprites;
+
+	std::array<Line, 144> lines;
 };
 
 struct Framebuffer {
@@ -279,7 +309,7 @@ private:
 
 	u16 srcVDMA, dstVDMA;
 	bool modeVDMA;
-	u16 curVDMA;
+	u8 curVDMA;
 	bool activeVDMA;
 	
 	bool dmgObjPriority;
@@ -391,15 +421,10 @@ public:
 	Manifest& getManifest() { return getManifest(inBios); }
 	Manifest& getManifest(bool boot) { return boot ? bios : game; }
 
-	void dumpTiles(u8* outData, const size_t outW, const size_t tW, const size_t tH, const size_t baseOffset);
-	void dumpTile(u8* out, const size_t outW, const u16 tileOffset);
+	void dumpTile(u8* out, const size_t outW, const u16 tileOffset, bool altBank = false);
 
+	Framebuffer& getFrontBuffer() { return buffers[frontIdx]; }
 	void render(std::function<void (Framebuffer&)> callback);
-	void dumpBGMap(std::array<u8, 256 * 256 * 4>& bgmap, bool bgMap, bool tileSet);
-	void dumpTileMap(std::array<u8, 128 * 64 * 3 * 4>& tilemap);
-	void dumpBGMapTiles(std::array<u8, 32 * 8 * 32 * 8 * 4>& tiles, Pos2 min, Pos2 max, bool bgMap, bool tileSet);
-	void dumpTiles(std::array<u8, 32 * 8 * 32 * 8 * 4>& tiles, u32 x1, u32 y1, u32 x2, u32 y2, u32 w, u32 h);
-	void dumpSprites(std::array<u8, 64 * 40 * 4>& sprites);
 
 private:
 	void scanline();
@@ -410,8 +435,6 @@ private:
 	void vdma();
 
 	bool _nextLine();
-
-	std::array<u8, 2> _fetchTileLine(bool method8000, u8 yoffset, u8 tileoffset);
 };
 
 inline Color Pixel::getColor(Model::Type model) {

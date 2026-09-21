@@ -97,8 +97,8 @@ void MainMenu::renderGameboy() {
 			gb.debug.running = !gb.debug.running;
 		}
 
-		if (ImGui::MenuItem("Show Viewport", nullptr, app.viewport.show)) {
-			app.viewport.show = true;
+		if (ImGui::MenuItem("Show Viewport", nullptr, app.display.showScene)) {
+			app.display.showScene = !app.display.showScene;
 		}
 
 		if (ImGui::MenuItem("Settings", nullptr, app.settings.show)) {

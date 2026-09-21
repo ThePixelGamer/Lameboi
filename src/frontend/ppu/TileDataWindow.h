@@ -13,6 +13,7 @@ class TileDataWindow {
 	Gameboy& gb;
 		
 	Image<128, 64 * 3> tilemap{};
+	Image<128, 64 * 3> altTilemap{};
 	
 	bool valid = false;
 	bool second = false;

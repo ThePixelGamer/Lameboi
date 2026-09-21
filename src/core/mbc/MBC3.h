@@ -124,6 +124,8 @@ public:
 		if (v & 0x8) {
 			if (m->hw.has(m->hw.TIMER)) {
 				m->rtc.use(v & 0x7);
+				m->hw.ram0_tag = {};
+				m->hw.ram1_tag = {};
 				m->hw.ram0_tag = m->tag_backing.map(m->hw.bus.Tags() + Memory::PAGE_SIZE * 0xA, RTC_RW, Memory::PAGE_SIZE);
 				m->hw.ram1_tag = m->tag_backing.map(m->hw.bus.Tags() + Memory::PAGE_SIZE * 0xB, RTC_RW, Memory::PAGE_SIZE);
 			}

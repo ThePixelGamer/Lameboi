@@ -1,9 +1,11 @@
 #include "DisplayWindow.h"
 
+#include <SDL3/SDL.h>
 #include <imgui.h>
 #include <imgui_internal.h>
 
 #include "MainWindow.h"
+#include "util/FIFO.h"
 
 namespace ui {
 
@@ -13,10 +15,6 @@ DisplayWindow::DisplayWindow(UI& context) :
 }
 
 void DisplayWindow::render() {
-	if (!show) {
-		return;
-	}
-
 	auto& gb = context.gb;
 
 	// todo: combine this with the bgmapwindow one (both are the same currently)
@@ -81,65 +79,91 @@ void DisplayWindow::render() {
 	//ImGui::SetNextWindowSizeConstraints(windowMinSize, ImVec2(FLT_MAX, FLT_MAX), square, &oldCursor);
 
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, { 0, 0 });
-	ImGui::Begin("Lameboi", &show, ImGuiWindowFlags_NoDecoration);
+	ImGui::Begin("Lameboi", nullptr, ImGuiWindowFlags_NoDecoration);
 	ImGui::PopStyleVar();
 
 	ImGui::Spacing();
 	ImGui::SetCursorPosX(ImGui::GetStyle().WindowPadding.x);
-	if (ImGui::Button("Stop")) {
-		context.gb.stop();
-	}
 
-	ImGui::SameLine(); 
-	if (ImGui::Checkbox("Use Custom Graphics", &useCG)) {
-		gb.ppu.redraw = true;
-	}
-
-	// Update FPS counter
-	// todo: run on a separate thread to not be affected by UI performance?
-	using namespace std::chrono_literals;
-	auto perf = std::chrono::duration_cast<std::chrono::seconds>(clock::now() - perfTimer);
-	if (perf >= 1s) {
-		// add seconds to existing time_point to avoid missing the next second (handle lost remainder from duration_cast)
-		perfTimer += perf;
-		if (gb.ppu.framesPresented) {
-			// take avg in case this takes longer than 1 second to run again
-			fps = gb.ppu.framesPresented / perf.count();
-			gb.ppu.framesPresented = 0;
-		}
-		else {
-			fps = 0;
+	if (showScene) {
+		if (inFocus && !scene.handleInput(avoidReset)) {
+			captureMouse(false);
 		}
 
-		instrCount = gb.cpu.instrCount;
-		gb.cpu.instrCount = 0;
+		ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, { 0, 0 });
+		if (ImGui::ImageButton("##viewport", (ImTextureID)scene.render(), ImVec2(scene.Width / 2.0f, scene.Height / 2.0f), ImVec2(0, 1), ImVec2(1, 0))) {
+			captureMouse(true);
+		}
+
+		if (ImGui::Button("Options")) {
+			ImGui::OpenPopup("##options_context");
+		}
+
+		if (ImGui::BeginPopup("##options_context")) {
+			ImGui::Checkbox("Wireframe", &scene.wireframe);
+			ImGui::SliderFloat("FOV", &scene.fov, 30.0f, 150.0f, "%.0f");
+
+			ImGui::EndPopup();
+		}
+		ImGui::PopStyleVar();
 	}
+	else {
+		if (ImGui::Button("Stop")) {
+			context.gb.stop();
+		}
 
-	// Not a fan of this
-	std::string status{};
-	if (gb.emuRun) {
-		status = (gb.debug.running) ? fmt::format("{} ips {} fps", instrCount, fps) : "Paused";
+		ImGui::SameLine(); 
+
+		if (ImGui::Checkbox("Use Custom Graphics", &useCG)) {
+			gb.ppu.redraw = true;
+		}
+
+		// Update FPS counter
+		// todo: run on a separate thread to not be affected by UI performance?
+		using namespace std::chrono_literals;
+		auto perf = std::chrono::duration_cast<std::chrono::seconds>(clock::now() - perfTimer);
+		if (perf >= 1s) {
+			// add seconds to existing time_point to avoid missing the next second (handle lost remainder from duration_cast)
+			perfTimer += perf;
+			if (gb.ppu.framesPresented) {
+				// take avg in case this takes longer than 1 second to run again
+				fps = gb.ppu.framesPresented / perf.count();
+				gb.ppu.framesPresented = 0;
+			}
+			else {
+				fps = 0;
+			}
+
+			instrCount = gb.cpu.instrCount;
+			gb.cpu.instrCount = 0;
+		}
+
+		// Not a fan of this
+		std::string status{};
+		if (gb.emuRun) {
+			status = (gb.debug.running) ? fmt::format("{} ips {} fps", instrCount, fps) : "Paused";
+		}
+		
+		if (!status.empty()) {
+			ImGui::SameLine();
+			ImGui::SetCursorPosX(ImGui::GetCursorPosX() + ImMax(0.0f, ImGui::GetContentRegionAvail().x - ImGui::CalcTextSize(status.c_str()).x - ImGui::GetStyle().ItemInnerSpacing.x));
+			ImGui::Text("%s", status.c_str());
+		}
+
+		oldCursor = ImGui::GetCursorPos();
+
+		// Inputs
+		focused = ImGui::IsWindowFocused();
+
+		// Display
+		updateBuffer();
+
+		ImVec2 availSize = ImGui::GetContentRegionAvail();
+		display.render(std::max(std::min(availSize.x / Display::W, availSize.y / Display::H), 1.0f));
+
+		// handle right click on image
+		ImGui::OpenPopupOnItemClick("display_context_popup", ImGuiMouseButton_Right);
 	}
-	
-	if (!status.empty()) {
-		ImGui::SameLine();
-		ImGui::SetCursorPosX(ImGui::GetCursorPosX() + ImMax(0.0f, ImGui::GetContentRegionAvail().x - ImGui::CalcTextSize(status.c_str()).x - ImGui::GetStyle().ItemInnerSpacing.x));
-		ImGui::Text("%s", status.c_str());
-	}
-
-	oldCursor = ImGui::GetCursorPos();
-
-	// Inputs
-	focused = ImGui::IsWindowFocused();
-
-	// Display
-	updateBuffer();
-
-	ImVec2 availSize = ImGui::GetContentRegionAvail();
-	display.render(std::max(std::min(availSize.x / Display::W, availSize.y / Display::H), 1.0f));
-
-	// handle right click on image
-	ImGui::OpenPopupOnItemClick("display_context_popup", ImGuiMouseButton_Right);
 
 	if (ImGui::BeginPopupContextItem("display_context_popup")) {
 		if (ImGui::Selectable("Fullscreen"))
@@ -178,35 +202,106 @@ void DisplayWindow::updateBuffer() {
 void DisplayWindow::renderCG(Framebuffer& buffer) {
 	auto& ppu = context.gb.ppu;
 	
-	for (size_t p = 0; p < (160 * 144); ++p) {
-		const Color pixel = [&, &pixel = buffer.pixels[p], &meta = buffer.meta]() {
-			// todo: either clear the screen when bios -> game or use the bios as a fallback
-			/*
-			auto pTile = ppu.getTile(meta.pixels[]);
-			if (!pTile) {
-				return &PPU::paletteColors[pixel.color];
+	u8 windowLines = 0;
+	for (size_t y = 0; y < 144; ++y) {
+		auto& meta = buffer.meta;
+		auto& line = meta.lines[y];
+
+		struct Pixel {
+			Color col;
+			bool valid = true;
+		};
+
+		FIFO<Pixel, 8> bg;
+
+		size_t mapIdx = (line.bg.altMap) ? 1024 : 0;
+		size_t tileIdx = 0;
+		u8 x = (line.bg.x / 8) & 0x1F;
+		u16 yOffset = ((y + line.bg.y) / 8) * 32;
+		
+		for (size_t p = 0; p < 160; ++p) {
+			if (line.window.enabled && std::max(line.window.x - 7, 0) == p && line.window.y <= y) {
+				mapIdx = (line.window.altMap) ? 1024 : 0;
+				x = 0;
+				yOffset = (windowLines++ / 8) * 32;
 			}
-			
-			auto& tile = *pTile;
-			auto col = &tile.data[pixel.x + (pixel.y * 8)];
-			if (tile.usesIndexColors) {
-				for (u8 i = 0; i < indexColors.size(); ++i) {
-					if (indexColors[i] == *col) {
-						return &PPU::paletteColors[pixel.palette.dmg[i]];
+
+			if (bg.size() == 0) {
+				auto& tile = meta.maps[mapIdx + yOffset + x];
+				x = (x + 1) & 0x1F;
+
+				tileIdx = [&]() {
+					u16 idx = 384 * tile.altBank;
+
+					if (tile.idx & 0x80) {
+						idx += 128;
+					}
+					else if (!line.altTileSet) {
+						idx += 256;
+					}
+
+					return idx + (tile.idx & 0x7F);
+				}();
+
+				auto pTile = ppu.getTile(meta.tiles[tileIdx].src);
+				for (u8 c = 0; c < 8; ++c) {
+					if (!pTile) {
+						bg.push({.valid = false});
+					}
+					else {
+						bg.push({.col = 0xFFFFFF});
 					}
 				}
 			}
-			return col;
-			*/
-			return Color(u32(0x0));
-		}();
 
-		size_t idx = p * 4;
-		display.data()[idx] = pixel.r;
-		display.data()[idx + 1] = pixel.g;
-		display.data()[idx + 2] = pixel.b;
-		display.data()[idx + 3] = pixel.a;
+			/*
+			const Color pixel = [&, &pixel = buffer.pixels[y * 160 + p]]() {
+				// todo: either clear the screen when bios -> game or use the bios as a fallback
+				
+				auto pTile = ppu.getTile(meta.tiles[bgPixel.idx].src);
+				if (!pTile) {
+					return pixel.getColor(ppu.model);
+				}
+				
+				auto& tile = *pTile;
+				auto col = tile.data[bgPixel.x + (bgPixel.y * 8)];
+				if (tile.usesIndexColors) {
+					for (u8 i = 0; i < indexColors.size(); ++i) {
+						if (indexColors[i] == col) {
+							if (context.gb.cgbMode) {
+								return PPU::cgbPaletteColors[meta.palettes[bgPixel.pal].cgb[i]];
+							}
+							else {
+								return PPU::paletteColors[meta.palettes[bgPixel.pal].dmg[i]];
+							}
+						}
+					}
+				}
+				return col;
+			}();
+			*/
+			size_t idx = y * 160 * 4 + p * 4;
+			auto bgPixel = bg.pop();
+			auto pixel = (bgPixel.valid) ? bgPixel.col : buffer.pixels[y * 160 + p].getColor(ppu.model);
+			display.data()[idx] = pixel.r;
+			display.data()[idx + 1] = pixel.g;
+			display.data()[idx + 2] = pixel.b;
+			display.data()[idx + 3] = pixel.a;
+		}
 	}
+}
+
+void DisplayWindow::captureMouse(bool hasMouse) {
+	if (hasMouse) {
+		ImGui::GetIO().ConfigFlags |= ImGuiConfigFlags_NoMouse;
+		avoidReset = true;
+	}
+	else {
+		ImGui::GetIO().ConfigFlags &= ~ImGuiConfigFlags_NoMouse;
+	}
+
+	SDL_SetWindowRelativeMouseMode(NULL, hasMouse);
+	inFocus = hasMouse;
 }
 
 } // namespace ui 

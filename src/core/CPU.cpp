@@ -347,14 +347,21 @@ void CPU::stepComponents() {
 CPU::ReferenceData CPU::read(addr a) {
 	stepComponents();
 
-	u32 src = a & 0x3FFF;
+	u32 src = 0;
 	// simplify with get bank for addr? add support for wram banks 
 	
 	if (a & 0x8000) {
-		src = bus.Sources(a);
+		switch (a >> 12) {
+			case 0x8: case 0x9: src = core.ppu.vram_src_locations[PPU::VRAM_SIZE * core.ppu.vram_chunk.activeBank + a & 0x1FFF]; break;
+			case 0xA: case 0xB: src = core.cart.ram_sources[Memory::PAGE_SIZE * core.cart.ram0.activeBank + a & 0x1FFF]; break;
+			case 0xC: case 0xE: src = bus.wram_sources[a & 0xFFF]; break;
+			case 0xD: src = bus.wram_sources[Memory::PAGE_SIZE * bus.wram1.activeBank + a & 0xFFF]; break;
+			case 0xF: src = bus.wram_sources[Memory::PAGE_SIZE * 8 + a & 0xFFF]; break;
+			default: break;
+		}
 	}
 	else {
-		src |= ((a & 0x4000) ? core.cart.rom1 : core.cart.rom0).activeBank << 14;
+		src = (((a & 0x4000) ? core.cart.rom1 : core.cart.rom0).activeBank << 14) | a & 0x3FFF;
 	}
 
 	if (inBios) {
@@ -375,12 +382,16 @@ void CPU::write(addr a, Register& data) {
 	write(a, u8(data));
 
 	// check if we're in 0x8000-0x9fff
-	if ((a >> 13) == 0x4) {
-		core.ppu.writeIntercept(a, data.second, data);
-	}
+	switch (a >> 12) {
+		case 0x8: case 0x9:
+			core.ppu.writeIntercept(a, data.second, data);
+			break;
 
-	if (a & 0x8000) {
-		bus.Sources(a) = data.second;
+		case 0xA: case 0xB: core.cart.ram_sources[Memory::PAGE_SIZE * core.cart.ram0.activeBank + a & 0x1FFF] = data.second;
+		case 0xC: case 0xE: bus.wram_sources[a & 0xFFF] = data.second;
+		case 0xD: bus.wram_sources[Memory::PAGE_SIZE * bus.wram1.activeBank + a & 0xFFF] = data.second;
+		case 0xF: bus.wram_sources[Memory::PAGE_SIZE * 8 + a & 0xFFF] = data.second;
+		default: break;
 	}
 }
 

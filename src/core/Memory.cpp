@@ -1,19 +1,8 @@
 #include "Memory.h"
 
-#include "Gameboy.h"
-
 #define LOG_NOP_WRITES
 
-u32& Memory::Sources(addr a) {
-	switch (a >> 12) {
-		case 0x8: case 0x9: return core.ppu.vram_src_locations[PAGE_SIZE * core.ppu.vram_chunk.activeBank + a & 0x1FFF];
-		case 0xA: case 0xB: return core.cart.ram_sources[PAGE_SIZE * core.cart.ram0.activeBank + a & 0x1FFF];
-		case 0xC: case 0xE: return wram_sources[a & 0xFFF];
-		case 0xD: case 0xF: return wram_sources[PAGE_SIZE * wram1.activeBank + a & 0xFFF];
-	}
-}
-
-Memory::Memory(Gameboy& gb) : core(gb) {
+Memory::Memory() {
 	buses[0] = {
 		.read = [](void*, addr) -> u8 { return 0xFF; },
 		.write = [](void*, addr a, u8) {

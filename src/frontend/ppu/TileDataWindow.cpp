@@ -26,59 +26,39 @@ void TileDataWindow::render() {
 	if (show) {
 		ImGui::Begin("Tile Data", &show);
 
-		gb.ppu.dumpTileMap(tilemap);
+		
+		for (u16 t = 0; t < 0x180; ++t) {
+			size_t rgbIndex = ((t / 16) * 128 * 8) + ((t % 16) * 8);
+
+			gb.ppu.dumpTile(&tilemap[rgbIndex * 4], 128 * 4, t, false);
+		}
+
+		for (u16 t = 0; t < 0x180; ++t) {
+			size_t rgbIndex = ((t / 16) * 128 * 8) + ((t % 16) * 8);
+
+			gb.ppu.dumpTile(&altTilemap[rgbIndex * 4], 128 * 4, t, true);
+		}
+
 		tilemap.render(zoom, grid, { 
 			.extra = drawSectionSeparator,
 			.hover = [&](u32 x, u32 y) {
 				ImGui::Text("Src: 0x%x", gb.ppu.vram_src_locations[(x * 0x10) + (y * 0x100)]);
+				auto& tile = gb.ppu.getFrontBuffer().meta.tiles[y * 16 + x];
+				ImGui::Text("CG Hash: 0x%016llx", tile.hash);
+				ImGui::Text("CG Src: 0x%x", tile.src);
 			} 
 		});
-		/*
-		if (clicked) {
-			printf("Clicked: %d, %d\n", posx, posy);
 
-			if (second) {
-				if (posy < y1 || (posy == y1 && posx < x1)) {
-					x2 = x1;
-					y2 = y1;
-					x1 = posx;
-					y1 = posy;
-				}
-				else {
-					x2 = posx;
-					y2 = posy;
-				}
-
-				tiles = (x2 + 1 + (y2 * 16)) - (x1 + (y1 * 16));
-				height = minHeight = tiles / 32 + (tiles % 32 != 0);
-			}
-			else {
-				x1 = posx;
-				y1 = posy;
-				x2 = 0;
-				y2 = 0;
-			}
-
-			valid = second;
-			second = !second;
-		}
-
-		if (valid) {
-			ImGui::InputInt("Height##tiledump", &height);
-
-			if (height < minHeight) {
-				height = minHeight;
-			}
-
-			if (tiles % height == 0) {
-				int width = tiles / height;
-				dumpPreview.setSize(width * 8, height * 8);
-				gb.ppu.dumpTiles(dumpPixels, x1, y1, x2, y2, width, height);
-				dumpPreview.update();
-				dumpPreview.render(3.0f);
-			}
-		}
-		*/
+		ImGui::SameLine();
+		altTilemap.render(zoom, grid, { 
+			.extra = drawSectionSeparator,
+			.hover = [&](u32 x, u32 y) {
+				ImGui::Text("Src: 0x%x", gb.ppu.vram_src_locations[PPU::VRAM_SIZE + (x * 0x10) + (y * 0x100)]);
+				auto& tile = gb.ppu.getFrontBuffer().meta.tiles[384 + y * 16 + x];
+				ImGui::Text("CG Hash: 0x%016llx", tile.hash);
+				ImGui::Text("CG Src: 0x%x", tile.src);
+			} 
+		});
 
 		ImGui::InputText("##file", &dumpFile);
 		if (ImGui::Button("Dump")) {

@@ -166,7 +166,7 @@ void Cartridge::install() {
 
 		// hack: hijack end of ram to save MBC3's RTC Registers 
 		if (has(TIMER)) {
-			//ramSize += MBC3::RTC_REGS;
+			ramSize += MBC3::RTC_REGS;
 		}
 	}
 

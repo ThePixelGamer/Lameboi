@@ -97,7 +97,7 @@ public:
 			return nullptr;
 		}
 
-		glEnable(GL_DEBUG_OUTPUT);
+		glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
 		glDebugMessageCallback(GL_DebugOutput, 0);
 
 		return new App(window, gl_context);

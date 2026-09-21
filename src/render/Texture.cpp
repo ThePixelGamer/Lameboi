@@ -39,3 +39,10 @@ ImageTexture::ImageTexture(const char* path) : FilterValue(GL_LINEAR) {
 	update(img);
 	stbi_image_free(img);
 }
+
+void CubemapTexture::load(GLenum face, const char* path) {
+	stbi_set_flip_vertically_on_load(false);
+	int width, height, nrChannels;
+	unsigned char* data = stbi_load(path, &width, &height, &nrChannels, 0);
+	glTexImage2D(face, 0, GL_RGB, width, height,0, GL_RGB, GL_UNSIGNED_BYTE, data);
+}

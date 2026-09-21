@@ -12,9 +12,6 @@ bool UI::render() {
 	display.render();
 	menubar.render();
 
-	// Display Formats (2D screen or voxel rendering)
-	viewport.render();
-
 	// Gameboy Debug Stuff
 	debug.render();
 	settings.render();

@@ -13,6 +13,7 @@
 #include "util/Common.h"
 #include "util/Log.h"
 #include "util/StringUtils.h"
+#include "util/FIFO.h"
 
 namespace fs = std::filesystem;
 
@@ -40,6 +41,7 @@ PPU::PPU(Gameboy& gb) :
 	vram_tag_backing(VRAM_SIZE) {
 	clean();
 
+	vram = vram_backing.map();
 	model = Model::DMG;
 }
 
@@ -49,7 +51,6 @@ void PPU::install(Memory& bus, Model::Type type) {
 	vram_chunk.setup(bus.Mem() + 0x8000, 2);
 	vram_chunk.banks = 2;
 
-	vram = vram_backing.map();
 	vram_chunk.map(vram_backing, 0);
 	
 	vram_bus = bus.register_bus(nullptr, nullptr, nullptr);
@@ -233,7 +234,7 @@ u8 PPU::read(u8 reg) {
 		case 0x4F: return VBK;
 
 		case 0x51: case 0x52: case 0x53: case 0x54: return 0xFF;
-		case 0x55: return !activeVDMA << 7; 
+		case 0x55: return curVDMA - 1; 
 		
 		case 0x68: return (BGPI.autoInc << 6) | BGPI.addr;
 		case 0x69: return bgColors[BGPI.addr >> 3].color[BGPI.addr & 0x7];
@@ -314,19 +315,24 @@ void PPU::write(u8 reg, u8 value) {
 			dstVDMA |= value & 0xF0;
 			break;
 
-		case 0x55: 
-			modeVDMA = value & 0x80;
-			curVDMA = ((value & 0x7F) + 1) * 0x10;
+		case 0x55:
+			modeVDMA = (value & 0x80);
+			curVDMA = (value & 0x7F) + 1;
 
-			if (!modeVDMA && !activeVDMA) {
-				for (int i = 0; i < curVDMA; ++i) {
-					bus.write(dstVDMA + i, bus.read(srcVDMA + i));
-					if (i & 0x1) core.step();
-				}
+			if (activeVDMA) {
+				if (!modeVDMA) activeVDMA = false;
 			}
 			else {
-				activeVDMA = true;
-				LB_INFO(PPU, "0x{:04X} -> 0x{:04X} ({})", srcVDMA, dstVDMA, curVDMA);
+				if (!modeVDMA) {
+					while (curVDMA) {
+						vdma();
+					}
+					--curVDMA;
+				}
+				else {
+					activeVDMA = true;
+					LB_INFO(PPU, "0x{:04X} -> 0x{:04X} ({})", srcVDMA, dstVDMA, curVDMA);
+				}
 			}
 
 			break;
@@ -351,7 +357,7 @@ void PPU::write(u8 reg, u8 value) {
 			if (OBPI.autoInc) OBPI.addr++;
 			break;
 
-		case 0x6C: dmgObjPriority = value & 0x1;
+		case 0x6C: dmgObjPriority = value & 0x1; break;
 
 		default: break;
 	}
@@ -362,7 +368,7 @@ void PPU::writeIntercept(addr dst, u32 src, u8 data) {
 
 	u16 vramOffset = dst & 0x1FFF;
 
-	vram_src_locations[(VBK & 0x1) * VRAM_SIZE + vramOffset] = src;
+	vram_src_locations[vram_chunk.activeBank * VRAM_SIZE + vramOffset] = src;
 
 	// 0x8000 - 0x97FF
 	if (vramOffset < 0x1800) {
@@ -424,211 +430,173 @@ u16 _fetchTileIdx(bool method8000, u8 tileoffset, bool bank) {
 	return idx + (tileoffset & 0x7F);
 }
 
-std::array<u8, 2> PPU::_fetchTileLine(bool method8000, u8 yoffset, u8 tileoffset) {
-	size_t loc = _fetchTileAddr(method8000, tileoffset) + (yoffset * 2);
-	return { vram[loc], vram[loc + 1] };
-}
-
 void PPU::scanline() {
 	if (cycles < 252) {
 		return;
 	}
-	
-	struct FIFO {
+
+	// Standard render
+	{
 		struct Pixel {
 			u8 col : 2 = 0;
 			u8 pal : 3 = 0;
 			u8 pr : 6 = 0;
 			u8 bg_pr : 1 = 0;
-
-			// additional info to support cg
-			u16 idx : 10;
-			u16 x : 3;
-			u16 y : 3;
 		};
 
-		std::array<Pixel, 8> line = {};
-		u8 head : 3, tail : 3;
-		u8 count;
+		FIFO<Pixel, 8> bg, obj;
 
-		u8 x : 5;
+		const auto map0 = 0x1800;
+		const auto map1 = 0x1C00;
+		u16 baseMap = (LCDC.bgMap) ? map1 : map0;
 
-		FIFO() { reset(); }
+		constexpr u8 tileMaxX = (256 / T);
+		u8 bg_x = (SCX / T) & 0x1F;
+		u8 y = LY + SCY;
+		u16 yOffset = (y / T) * tileMaxX;
 
-		void push(Pixel pixel) {
-			if (size() != line.size()) {
-				line[head++] = std::move(pixel);
-				count++;
+		for (u16 p = 0; p < 160; ++p) {
+			if (windowEnabled && LCDC.windowDisplay && (std::max(WX - 7, 0)) == p && LY >= WY) {
+				bg.reset();
+				bg_x = 0;
+				baseMap = (LCDC.windowMap) ? map1 : map0;
+				y = windowLines++;
+				yOffset = (y / T) * tileMaxX;
 			}
-		}
 
-		Pixel pop() {
-			if (size() == 0) return {};
-			
-			Pixel out = line[tail++];
-			count--;
-			return out;
-		}
+			if (bg.size() == 0) {
+				u16 tile = baseMap + yOffset + bg_x;
+				bg_x = (bg_x + 1) & 0x1F;
+				u8 bgattr = (core.cgbMode) ? vram[VRAM_SIZE + tile] : (LCDC.displayPriority << 7);
+				addr tileAddr = _fetchTileAddr(LCDC.tileSet, vram[tile], bool(bgattr & 0x8));
 
-		void reset() {
-			head = 0;
-			tail = 0;
-			count = 0;
-			x = 0;
-		}
+				u8 tileY = (bgattr & 0x40) ? 7 - y : y; 
+				addr lineAddr = tileAddr + (tileY % T) * 2;
+				
+				u8 b_col = vram[lineAddr], t_col = vram[lineAddr + 1]; 
+				for (u8 c = 0; c < 8; ++c) {
+					u8 bitX = (bgattr & 0x20) ? 7 - c : c;
+						
+					bg.push({
+						.col = u8((getBit(t_col, 7 - bitX) << 1) | getBit(b_col, 7 - bitX)),
+						.pal = u8(bgattr & 0x7), 
+						.bg_pr = bool(bgattr & 0x80)
+					});
+				}
+			}
 
-		u8 size() {
-			return count;
-		}
+			if (p == 0) {
+				for (u8 i = 0; i < SCX % T; ++i)
+					bg.pop();
+			}
 
-		Pixel& operator[](size_t i) {
-			return line[(tail + i) & 0x7];
-		}
-	} bg, obj;
-
-	const auto map0 = 0x1800;
-	const auto map1 = 0x1C00;
-	u16 baseMap = (LCDC.bgMap) ? map1 : map0;
-
-	constexpr u8 tileMaxX = (256 / T);
-	bg.x = (SCX / T) & 0x1F;
-	u8 y = LY + SCY;
-	u16 yOffset = (y / T) * tileMaxX;
-
-	for (u16 p = 0; p < 160; ++p) {
-		size_t offset = (LY * 160) + p;
-		auto& cgpixel = buffers[backIdx].meta.bg[offset];
-
-		if (windowEnabled && LCDC.windowDisplay && (std::max(WX - 7, 0)) == p && LY >= WY) {
-			bg.reset();
-			baseMap = (LCDC.windowMap) ? map1 : map0;
-			y = windowLines++;
-			yOffset = (y / T) * tileMaxX;
-		}
-
-		if (bg.size() == 0) {
-			u16 tile = baseMap + yOffset + bg.x++;
- 			u8 bgattr = (core.cgbMode) ? vram[VRAM_SIZE + tile] : (LCDC.displayPriority << 7);
-			addr tileAddr = _fetchTileAddr(LCDC.tileSet, vram[tile], bool(bgattr & 0x8));
-
-			u8 tileY = (bgattr & 0x40) ? 7 - y : y; 
-			addr lineAddr = tileAddr + (tileY % T) * 2;
-			
-			u8 b_col = vram[lineAddr], t_col = vram[lineAddr + 1]; 
-			for (u8 c = 0; c < 8; ++c) {
-				u8 bitX = (bgattr & 0x20) ? 7 - c : c;
-					
-				bg.push({
-					.col = u8((getBit(t_col, 7 - bitX) << 1) | getBit(b_col, 7 - bitX)),
-					.pal = u8(bgattr & 0x7), 
-					.bg_pr = bool(bgattr & 0x80),
-
-					.idx = _fetchTileIdx(LCDC.tileSet, vram[tile], bgattr & 0x8),
-					.x = bitX,
-					.y = tileY
+			while (obj.size() < 8) {
+				obj.push({
+					.col = 0
 				});
 			}
-		}
+			
+			if (spritesEnabled && LCDC.objDisplay) {
+				for (u8 i = 0; i < loadedSprites; ++i) {
+					u8 spriteIndex = renderSprites[i];
+					Sprite& sprite = sprites[spriteIndex];
 
-		if (p == 0) {
-			for (u8 i = 0; i < SCX % T; ++i)
-				bg.pop();
-		}
+					if (p != (sprite.xPos - 8)) {
+						continue; 
+					}
 
-		while (obj.size() < 8) {
-			obj.push({
-				.col = 0
-			});
-		}
-		
-		if (spritesEnabled && LCDC.objDisplay) {
-			for (u8 i = 0; i < loadedSprites; ++i) {
-				u8 spriteIndex = renderSprites[i];
-				Sprite& sprite = sprites[spriteIndex];
+					u8 objY = (LY + 16 - sprite.yPos) % 16;
+					if (sprite.yFlip()) {
+						objY = ((LCDC.objSize) ? 15 : 7) - objY;
+					}
 
-				if (p != (sprite.xPos - 8)) {
-					continue; 
-				}
+					u8 tileOffset = sprite.tile;
+					if (LCDC.objSize) { // 8x16
+						tileOffset = (objY < 8) ? (sprite.tile & 0xFE) : (sprite.tile | 0x1);
+					}
 
-				u8 objY = (LY + 16 - sprite.yPos) % 16;
-				if (sprite.yFlip()) {
-					objY = ((LCDC.objSize) ? 15 : 7) - objY;
-				}
+					addr tileAddr = _fetchTileAddr(true, tileOffset, (core.cgbMode) ? sprite.getBank() : 0);
+					addr lineAddr = tileAddr + (objY % 8) * 2;
 
-				u8 tileOffset = sprite.tile;
-				if (LCDC.objSize) { // 8x16
-					tileOffset = (objY < 8) ? (sprite.tile & 0xFE) : (sprite.tile | 0x1);
-				}
-
-				addr tileAddr = _fetchTileAddr(true, tileOffset, (core.cgbMode) ? sprite.getBank() : 0);
-				addr lineAddr = tileAddr + (objY % 8) * 2;
-
-				u8 b_col = vram[lineAddr], t_col = vram[lineAddr + 1];
-				u8 priority = (dmgObjPriority) ? 0 : spriteIndex;
-				for (u8 c = 0; c < 8; ++c) {
-					u8 bitX = (sprite.xFlip()) ? 7 - c : c;
-					
-					auto& pixel = obj[c];
-					u8 newCol = (getBit(t_col, 7 - bitX) << 1) | getBit(b_col, 7 - bitX);
-					if (newCol != 0 && (pixel.col == 0 || pixel.pr > priority)) {
-						pixel.col = newCol;
-						pixel.pal = (core.cgbMode) ? sprite.getCGBPal() : sprite.useOBP1();
-						pixel.pr = priority;
-						pixel.bg_pr = sprite.behindBG();
+					u8 b_col = vram[lineAddr], t_col = vram[lineAddr + 1];
+					u8 priority = (dmgObjPriority) ? 0 : spriteIndex;
+					for (u8 c = 0; c < 8; ++c) {
+						u8 bitX = (sprite.xFlip()) ? 7 - c : c;
+						
+						auto& pixel = obj[c];
+						u8 newCol = (getBit(t_col, 7 - bitX) << 1) | getBit(b_col, 7 - bitX);
+						if (newCol != 0 && (pixel.col == 0 || pixel.pr > priority)) {
+							pixel.col = newCol;
+							pixel.pal = (core.cgbMode) ? sprite.getCGBPal() : sprite.useOBP1();
+							pixel.pr = priority;
+							pixel.bg_pr = sprite.behindBG();
+						}
 					}
 				}
 			}
-		}
 
-		auto& pixel = buffers[backIdx].pixels[offset];
-		auto bgPixel = bg.pop();
-		auto objPixel = obj.pop();
+			size_t offset = (LY * 160) + p;
+			auto& pixel = buffers[backIdx].pixels[offset];
+			auto bgPixel = bg.pop();
+			auto objPixel = obj.pop();
 
-		cgpixel.idx = bgPixel.idx;
-		cgpixel.pal = bgPixel.pal;
-		cgpixel.x = bgPixel.x;
-		cgpixel.y = bgPixel.y;
+			auto objWin = [&](bool cgbMode) {
+				if (objPixel.col != 0) {
+					if (cgbMode) {
+						if (!LCDC.displayPriority) {
+							return true;
+						}
+					}
 
-		auto objWin = [&](bool cgbMode) {
-			if (objPixel.col != 0) {
-				if (cgbMode) {
-					if (!LCDC.displayPriority) {
+					if (!objPixel.bg_pr) {
+						if (!cgbMode || !bgPixel.bg_pr) {
+							return true;
+						}
+					}
+
+					if (bgPixel.col == 0) {
 						return true;
 					}
 				}
 
-				if (!objPixel.bg_pr) {
-					if (!cgbMode || !bgPixel.bg_pr) {
-						return true;
-					}
+				return false;
+			};
+
+			if (objWin(core.cgbMode)) {
+				if (model == Model::CGB) {
+					pixel.color = objColors[objPixel.pal][objPixel.col];
 				}
-
-				if (bgPixel.col == 0) {
-					return true;
+				else {
+					auto& pal = (objPixel.pal) ? OBP1 : OBP0;
+					pixel.color = pal[objPixel.col];
 				}
-			}
-
-			return false;
-		};
-
-		if (objWin(core.cgbMode)) {
-			if (model == Model::CGB) {
-				pixel.color = objColors[objPixel.pal][objPixel.col];
 			}
 			else {
-				auto& pal = (objPixel.pal) ? OBP1 : OBP0;
-				pixel.color = pal[objPixel.col];
-			}
-		}
-		else {
-			if (model == Model::CGB) {
-				pixel.color = (core.cgbMode || bgPixel.bg_pr) ? bgColors[bgPixel.pal][bgPixel.col] : 0x7FFF;
-			}
-			else {
-				pixel.color = (bgPixel.bg_pr) ? BGP[bgPixel.col] : 0;
+				if (model == Model::CGB) {
+					pixel.color = (core.cgbMode || bgPixel.bg_pr) ? bgColors[bgPixel.pal][bgPixel.col] : 0x7FFF;
+				}
+				else {
+					pixel.color = (bgPixel.bg_pr) ? BGP[bgPixel.col] : 0;
+				}
 			}
 		}
 	}
+	
+	// CG metainfo
+	auto& meta = buffers[backIdx].meta;
+	auto& line = meta.lines[LY];
+	auto& bg = line.bg;
+	bg.x = SCX;
+	bg.y = SCY;
+	bg.altMap = LCDC.bgMap;
+
+	auto& window = line.window;
+	window.x = WX;
+	window.y = WY;
+	window.enabled = LCDC.windowDisplay;
+	window.altMap = LCDC.windowMap;
+
+	line.altTileSet = LCDC.tileSet;
 
 	setMode(HBlank);
 }
@@ -655,6 +623,10 @@ void PPU::oamScan() {
 
 void PPU::hblank() {
 	if (_nextLine()) {
+		if (activeVDMA && curVDMA) {
+			vdma();
+		}
+
 		if (windowYTrigger) {
 			windowYTrigger = false;
 			if (++windowLines >= 144) {
@@ -675,8 +647,55 @@ void PPU::vblank() {
 
 		auto& meta = buffers[backIdx].meta;
 		for (int i = 0; i < meta.tiles.size(); ++i) {
-			u16 addr = VRAM_SIZE * (i < meta.tiles.size() / 2);
+			u16 addr = VRAM_SIZE * (i >= meta.tiles.size() / 2);
 			addr += (i % 384) * 16;
+			
+			u64& hash = meta.tiles[i].hash;
+			hash = 0;
+			for (u8 i = 0; i < 8; ++i) {
+				u16 offset = addr + (i * 2);
+				hash |= u64(vram[offset] | vram[offset + 1]) << (i * 8);
+			}
+
+			meta.tiles[i].src = vram_src_locations[addr];
+		}
+
+		if (model == Model::CGB) {
+			for (int i = 0; i < meta.palettes.size(); ++i) {
+				meta.palettes[i].cgb = (i >= meta.palettes.size() / 2) ? objColors[i % 8] : bgColors[i % 8];
+			}
+		}
+		else {
+			meta.palettes[0].dmg = BGP;
+			meta.palettes[8].dmg = OBP0;
+			meta.palettes[9].dmg = OBP1;
+		}
+
+		for (int i = 0; i < meta.maps.size(); ++i) {
+			u8 a = vram[VRAM_SIZE + 0x1800 + i];
+			
+			meta.maps[i] = {
+				.idx = vram[0x1800 + i],
+				.pal = u8(a & 0x7),
+				.altBank = u8(a & 0x8),
+				.xFlip = u8(a & 0x20),
+				.yFlip = u8(a & 0x40),
+				.priority = (core.cgbMode) ? u8(a & 0x80) : u8(LCDC.displayPriority)
+			};
+		}
+
+		for (int i = 0; i < meta.sprites.size(); ++i) {
+			auto& sprite = sprites[i];
+			
+			meta.sprites[i] = {
+				.idx = sprite.tile,
+				.x = sprite.xPos,
+				.y = sprite.yPos,
+				.pal = (core.cgbMode) ? sprite.getCGBPal() : u8(sprite.useOBP1()),
+				.altBank = (core.cgbMode) ? u8(sprite.getBank()) : u8(0),
+				.xFlip = sprite.xFlip(), .yFlip = sprite.yFlip(),
+				.behindBG = sprite.behindBG(),
+			};
 		}
 
 		interrupt.request.vblank = true;
@@ -696,6 +715,11 @@ void PPU::vblank() {
 }
 
 void PPU::vdma() {
+	--curVDMA;
+	for (u8 i = 0; i < 0x10; ++i) {
+		bus.write(0x8000 | dstVDMA++, bus.read(srcVDMA++));
+		if (i & 0x1) core.step();
+	}
 }
 
 // name is a bit ambigious but checks if we're going to the next line with the amount of cycles
@@ -723,141 +747,21 @@ void PPU::render(std::function<void (Framebuffer&)> callback) {
 	}
 }
 
-static PaletteData basic{};
-template<size_t N>
-void rowHelper(std::array<u8, N>& outData, size_t index, u8 bottom, u8 top, bool color0Invis = false, PaletteData& pallete = basic) {
-	for (int x = 0; x < 8; ++x) {
-		u8 bit = 7 - x;
-		u8 color = (getBit(top, bit) << 1) | getBit(bottom, bit);
+void PPU::dumpTile(u8* out, const size_t outW, const u16 tile, bool altBank) {
+	assert(tile < 0x180);
 
-		auto& pixel = (color0Invis && color == pallete[0]) ? PPU::invisPixel : PPU::paletteColors[pallete[color]];
-		std::copy_n((u8*)&pixel, 4, outData.begin() + ((index + x) * 4));
-	}
-}
-/*
-void PPU::dumpTiles(u8* outData, const size_t outW, const size_t tW, const size_t tH, const size_t baseOffset) {
-	size_t tileOffset = baseOffset;
+	for (u8 y = 0; y < T; ++y) {
+		size_t offset = (altBank * VRAM_SIZE) + (tile * 0x10) + (y * 2);
 
-	for (size_t tX = 0, tY = 0; (tX * tY) < (tW * tH); ++tX) {
-		if (tX == tW) {
-			tX = 0;
-			++tY;
-			tileOffset += 0x100;
-		}
-
-		size_t pixelOffset = (tY * PPU::T);
-		for (int y = 0; y < PPU::T; ++y) {
-			u8 bottom = VRAM[tileOffset];
-			u8 top = VRAM[tileOffset + 1];
-			tileOffset += 2;
-
-			for (int x = 0; x < T; ++x) {
-				u8 bit = T - x - 1;
-				u8 color = (getBit(top, bit) << 1) | getBit(bottom, bit);
-
-				auto& pixel = PPU::paletteColors[pallete[color]];
-
-				outData[pixelOffset + 0] = pixel.
-				std::copy_n((u8*)&pixel, 4, outData.begin() + ((index + x) * 4));
-			}
-		}
-	}
-}*/
-
-void PPU::dumpTile(u8* out, const size_t outW, const u16 tile) {
-	if (tile > 0x17F) return;
-
-	for (int y = 0; y < PPU::T; ++y) {
-		auto line = vram.get() + (tile * 0x10) + (y * 2);
-
-		for (int x = 0; x < T; ++x) {
+		for (u8 x = 0; x < T; ++x) {
 			u8 bit = T - x - 1;
-			u8 color = (getBit(line[1], bit) << 1) | getBit(line[0], bit);
+			u8 rawColor = (getBit(vram[offset + 1], bit) << 1) | getBit(vram[offset], bit);
+			u8 color = 0x55 * (3 - rawColor);
 
-			auto& pixel = PPU::paletteColors[color];
-			*(out++) = pixel.r;
-			*(out++) = pixel.g;
-			*(out++) = pixel.b;
-			(void)*(out++);// = pixel.a;
-		}
-
-		out += outW;
-	}
-}
-
-//maybe add support for an auto option?
-void PPU::dumpBGMap(std::array<u8, 256 * 256 * 4>& outData, bool bgMap, bool tileSet) {
-	auto map = vram.get() + ((bgMap) ? 0x1C00 : 0x1800);
-
-	for (int t = 0; t < 0x400; ++t) {
-		for (int y = 0; y < 8; ++y) {
-			auto tile = _fetchTileLine(tileSet, y, map[t]);
-
-			size_t rgbIndex = ((t / 32) * 256 * 8) + ((t % 32) * 8) + (y * 256);
-			rowHelper(outData, rgbIndex, tile[0], tile[1]);
-		}
-	}
-}
-
-void PPU::dumpTileMap(std::array<u8, 128 * 64 * 3 * 4>& outData) {
-	for (int t = 0; t < 0x180; ++t) {
-		for (int i = 0; i < 8; ++i) {
-			u8 top = vram[(t * 16ll) + (i * 2ll)];
-			u8 bottom = vram[(t * 16ll) + (i * 2ll) + 1];
-
-			size_t rgbIndex = ((t / 16) * 128 * 8) + ((t % 16) * 8) + (i * 128);
-			rowHelper(outData, rgbIndex, top, bottom);
-		}
-	}
-}
-
-void PPU::dumpBGMapTiles(std::array<u8, 32 * 8 * 32 * 8 * 4>& outData, Pos2 min, Pos2 max, bool bgMap, bool tileSet) {
-	auto map = vram.get() + ((bgMap) ? 0x1C00 : 0x1800);
-
-	for (int ty = min.y; ty != max.y + 1; ++ty) {
-		for (int tx = min.x; tx != max.x + 1; ++tx) {
-			int t = tx + (ty * 32);
-			for (int y = 0; y < 8; ++y) {
-				auto tile = _fetchTileLine(tileSet, y, map[t]);
-
-				size_t rgbIndex = (ty - min.y) * (32 * 8 * 8) + (tx - min.x) * 8 + y * (32 * 8);
-				rowHelper(outData, rgbIndex, tile[0], tile[1]);
-			}
-		}
-	}
-}
-
-void PPU::dumpTiles(std::array<u8, 32 * 8 * 32 * 8 * 4>& outData, u32 x1, u32 y1, u32 x2, u32 y2, u32 w, u32 h) {
-	u32 tileOffset = 0;
-	u32 rowOffset = 0;
-
-	int tileEnd = x2 + 1 + (y2 * 16);
-	for (int t = x1 + (y1 * 16); t < tileEnd; ++t) {
-		size_t rgbTileIndex = (8 * tileOffset) + (32 * 8 * 8 * rowOffset);
-		for (int i = 0; i < 8; ++i) {
-			u8 top = vram[(t * 16ll) + (i * 2ll)];
-			u8 bottom = vram[(t * 16ll) + (i * 2ll) + 1];
-
-			size_t rgbIndex = rgbTileIndex + (32 * 8 * i);
-			rowHelper(outData, rgbIndex, top, bottom);
-		}
-
-		if (++tileOffset == w) {
-			tileOffset = 0;
-			if (++rowOffset == h) {
-				return;
-			}
-		}
-	}
-}
-
-void PPU::dumpSprites(std::array<u8, 64 * 40 * 4>& outData) {
-	for (u8 obj = 0; obj < 40; ++obj) {
-		for (u8 y = 0; y < 8; ++y) {
-			auto tile = _fetchTileLine(true, y, sprites[obj].tile);
-
-			size_t rgbIndex = ((obj / 8) * 64 * 8) + ((obj % 8) * 8) + (y * 64);
-			rowHelper(outData, rgbIndex, tile[0], tile[1], true, (sprites[obj].useOBP1()) ? OBP1 : OBP0);
+			auto rgb = &out[y * outW + x * 4];
+			rgb[0] = color;
+			rgb[1] = color;
+			rgb[2] = color;
 		}
 	}
 }
@@ -999,8 +903,16 @@ void Manifest::loadTilemap(const std::string& skin, const std::string& path, con
 	for (auto& loc_json : tilemap) {
 		auto load = [&](std::string loc) {
 			if (!loc.empty()) {
-				std::erase(loc, ':');
-				u32 a = stringToHex(loc);
+				u32 a = 0;
+				auto pos = loc.find(':');
+				if (pos == loc.npos) {
+					a = stringToHex(loc);
+				}
+				else {
+					u32 b = stringToHex(loc.substr(0, pos));
+					a = stringToHex(loc.substr(pos + 1));
+					a += b << 14;
+				}
 
 				Tile::Data uvImage(8 * 8);
 

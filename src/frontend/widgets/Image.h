@@ -139,6 +139,11 @@ public:
         dirty = true;
         return pixels;
     }
+
+	u8& operator[](size_t i) {
+		dirty = true;
+		return pixels[i];
+	}
 };
 
 }

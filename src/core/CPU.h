@@ -62,7 +62,6 @@ public:
 			second = 0;
 			return *this;
 		}
-		
 		operator u8&() {
 			return first;
 		}
@@ -93,6 +92,9 @@ private:
 	Gameboy& core;
 	Memory& bus;
 	Interrupt& interrupt;
+
+	// wram
+	std::array<std::vector<u32>, 3> sources;
 
 public:
 	CPU(Gameboy& core);

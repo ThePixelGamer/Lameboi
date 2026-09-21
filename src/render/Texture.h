@@ -66,3 +66,29 @@ public:
 		return static_cast<T>(id);
 	}
 };
+
+class CubemapTexture : public Texture {
+public:
+	CubemapTexture(std::string prefix) {
+		use();
+
+		glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+		glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+		glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+		glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+		load(GL_TEXTURE_CUBE_MAP_POSITIVE_X, (prefix + "right.jpg").c_str());
+		load(GL_TEXTURE_CUBE_MAP_NEGATIVE_X, (prefix + "left.jpg").c_str());
+		load(GL_TEXTURE_CUBE_MAP_POSITIVE_Y, (prefix + "top.jpg").c_str());
+		load(GL_TEXTURE_CUBE_MAP_NEGATIVE_Y, (prefix + "bottom.jpg").c_str());
+		load(GL_TEXTURE_CUBE_MAP_POSITIVE_Z, (prefix + "front.jpg").c_str());
+		load(GL_TEXTURE_CUBE_MAP_NEGATIVE_Z, (prefix + "back.jpg").c_str());
+	}
+
+	void use() {
+		glBindTexture(GL_TEXTURE_CUBE_MAP, id);
+	}
+
+	void load(GLenum face, const char* path);
+};

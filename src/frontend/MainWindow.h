@@ -3,7 +3,6 @@
 #include "DebugWindow.h"
 #include "DisplayWindow.h"
 #include "SettingsWindow.h"
-#include "ViewportWindow.h"
 #include "MainMenu.h"
 
 #include "APUWindow.h"
@@ -22,7 +21,6 @@ struct UI {
 	ui::DisplayWindow display;
 	ui::DebugWindow debug;
 	ui::SettingsWindow settings;
-	ui::ViewportWindow viewport;
 	ui::MainMenu menubar;
 
 	ui::BGMapWindow bgmapWindow;
@@ -36,7 +34,6 @@ struct UI {
 		display(*this),
 		debug(gb),
 		settings(gb),
-		viewport(),
 		menubar(*this),
 		bgmapWindow(gb),
 		tileDataWindow(gb),

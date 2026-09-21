@@ -2,6 +2,7 @@
 
 #include <chrono>
 
+#include "render/Scene.h"
 #include "widgets/Image.h"
 
 struct UI;
@@ -14,6 +15,9 @@ class DisplayWindow {
 
 	using Display = Image<160, 144>;
 	Display display;
+	Scene scene;
+	bool inFocus = false; 
+	bool avoidReset = false;
 
 	ImVec2 oldCursor;
 	// todo: update with the window math
@@ -26,7 +30,7 @@ class DisplayWindow {
 	u64 instrCount = 0;
 
 public:
-	bool show = true;
+	bool showScene = true;
 	bool integerScaling = false;
 	bool useCG = false;
 	// maybe move this into Input?
@@ -39,6 +43,8 @@ private:
 	void updateBuffer();
 
 	void renderCG(Framebuffer& buffer);
+
+	void captureMouse(bool hasMouse);
 };
 
 } // namespace ui 

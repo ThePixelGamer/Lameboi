@@ -121,6 +121,24 @@ void BGMapWindow::render() {
 		bool b_bgmap = (bgmap) ? (bgmap - 1) : gb.ppu.LCDC.bgMap;
 		bool b_tileset = (tileset) ? (tileset - 1) : gb.ppu.LCDC.tileSet;
 		
+		auto dumpBGMap = [&](std::array<u8, 256 * 256 * 4>& outData, Pos2 min = { 0, 0 }, Pos2 max = { 31, 31 }) {
+			auto map = gb.ppu.vram.get() + ((b_bgmap) ? 0x1C00 : 0x1800);
+			auto attribute = map + PPU::VRAM_SIZE;
+
+			for (int ty = min.y; ty != max.y + 1; ++ty) {
+				for (int tx = min.x; tx != max.x + 1; ++tx) {
+					int t = tx + (ty * 32);
+					size_t rgbIndex = ((ty - min.y) * 256 * 8) + ((tx - min.x) * 8);
+					u16 tile = map[t];
+					if (!(tile & 0x80) && !b_tileset) {
+						tile += 256;
+					}
+
+					gb.ppu.dumpTile(&outData[rgbIndex * 4], 256 * 4, tile, bool(attribute[t] & 0x8));
+				}
+			}
+		};
+
 		if (selected) {
 			const char* popupName = "Configure dump";
 
@@ -131,7 +149,7 @@ void BGMapWindow::render() {
 			int width = (selectionMax.x - selectionMin.x + 1) * 8;
 			int height = (selectionMax.y - selectionMin.y + 1) * 8;
 			dump.setSize(width, height);
-			gb.ppu.dumpBGMapTiles(dump, selectionMin, selectionMax, b_bgmap, b_tileset);
+			dumpBGMap(dump, selectionMin, selectionMax);
 			float zoom = std::max(std::min(256.0f / width, 256.0f / height), 1.0f);
 			dump.render(zoom * 0.5f);
 
@@ -178,7 +196,7 @@ void BGMapWindow::render() {
 
 		oldCursor = ImGui::GetCursorPos();
 
-		gb.ppu.dumpBGMap(bgmapTex, b_bgmap, b_tileset);
+		dumpBGMap(bgmapTex);
 
 		ImVec2 availSize = ImGui::GetContentRegionAvail();
 		float zoom = std::max(std::min(availSize.x / bgmapTex.W, availSize.y / bgmapTex.H), 1.0f);

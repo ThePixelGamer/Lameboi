@@ -48,7 +48,7 @@ public:
 	SerialPort serial;
 
 	Gameboy() :
-		bus(*this),
+		bus(),
 		cart(bus),
 		interrupt(),
 		cpu(*this),
