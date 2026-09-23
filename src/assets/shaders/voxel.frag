@@ -6,10 +6,10 @@ uniform sampler3D volume;
 uniform float voxel_size;
 
 uniform vec3 colorPalette[256];
-uniform vec3 model_cam_pos;
 
 out vec4 FragColor;
 
+flat in vec3 model_cam_pos;
 in vec3 fV;
 in vec3 pos;
 

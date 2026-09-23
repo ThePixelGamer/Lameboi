@@ -1,10 +1,12 @@
-#include "VoxelVolume.h"
+#include "Voxel.h"
 
 #include "util/MemoryMap.h"
 
+/*
 inline glm::vec3 col_to_vec(u32 c) {
 	return glm::vec3((c & 0xFF) / 255.0f, ((c >> 8) & 0xFF) / 255.0f, (c >> 16) / 255.0f); 
 }
+*/
 
 inline glm::vec3 col_to_vec(u8 r, u8 g, u8 b) {
 	return glm::vec3(r / 255.0f, g / 255.0f, b / 255.0f); 
@@ -52,13 +54,13 @@ void VoxelVolume::load(std::filesystem::path path) {
 				u32 w = readu32();
 				u32 d = readu32();
 				u32 h = readu32();
-				Model& model = models.emplace_back(w, h, d);
-				shader.setFloat("voxel_size", 0.01f);
+				auto& model = models.emplace_back(w, h, d);
+				voxel_size = 1.0f / std::max(w, std::max(h, d));
 			} break;
 
 			case MAKE_VOX_CHUNK_ID('X', 'Y', 'Z', 'I'): {
 				u32 voxel_count = readu32();
-				Model& model = models.back();
+				auto& model = models.back();
 
 				const uint32_t x_s = 1;
 				const uint32_t y_s = model.texture.W;
@@ -71,7 +73,7 @@ void VoxelVolume::load(std::filesystem::path path) {
 					model.volume.at((x * x_s) + (y * y_s) + (z * z_s)) = readu8();
 				}
 
-				model.texture.update(model.volume.data());
+				model.update();
 			} break;
 
 			case MAKE_VOX_CHUNK_ID('R', 'G', 'B', 'A'): {

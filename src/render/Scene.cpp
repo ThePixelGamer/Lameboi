@@ -51,14 +51,12 @@ GLuint Scene::render() {
 
 	glm::mat4 view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
 	glm::mat4 projection = glm::perspective(glm::radians(fov), (float)Width / (float)Height, 0.1f, 100.0f);
-	
-	for (int x = 0; x < 20; ++x) {
-		for (int y = 0; y < 18; ++y) {
-			deer.render(cameraPos, glm::vec3(x, 0.0f, y), view, projection);
-		}
-	}
-	//trex.render(cameraPos, glm::vec3(0.0f, 1.0f, 0.0f), view, projection);
-	//horse.render(cameraPos, glm::vec3(0.0f, 2.0f, 0.0f), view, projection);
+
+	screen.render(cameraPos, glm::vec3(0.0f, 0.0f, 0.0f), view, projection);
+	//deer.render(cameraPos, glm::vec3(1.0f, 0.0f, 0.0f), view, projection);
+
+	//trex.render(cameraPos, glm::vec3(2.0f, 0.0f, 0.0f), view, projection);
+	//horse.render(cameraPos, glm::vec3(3.0f, 0.0f, 0.0f), view, projection);
 	cubemap.render(view, projection);
 
 	// now bind back to default framebuffer and draw a quad plane with the attached framebuffer color texture

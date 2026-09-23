@@ -5,7 +5,7 @@
 
 #include "Texture.h"
 #include "Shader.h"
-#include "VoxelVolume.h"
+#include "Voxel.h"
 #include "Cubemap.h"
 
 class Scene {
@@ -13,8 +13,8 @@ private:
 	GLuint framebuffer, textureColorbuffer;
 	ImageTexture boxTexture;
 	VoxelVolume deer { "deer.vox"};
-	//VoxelVolume trex { "T-Rex.vox"};
-	//VoxelVolume horse { "horse.vox"};
+	VoxelVolume trex { "T-Rex.vox"};
+	VoxelVolume horse { "horse.vox"};
 	Cubemap cubemap;
 	TexturedCube cube;
 	Shader shader{"shaders/cube.vert", "shaders/cube.frag"};
@@ -30,6 +30,7 @@ public:
 
 	bool wireframe = false;
 	float fov = 70.0f;
+	VoxelVolume screen { 160, 144, 9 };
 
 	Scene();
 

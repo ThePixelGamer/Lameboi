@@ -90,6 +90,8 @@ void DisplayWindow::render() {
 			captureMouse(false);
 		}
 
+		updateBuffer();
+
 		ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, { 0, 0 });
 		if (ImGui::ImageButton("##viewport", (ImTextureID)scene.render(), ImVec2(scene.Width / 2.0f, scene.Height / 2.0f), ImVec2(0, 1), ImVec2(1, 0))) {
 			captureMouse(true);
@@ -102,7 +104,7 @@ void DisplayWindow::render() {
 		if (ImGui::BeginPopup("##options_context")) {
 			ImGui::Checkbox("Wireframe", &scene.wireframe);
 			ImGui::SliderFloat("FOV", &scene.fov, 30.0f, 150.0f, "%.0f");
-
+			
 			ImGui::EndPopup();
 		}
 		ImGui::PopStyleVar();
@@ -182,6 +184,22 @@ void DisplayWindow::updateBuffer() {
 	auto& ppu = context.gb.ppu;
 
 	ppu.render([&](Framebuffer& buffer)  {
+		if (true) {
+			for (size_t y = 0; y < 144; ++y) {
+				for (size_t p = 0; p < 160; ++p) {
+					u8 color = buffer.pixels[y * 160 + p].color;
+
+					u8 back = 1;
+					u8 front = (color != 0) ? color + 1 : 0;
+					
+					//scene.screen.models[0].volume[(d * 160 * 144) (143 - y) * 160 + p] = back;
+					for (u8 d = 1; d < 9; ++d) 
+						scene.screen.models[0].volume[(d * 160 * 144) + (143 - y) * 160 + p] = front;
+				}
+			}
+			scene.screen.models[0].update();
+		}
+
 		if (useCG) {
 			renderCG(buffer);
 		}
