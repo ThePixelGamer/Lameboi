@@ -7,10 +7,6 @@
 
 #include "APUWindow.h"
 
-#include "ppu/BGMapWindow.h"
-#include "ppu/OAMWindow.h"
-#include "ppu/TileDataWindow.h"
-
 class Gameboy;
 
 struct UI {
@@ -23,10 +19,6 @@ struct UI {
 	ui::SettingsWindow settings;
 	ui::MainMenu menubar;
 
-	ui::BGMapWindow bgmapWindow;
-	ui::TileDataWindow tileDataWindow;
-	ui::OAMWindow oamWindow;
-
 	ui::APUWindow apuWindow;
 
 	UI(Gameboy& gb) :
@@ -35,9 +27,6 @@ struct UI {
 		debug(gb),
 		settings(gb),
 		menubar(*this),
-		bgmapWindow(gb),
-		tileDataWindow(gb),
-		oamWindow(gb),
 		apuWindow(gb) {
 
 	}

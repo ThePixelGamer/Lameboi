@@ -220,9 +220,9 @@ struct Metainfo {
 	std::array<Palette, 8 * 2> palettes;
 	std::array<TileID, 16 * 24 * 2> tiles;
 	std::array<MapData, 32 * 32 * 2> maps;
-	std::array<Sprite, 40> sprites;
 
 	std::array<Line, 144> lines;
+	std::array<Sprite, 40> sprites;
 };
 
 struct Framebuffer {
@@ -421,10 +421,10 @@ public:
 	Manifest& getManifest() { return getManifest(inBios); }
 	Manifest& getManifest(bool boot) { return boot ? bios : game; }
 
-	void dumpTile(u8* out, const size_t outW, const u16 tileOffset, bool altBank = false);
+	std::array<u8, 16> dumpTile(const u16 tileOffset, bool altBank = false);
 
 	Framebuffer& getFrontBuffer() { return buffers[frontIdx]; }
-	void render(std::function<void (Framebuffer&)> callback);
+	Framebuffer* getNextBuffer();
 
 private:
 	void scanline();

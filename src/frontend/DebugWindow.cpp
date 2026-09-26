@@ -9,12 +9,18 @@ namespace ui {
 DebugWindow::DebugWindow(Gameboy& gb) :
 	gb(gb),
 	mem(gb),
-	breakpoints(gb)
+	breakpoints(gb),
+	vram(gb)
 {}
 
 void DebugWindow::render() {
+	vram.render();
+
 	if (show) {
 		ImGui::Begin("Debugger", &show);
+		
+		mem.render();
+		breakpoints.render();
 
 		if (ImGui::Button("Show CPU"))
 			showCPU = !showCPU;
@@ -41,8 +47,6 @@ void DebugWindow::render() {
 			*/
 			ImGui::End();
 		}
-		mem.render();
-		breakpoints.render();
 
 		if (ImGui::Button("Step 1")) {
 			gb.debug.step();

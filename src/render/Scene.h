@@ -10,7 +10,7 @@
 
 class Scene {
 private:
-	GLuint framebuffer, textureColorbuffer;
+	GLuint framebuffer, textureColorbuffer, rbo;
 	ImageTexture boxTexture;
 	VoxelVolume deer { "deer.vox"};
 	VoxelVolume trex { "T-Rex.vox"};
@@ -26,14 +26,20 @@ private:
 	float yaw = -90.0f, pitch = 0.0f;
 
 public:
-	const GLsizei Width = 1080, Height = 1080;
+	GLsizei Width = 1080, Height = 1080;
 
 	bool wireframe = false;
 	float fov = 70.0f;
-	VoxelVolume screen { 160, 144, 9 };
+	VoxelVolume screen { 160, 144, 8 };
+
+	enum InputAction {
+		None,
+		UnlockMouse,
+		OpenContextMenu
+	};
 
 	Scene();
 
-	GLuint render();
-	bool handleInput(bool& avoidReset);
+	GLuint render(GLsizei Width = 1080, GLsizei Height = 1080);
+	InputAction handleInput(bool& avoidReset);
 };

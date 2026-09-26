@@ -97,10 +97,6 @@ void MainMenu::renderGameboy() {
 			gb.debug.running = !gb.debug.running;
 		}
 
-		if (ImGui::MenuItem("Show Viewport", nullptr, app.display.showScene)) {
-			app.display.showScene = !app.display.showScene;
-		}
-
 		if (ImGui::MenuItem("Settings", nullptr, app.settings.show)) {
 			app.settings.show = true;
 		}
@@ -111,18 +107,7 @@ void MainMenu::renderGameboy() {
 
 void MainMenu::renderDebug() {
 	if (ImGui::BeginMenu("Debug")) {
-		if (ImGui::MenuItem("Show Debugger", nullptr, app.debug.show)) {
-			app.debug.show = true;
-			gb.debug.pause();
-		}
-
-		if (ImGui::BeginMenu("PPU")) {
-			ImGui::MenuItem("Background Map", nullptr, &app.bgmapWindow.show);
-			ImGui::MenuItem("Tile Data", nullptr, &app.tileDataWindow.show);
-			ImGui::MenuItem("OAM Sprites", nullptr, &app.oamWindow.show);
-
-			ImGui::EndMenu();
-		}
+		app.debug.renderMenu();
 
 		ImGui::MenuItem("APU", nullptr, &app.apuWindow.show);
 
@@ -145,8 +130,9 @@ void MainMenu::render() {
 		ImGui::EndMainMenuBar();
 	}
 
-	ImGui::ShowDemoWindow(&showDemoWindow);
-	ImPlot::ShowDemoWindow(&showPlotDemoWindow);
+	
+	if (showDemoWindow) ImGui::ShowDemoWindow(&showDemoWindow);
+	if (showPlotDemoWindow) ImPlot::ShowDemoWindow(&showPlotDemoWindow);
 }
 
 } // namespace ui

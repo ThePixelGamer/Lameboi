@@ -30,7 +30,15 @@ class DisplayWindow {
 	u64 instrCount = 0;
 
 public:
-	bool showScene = true;
+	enum class Mode {
+		Display = 1 << 0,
+		Scene = 1 << 1,
+		SideBySide = Display | Scene | 0 << 2,
+		DisplayOnTop = Display | Scene | 1 << 2,
+		SceneOnTop = Display | Scene | 2 << 2,
+	} mode = Mode::SideBySide;
+
+	bool fullscreen = false;
 	bool integerScaling = false;
 	bool useCG = false;
 	// maybe move this into Input?
@@ -40,9 +48,11 @@ public:
 	void render();
 
 private:
+	void contextMenu();
 	void updateBuffer();
 
 	void renderCG(Framebuffer& buffer);
+	void renderScene(Framebuffer& buffer);
 
 	void captureMouse(bool hasMouse);
 };

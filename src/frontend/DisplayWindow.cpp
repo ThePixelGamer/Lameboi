@@ -9,6 +9,10 @@
 
 namespace ui {
 
+bool operator&(DisplayWindow::Mode a, DisplayWindow::Mode b) {
+	return (int)a & (int)b;
+}
+
 DisplayWindow::DisplayWindow(UI& context) :
 	context(context),
 	display() {
@@ -75,7 +79,7 @@ void DisplayWindow::render() {
 		data->DesiredSize.y = (m * Display::H) + beforeImage->y + padding.y;
 	};
 
-	ImVec2 windowMinSize = oldCursor + ImVec2(Display::W, Display::H) + ImGui::GetStyle().WindowPadding;
+	//ImVec2 windowMinSize = oldCursor + ImVec2(Display::W, Display::H) + ImGui::GetStyle().WindowPadding;
 	//ImGui::SetNextWindowSizeConstraints(windowMinSize, ImVec2(FLT_MAX, FLT_MAX), square, &oldCursor);
 
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, { 0, 0 });
@@ -85,136 +89,148 @@ void DisplayWindow::render() {
 	ImGui::Spacing();
 	ImGui::SetCursorPosX(ImGui::GetStyle().WindowPadding.x);
 
-	if (showScene) {
-		if (inFocus && !scene.handleInput(avoidReset)) {
+	if (mode & Mode::Scene && inFocus) {
+		Scene::InputAction action = scene.handleInput(avoidReset);
+		
+		if (action == Scene::OpenContextMenu) {
+			ImGui::OpenPopup("display_context_popup");
 			captureMouse(false);
 		}
+		else if (action == Scene::UnlockMouse) {
+			captureMouse(false);
+		}
+	}
 
-		updateBuffer();
+	if (ImGui::Button("Stop")) {
+		context.gb.stop();
+	}
 
+	// Update FPS counter
+	// todo: run on a separate thread to not be affected by UI performance?
+	using namespace std::chrono_literals;
+	auto perf = std::chrono::duration_cast<std::chrono::seconds>(clock::now() - perfTimer);
+	if (perf >= 1s) {
+		// add seconds to existing time_point to avoid missing the next second (handle lost remainder from duration_cast)
+		perfTimer += perf;
+		if (gb.ppu.framesPresented) {
+			// take avg in case this takes longer than 1 second to run again
+			fps = gb.ppu.framesPresented / perf.count();
+			gb.ppu.framesPresented = 0;
+		}
+		else {
+			fps = 0;
+		}
+
+		instrCount = gb.cpu.instrCount;
+		gb.cpu.instrCount = 0;
+	}
+
+	// Not a fan of this
+	std::string status{};
+	if (gb.emuRun) {
+		status = (gb.debug.running) ? fmt::format("{} ips {} fps", instrCount, fps) : "Paused";
+	}
+	
+	if (!status.empty()) {
+		ImGui::SameLine();
+		ImGui::SetCursorPosX(ImGui::GetCursorPosX() + ImMax(0.0f, ImGui::GetContentRegionAvail().x - ImGui::CalcTextSize(status.c_str()).x - ImGui::GetStyle().ItemInnerSpacing.x));
+		ImGui::Text("%s", status.c_str());
+	}
+
+	oldCursor = ImGui::GetCursorPos();
+
+	// Inputs
+	focused = ImGui::IsWindowFocused();
+
+	// Display
+	updateBuffer();
+
+	ImVec2 sceneSize = ImGui::GetContentRegionAvail();
+	ImVec2 displaySize = ImGui::GetContentRegionAvail();
+	if (mode == Mode::SideBySide) {
+		sceneSize.x /= 2;
+		displaySize.x /= 2;
+	}
+
+	if (mode & Mode::Scene) {
 		ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, { 0, 0 });
-		if (ImGui::ImageButton("##viewport", (ImTextureID)scene.render(), ImVec2(scene.Width / 2.0f, scene.Height / 2.0f), ImVec2(0, 1), ImVec2(1, 0))) {
+		if (ImGui::ImageButton("##viewport", (ImTextureID)scene.render(sceneSize.x, sceneSize.y), sceneSize, ImVec2(0, 1), ImVec2(1, 0))) {
 			captureMouse(true);
 		}
+		ImGui::PopStyleVar();
 
-		if (ImGui::Button("Options")) {
-			ImGui::OpenPopup("##options_context");
-		}
-
-		if (ImGui::BeginPopup("##options_context")) {
+		if (ImGui::BeginPopupContextItem("scene_ctx")) {
 			ImGui::Checkbox("Wireframe", &scene.wireframe);
 			ImGui::SliderFloat("FOV", &scene.fov, 30.0f, 150.0f, "%.0f");
 			
+			ImGui::Separator();
+			contextMenu();
+			
 			ImGui::EndPopup();
 		}
-		ImGui::PopStyleVar();
 	}
-	else {
-		if (ImGui::Button("Stop")) {
-			context.gb.stop();
-		}
 
-		ImGui::SameLine(); 
+	if (mode == Mode::SideBySide) {
+		ImGui::SameLine();
+	}
 
-		if (ImGui::Checkbox("Use Custom Graphics", &useCG)) {
-			gb.ppu.redraw = true;
-		}
-
-		// Update FPS counter
-		// todo: run on a separate thread to not be affected by UI performance?
-		using namespace std::chrono_literals;
-		auto perf = std::chrono::duration_cast<std::chrono::seconds>(clock::now() - perfTimer);
-		if (perf >= 1s) {
-			// add seconds to existing time_point to avoid missing the next second (handle lost remainder from duration_cast)
-			perfTimer += perf;
-			if (gb.ppu.framesPresented) {
-				// take avg in case this takes longer than 1 second to run again
-				fps = gb.ppu.framesPresented / perf.count();
-				gb.ppu.framesPresented = 0;
-			}
-			else {
-				fps = 0;
+	if (mode & Mode::Display) {
+		display.render(std::max(std::min(displaySize.x / Display::W, displaySize.y / Display::H), 1.0f));
+	
+		if (ImGui::BeginPopupContextItem("display_ctx")) {
+			if (ImGui::MenuItem("Use Custom Graphics", nullptr, &useCG)) {
+				gb.ppu.redraw = true;
 			}
 
-			instrCount = gb.cpu.instrCount;
-			gb.cpu.instrCount = 0;
+			ImGui::Separator();
+			contextMenu();
+			
+			ImGui::EndPopup();
 		}
-
-		// Not a fan of this
-		std::string status{};
-		if (gb.emuRun) {
-			status = (gb.debug.running) ? fmt::format("{} ips {} fps", instrCount, fps) : "Paused";
-		}
-		
-		if (!status.empty()) {
-			ImGui::SameLine();
-			ImGui::SetCursorPosX(ImGui::GetCursorPosX() + ImMax(0.0f, ImGui::GetContentRegionAvail().x - ImGui::CalcTextSize(status.c_str()).x - ImGui::GetStyle().ItemInnerSpacing.x));
-			ImGui::Text("%s", status.c_str());
-		}
-
-		oldCursor = ImGui::GetCursorPos();
-
-		// Inputs
-		focused = ImGui::IsWindowFocused();
-
-		// Display
-		updateBuffer();
-
-		ImVec2 availSize = ImGui::GetContentRegionAvail();
-		display.render(std::max(std::min(availSize.x / Display::W, availSize.y / Display::H), 1.0f));
-
-		// handle right click on image
-		ImGui::OpenPopupOnItemClick("display_context_popup", ImGuiMouseButton_Right);
 	}
 
-	if (ImGui::BeginPopupContextItem("display_context_popup")) {
-		if (ImGui::Selectable("Fullscreen"))
-			;
-		if (ImGui::Selectable("Maintain aspect ratio"))
-			;
-		if (ImGui::Selectable("Maintain square ratio"))
-			;
-		ImGui::EndPopup();
-	}
 
 	ImGui::End();
+}
+
+void DisplayWindow::contextMenu() {
+	auto& gb = context.gb;
+
+	if (ImGui::MenuItem("Show Scene", nullptr, mode & Mode::Scene)) {
+		gb.ppu.redraw = true;
+	}
+	if (ImGui::MenuItem("Fullscreen", nullptr, &fullscreen)) {
+		SDL_SetWindowFullscreenMode(SDL_GL_GetCurrentWindow(), nullptr);
+		SDL_SetWindowFullscreen(SDL_GL_GetCurrentWindow(), fullscreen);
+	}
 }
 
 void DisplayWindow::updateBuffer() {
 	auto& ppu = context.gb.ppu;
 
-	ppu.render([&](Framebuffer& buffer)  {
-		if (true) {
-			for (size_t y = 0; y < 144; ++y) {
-				for (size_t p = 0; p < 160; ++p) {
-					u8 color = buffer.pixels[y * 160 + p].color;
+	Framebuffer* buffer = ppu.getNextBuffer();
+	if (buffer) {
+		if (mode & Mode::Scene) {
+			renderScene(*buffer);
+		}
 
-					u8 back = 1;
-					u8 front = (color != 0) ? color + 1 : 0;
-					
-					//scene.screen.models[0].volume[(d * 160 * 144) (143 - y) * 160 + p] = back;
-					for (u8 d = 1; d < 9; ++d) 
-						scene.screen.models[0].volume[(d * 160 * 144) + (143 - y) * 160 + p] = front;
+		if (mode & Mode::Display) {
+			if (useCG) {
+				renderCG(*buffer);
+			}
+			else {
+				for (size_t p = 0; p < (display.W * display.H); ++p) {
+					const Color pixel = buffer->pixels[p].getColor(ppu.model);
+
+					size_t idx = p * 4;
+					display.data()[idx] = pixel.r;
+					display.data()[idx + 1] = pixel.g;
+					display.data()[idx + 2] = pixel.b;
+					display.data()[idx + 3] = pixel.a;
 				}
 			}
-			scene.screen.models[0].update();
 		}
-
-		if (useCG) {
-			renderCG(buffer);
-		}
-		else {
-			for (size_t p = 0; p < (display.W * display.H); ++p) {
-				const Color pixel = buffer.pixels[p].getColor(ppu.model);
-
-				size_t idx = p * 4;
-				display.data()[idx] = pixel.r;
-				display.data()[idx + 1] = pixel.g;
-				display.data()[idx + 2] = pixel.b;
-				display.data()[idx + 3] = pixel.a;
-			}
-		}
-	});
+	}
 }
 
 void DisplayWindow::renderCG(Framebuffer& buffer) {
@@ -309,6 +325,22 @@ void DisplayWindow::renderCG(Framebuffer& buffer) {
 	}
 }
 
+void DisplayWindow::renderScene(Framebuffer& buffer) {
+	for (size_t y = 0; y < 144; ++y) {
+		for (size_t p = 0; p < 160; ++p) {
+			u8 color = buffer.pixels[y * 160 + p].color;
+
+			u8 back = 1;
+			u8 front = (color != 0) ? color + 1 : 0;
+			
+			//scene.screen.models[0].volume[(d * 160 * 144) (143 - y) * 160 + p] = back;
+			for (u8 d = 0; d < 8; ++d) 
+				scene.screen.models[0].volume[(d * 160 * 144) + (143 - y) * 160 + p] = front;
+		}
+	}
+	scene.screen.models[0].update();
+}
+
 void DisplayWindow::captureMouse(bool hasMouse) {
 	if (hasMouse) {
 		ImGui::GetIO().ConfigFlags |= ImGuiConfigFlags_NoMouse;
@@ -318,7 +350,7 @@ void DisplayWindow::captureMouse(bool hasMouse) {
 		ImGui::GetIO().ConfigFlags &= ~ImGuiConfigFlags_NoMouse;
 	}
 
-	SDL_SetWindowRelativeMouseMode(NULL, hasMouse);
+	SDL_SetWindowRelativeMouseMode(SDL_GL_GetCurrentWindow(), hasMouse);
 	inFocus = hasMouse;
 }
 

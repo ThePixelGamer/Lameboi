@@ -1,5 +1,6 @@
 #include "MainWindow.h"
 
+#include <imgui.h>
 #include <imgui_internal.h>
 
 bool UI::render() {
@@ -7,7 +8,7 @@ bool UI::render() {
 	auto dockid = ImGui::DockSpaceOverViewport(ImGui::GetID("lameboi"), nullptr, flags);
 	auto centralNode = ImGui::DockBuilderGetCentralNode(dockid);
 	centralNode->SetLocalFlags(centralNode->LocalFlags | ImGuiDockNodeFlags_NoUndocking | ImGuiDockNodeFlags_NoTabBar);
-	ImGui::SetNextWindowDockID(centralNode->ID, ImGuiCond_Once);
+	ImGui::SetNextWindowDockID(centralNode->ID, ImGuiCond_Always);
 	
 	display.render();
 	menubar.render();
@@ -15,9 +16,6 @@ bool UI::render() {
 	// Gameboy Debug Stuff
 	debug.render();
 	settings.render();
-	bgmapWindow.render();
-	tileDataWindow.render();
-	oamWindow.render();
 	apuWindow.render();
 
 	return requestExit;

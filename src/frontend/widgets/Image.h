@@ -66,8 +66,10 @@ public:
         ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, { 0, 0 });
 		auto texid = tex.as<ImTextureID>();
 		std::string imageid = std::format("##render{}", texid);
-        bool clicked = ImGui::ImageButton(imageid.c_str(), texid, ImVec2(adjWidth, adjHeight), u, v);
-        ImGui::PopStyleVar();
+        
+		bool clicked = ImGui::ImageButton(imageid.c_str(), texid, ImVec2(adjWidth, adjHeight), u, v);
+        
+		ImGui::PopStyleVar();
 
         // exit early if we're rendering a simple image
         if (!grid && !callback) {
@@ -114,13 +116,13 @@ public:
                 ImGui::EndTooltip();
             }
         }
+		
+		if (clicked && callback.click) {
+            callback.click(region_x, region_y);
+        }
 
         if (callback.extra) {
             callback.extra(tl, br, zoom);
-        }
-
-        if (clicked && callback.click) {
-            callback.click(region_x, region_y);
         }
     }
 
@@ -142,7 +144,7 @@ public:
 
 	u8& operator[](size_t i) {
 		dirty = true;
-		return pixels[i];
+		return pixels.at(i);
 	}
 };
 

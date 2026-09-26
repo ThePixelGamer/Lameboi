@@ -734,7 +734,7 @@ bool PPU::_nextLine() {
 	return false;
 }
 
-void PPU::render(std::function<void (Framebuffer&)> callback) {
+Framebuffer* PPU::getNextBuffer() {
 	bool update = spare.load(std::memory_order_relaxed).update;
 	if (update) {
 		frontIdx = spare.exchange({frontIdx, false}, std::memory_order_acq_rel).idx;
@@ -743,27 +743,19 @@ void PPU::render(std::function<void (Framebuffer&)> callback) {
 	
 	if (redraw) {
 		redraw = false;
-		callback(buffers[frontIdx]);
+		return &buffers[frontIdx];
 	}
+	
+	return nullptr;
 }
 
-void PPU::dumpTile(u8* out, const size_t outW, const u16 tile, bool altBank) {
+std::array<u8, 16> PPU::dumpTile(const u16 tile, bool altBank) {
 	assert(tile < 0x180);
-
-	for (u8 y = 0; y < T; ++y) {
-		size_t offset = (altBank * VRAM_SIZE) + (tile * 0x10) + (y * 2);
-
-		for (u8 x = 0; x < T; ++x) {
-			u8 bit = T - x - 1;
-			u8 rawColor = (getBit(vram[offset + 1], bit) << 1) | getBit(vram[offset], bit);
-			u8 color = 0x55 * (3 - rawColor);
-
-			auto rgb = &out[y * outW + x * 4];
-			rgb[0] = color;
-			rgb[1] = color;
-			rgb[2] = color;
-		}
-	}
+	
+	std::array<u8, 16> tileOut;
+	size_t offset = (altBank * VRAM_SIZE) + (tile * 0x10);
+	std::memcpy(tileOut.data(), &vram[offset], sizeof(tileOut));
+	return tileOut;
 }
 
 /// Custom Graphics

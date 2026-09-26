@@ -53,10 +53,9 @@ public:
 	VoxelTexture texture;
 	glm::vec3 scale;
 
-	VoxelModel(u32 w, u32 h, u32 d) : texture(w, h, d) {
+	VoxelModel(u32 w, u32 h, u32 d, float factor = 10.0f) : texture(w, h, d) {
 		volume.resize(w * h * d);
-		float m = std::max(w, std::max(h, d));
-		scale = glm::vec3(w / 4.0f, h / 4.0f, d / 4.0f);
+		scale = glm::vec3(w / factor, h / factor, d / factor);
 	}
 
 	void update() {
